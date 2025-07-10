@@ -1,0 +1,32 @@
+GitHub上传简单步骤
+==================
+
+1. 首先在GitHub网站创建仓库：
+   - 访问 https://github.com
+   - 点击 "New repository"
+   - 仓库名：AIDCIS2-AIDCIS3
+   - 不要勾选任何初始化选项
+   - 点击 "Create repository"
+
+2. 复制仓库URL（类似这样）：
+   https://github.com/YOUR-USERNAME/AIDCIS2-AIDCIS3.git
+
+3. 在项目目录中运行以下命令：
+
+# 添加远程仓库（替换URL为您的实际URL）
+git remote add origin https://github.com/YOUR-USERNAME/AIDCIS2-AIDCIS3.git
+
+# 推送到GitHub
+git push -u origin main
+
+4. 如果要求认证，输入您的GitHub用户名和密码（或Personal Access Token）
+
+5. 等待上传完成（可能需要几分钟，因为有Git LFS文件）
+
+当前项目状态：
+- ✅ 所有文件已整理
+- ✅ Git LFS已配置
+- ✅ 本地Git仓库已准备好
+- ⏳ 只需要推送到GitHub
+
+如果遇到认证问题，建议使用GitHub Desktop，它会自动处理认证。
