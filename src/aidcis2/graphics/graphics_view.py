@@ -24,6 +24,7 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
     hole_clicked = Signal(HoleData)
     hole_hovered = Signal(HoleData)
     view_changed = Signal()
+    view_mode_changed = Signal(str)  # 视图模式改变信号
     
     def __init__(self, parent=None):
         """初始化视图"""
@@ -36,6 +37,9 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         # 创建场景
         self.scene = QGraphicsScene(self)
         self.setScene(self.scene)
+        
+        # 视图模式管理
+        self.current_view_mode = "macro"  # macro(宏观) 或 micro(微观)
         
         # 性能优化设置
         self.setRenderHint(QPainter.Antialiasing, False)  # 禁用抗锯齿提升性能
@@ -323,5 +327,64 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
                     child.move(10, 10)
                     child.raise_()  # 确保在最上层
                     break
+    
+    def switch_to_macro_view(self):
+        """切换到宏观区域视图"""
+        if self.current_view_mode == "macro":
+            return
+            
+        self.current_view_mode = "macro"
+        self.update_view_display()
+        
+        # 适应视图显示全部内容
+        self.fit_in_view_all()
+        
+        # 发射信号
+        self.view_mode_changed.emit("macro")
+        self.logger.info("切换到宏观区域视图")
+        
+    def switch_to_micro_view(self):
+        """切换到微观管孔视图"""
+        if self.current_view_mode == "micro":
+            return
+            
+        self.current_view_mode = "micro"
+        self.update_view_display()
+        
+        # 放大到详细视图
+        self.scale(1.5, 1.5)
+        
+        # 发射信号
+        self.view_mode_changed.emit("micro")
+        self.logger.info("切换到微观管孔视图")
+        
+    def update_view_display(self):
+        """根据当前视图模式更新显示"""
+        if not self.hole_items:
+            return
+            
+        if self.current_view_mode == "macro":
+            # 宏观视图：显示整体区域分布，适当调整显示密度
+            for hole_id, item in self.hole_items.items():
+                item.setVisible(True)
+                # 可以考虑在宏观视图中隐藏一些细节信息
+                if hasattr(item, 'set_detail_level'):
+                    item.set_detail_level("low")
+                    
+        elif self.current_view_mode == "micro":
+            # 微观视图：显示详细的管孔信息
+            for hole_id, item in self.hole_items.items():
+                item.setVisible(True)
+                # 显示详细信息
+                if hasattr(item, 'set_detail_level'):
+                    item.set_detail_level("high")
+                    
+        # 刷新视图
+        self.scene.update()
+        self.viewport().update()
+        
+    def get_current_view_mode(self):
+        """获取当前视图模式"""
+        return self.current_view_mode
 
 

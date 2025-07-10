@@ -13,6 +13,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 sys.path.insert(0, os.path.join(current_dir, 'modules'))
 sys.path.insert(0, os.path.join(current_dir, 'hardware'))
+sys.path.insert(0, os.path.join(current_dir, 'models'))
 
 from main_window import MainWindow
 from modules.models import db_manager

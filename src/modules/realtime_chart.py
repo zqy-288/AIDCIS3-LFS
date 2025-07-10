@@ -132,28 +132,49 @@ class RealtimeChart(QWidget):
 
         layout.addWidget(status_group)
 
+        # 添加分隔线用于清晰区分状态区域和监测区域
+        separator_line = QWidget()
+        separator_line.setFixedHeight(3)
+        separator_line.setStyleSheet("background-color: #ddd; margin: 5px 0px;")
+        layout.addWidget(separator_line)
+
         # 双面板区域 - 改为垂直布局（A在上，B在下）
         splitter = QSplitter(Qt.Vertical)
+        splitter.setHandleWidth(8)  # 设置分隔器手柄宽度
+        splitter.setStyleSheet("""
+            QSplitter::handle {
+                background-color: #cccccc;
+                border: 1px solid #999999;
+                border-radius: 3px;
+                margin: 2px;
+            }
+            QSplitter::handle:hover {
+                background-color: #bbbbbb;
+            }
+        """)
 
-        # 面板A: 管孔直径数据 - 优化样式，增大字体
-        panel_a = QGroupBox("面板A - 光谱共焦传感器数据")
+        # 面板A: 孔径监测图区域 - 明确标题和边框
+        panel_a = QGroupBox("孔径监测图")
         panel_a.setStyleSheet("""
             QGroupBox {
                 font-weight: bold;
-                font-size: 15px;
-                border: 2px solid #4CAF50;
-                border-radius: 10px;
-                margin-top: 12px;
-                padding-top: 12px;
+                font-size: 16px;
+                border: 3px solid #4CAF50;
+                border-radius: 12px;
+                margin-top: 15px;
+                padding-top: 15px;
                 background-color: #f8fff8;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
-                left: 15px;
-                padding: 0 10px 0 10px;
+                left: 20px;
+                padding: 5px 15px 5px 15px;
                 color: #2E7D32;
                 background-color: white;
-                font-size: 15px;
+                font-size: 16px;
+                font-weight: bold;
+                border: 2px solid #4CAF50;
+                border-radius: 8px;
             }
         """)
         panel_a_layout = QHBoxLayout(panel_a)  # 水平布局：图表在左，异常窗口在右
@@ -161,6 +182,29 @@ class RealtimeChart(QWidget):
         # 面板A左侧：图表区域（matplotlib）
         chart_widget = QWidget()
         chart_layout = QVBoxLayout(chart_widget)
+        
+        # 添加孔径监测图的说明信息
+        chart_info_widget = QWidget()
+        chart_info_layout = QHBoxLayout(chart_info_widget)
+        chart_info_layout.setContentsMargins(10, 5, 10, 5)
+        
+        chart_info_label = QLabel("光谱共焦传感器孔径监测数据")
+        chart_info_label.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                font-weight: bold;
+                color: #2E7D32;
+                background-color: #e8f5e8;
+                padding: 8px 15px;
+                border: 1px solid #4CAF50;
+                border-radius: 6px;
+            }
+        """)
+        
+        chart_info_layout.addWidget(chart_info_label)
+        chart_info_layout.addStretch()
+        
+        chart_layout.addWidget(chart_info_widget)
 
         # 创建matplotlib图形，优化尺寸以最大化显示区域
         self.figure = Figure(figsize=(24, 12), dpi=100)
@@ -173,9 +217,10 @@ class RealtimeChart(QWidget):
 
         # 创建子图 - 增大字体
         self.ax = self.figure.add_subplot(111)
-        self.ax.set_xlabel('深度 (mm)', fontsize=14, fontweight='bold')
-        self.ax.set_ylabel('直径 (mm)', fontsize=14, fontweight='bold')
-        self.ax.set_title('管孔直径实时监测', fontsize=16, fontweight='bold', pad=15)
+        self.ax.set_xlabel('探头深度 (mm)', fontsize=14, fontweight='bold')
+        self.ax.set_ylabel('孔径直径 (mm)', fontsize=14, fontweight='bold')
+        self.ax.set_title('实时孔径监测数据', fontsize=16, fontweight='bold', pad=20,
+                         bbox=dict(boxstyle="round,pad=0.3", facecolor="#e8f5e8", edgecolor="#4CAF50"))
         self.ax.grid(True, alpha=0.3)
 
         # 设置坐标轴刻度字体大小
@@ -249,28 +294,54 @@ class RealtimeChart(QWidget):
         panel_a_layout.addWidget(right_panel)
         splitter.addWidget(panel_a)
 
-        # 面板B: 内窥镜图像 - 优化样式，增大字体
-        panel_b = QGroupBox("面板B - 内窥镜实时图像")
+        # 面板B: 内窥镜展开图区域 - 明确标题和边框
+        panel_b = QGroupBox("内窥镜展开图")
         panel_b.setStyleSheet("""
             QGroupBox {
                 font-weight: bold;
-                font-size: 15px;
-                border: 2px solid #2196F3;
-                border-radius: 10px;
-                margin-top: 12px;
-                padding-top: 12px;
+                font-size: 16px;
+                border: 3px solid #2196F3;
+                border-radius: 12px;
+                margin-top: 15px;
+                padding-top: 15px;
                 background-color: #f0f8ff;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
-                left: 15px;
-                padding: 0 10px 0 10px;
+                left: 20px;
+                padding: 5px 15px 5px 15px;
                 color: #1976D2;
                 background-color: white;
-                font-size: 15px;
+                font-size: 16px;
+                font-weight: bold;
+                border: 2px solid #2196F3;
+                border-radius: 8px;
             }
         """)
         panel_b_layout = QVBoxLayout(panel_b)
+        
+        # 添加内窥镜展开图的说明信息
+        endoscope_info_widget = QWidget()
+        endoscope_info_layout = QHBoxLayout(endoscope_info_widget)
+        endoscope_info_layout.setContentsMargins(10, 5, 10, 5)
+        
+        info_label = QLabel("内窥镜实时展开图像显示区域")
+        info_label.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                font-weight: bold;
+                color: #1976D2;
+                background-color: #e3f2fd;
+                padding: 8px 15px;
+                border: 1px solid #2196F3;
+                border-radius: 6px;
+            }
+        """)
+        
+        endoscope_info_layout.addWidget(info_label)
+        endoscope_info_layout.addStretch()
+        
+        panel_b_layout.addWidget(endoscope_info_widget)
 
         self.endoscope_view = EndoscopeView()
         panel_b_layout.addWidget(self.endoscope_view)

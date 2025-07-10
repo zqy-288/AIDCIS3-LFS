@@ -1,0 +1,26 @@
+{
+  "generated_at": "2025-07-11T00:53:26.094763",
+  "description": "报告生成系统测试数据",
+  "files": {
+    "workpiece_samples": 3,
+    "hole_data_samples": 3,
+    "measurement_samples": 4,
+    "csv_files": [
+      "basic_inspection_data.csv",
+      "detailed_measurement_data.csv",
+      "inspection_summary.csv"
+    ],
+    "image_files": [
+      "sample_envelope_chart.png",
+      "sample_endoscope_image.png",
+      "sample_statistics_chart.png"
+    ],
+    "database_file": "mock_database_data.json"
+  },
+  "statistics": {
+    "total_workpieces": 3,
+    "total_holes": 350,
+    "total_measurement_points": 4000,
+    "total_files": 7
+  }
+}

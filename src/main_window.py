@@ -30,6 +30,10 @@ from aidcis2.dxf_parser import DXFParser
 from aidcis2.data_adapter import DataAdapter
 from aidcis2.graphics.graphics_view import OptimizedGraphicsView
 
+# 导入产品管理模块
+from modules.product_selection import ProductSelectionDialog
+from product_model import get_product_manager
+
 
 class MainWindow(QMainWindow):
     """
@@ -53,8 +57,12 @@ class MainWindow(QMainWindow):
         
         # AIDCIS2核心组件
         self.dxf_parser = DXFParser()
-        self.status_manager = StatusManager()
         self.data_adapter = DataAdapter()
+        self.status_manager = StatusManager()
+        
+        # 产品管理
+        self.product_manager = get_product_manager()
+        self.current_product = None
         
         # 数据
         self.hole_collection: Optional[HoleCollection] = None
@@ -141,6 +149,22 @@ class MainWindow(QMainWindow):
         # 添加标注工具选项卡（三级页面 3.2）
         self.annotation_tab = DefectAnnotationTool()
         self.tab_widget.addTab(self.annotation_tab, "缺陷标注")
+        
+        # 添加报告生成选项卡
+        try:
+            from modules.report_manager_widget import ReportManagerWidget
+            self.report_tab = ReportManagerWidget()
+            self.tab_widget.addTab(self.report_tab, "📊 报告生成")
+            
+            # 连接报告生成信号
+            self.report_tab.report_generated.connect(self.on_report_generated)
+        except ImportError as e:
+            print(f"⚠️ 报告生成模块导入失败: {e}")
+            # 创建占位符选项卡
+            placeholder = QWidget()
+            placeholder_layout = QVBoxLayout(placeholder)
+            placeholder_layout.addWidget(QLabel("报告生成功能需要安装额外依赖包"))
+            self.tab_widget.addTab(placeholder, "📊 报告生成")
 
         # 设置默认选项卡为主检测视图
         self.tab_widget.setCurrentIndex(0)
@@ -194,11 +218,11 @@ class MainWindow(QMainWindow):
         toolbar_font = QFont()
         toolbar_font.setPointSize(11)
 
-        # 文件操作按钮
-        self.load_dxf_btn = QPushButton("加载DXF文件")
-        self.load_dxf_btn.setMinimumSize(140, 45)  # 增加按钮大小
-        self.load_dxf_btn.setFont(toolbar_font)
-        layout.addWidget(self.load_dxf_btn)
+        # 产品选择按钮
+        self.product_select_btn = QPushButton("产品型号选择")
+        self.product_select_btn.setMinimumSize(140, 45)  # 增加按钮大小
+        self.product_select_btn.setFont(toolbar_font)
+        layout.addWidget(self.product_select_btn)
 
         layout.addSpacing(20)
 
@@ -463,6 +487,10 @@ class MainWindow(QMainWindow):
         legend_frame = self.create_status_legend()
         layout.addWidget(legend_frame)
 
+        # 层级化显示控制按钮
+        view_controls_frame = self.create_view_controls()
+        layout.addWidget(view_controls_frame)
+
         # 创建优化的图形视图
         self.graphics_view = OptimizedGraphicsView()
         self.graphics_view.setFrameStyle(QFrame.StyledPanel)
@@ -471,6 +499,7 @@ class MainWindow(QMainWindow):
         self.graphics_view.hole_clicked.connect(self.on_hole_selected)
         self.graphics_view.hole_hovered.connect(self.on_hole_hovered)
         self.graphics_view.view_changed.connect(self.on_view_changed)
+        self.graphics_view.view_mode_changed.connect(self.on_view_mode_changed)
 
         layout.addWidget(self.graphics_view)
 
@@ -530,6 +559,73 @@ class MainWindow(QMainWindow):
 
         layout.addStretch()
         return legend_frame
+
+    def create_view_controls(self) -> QWidget:
+        """创建层级化显示控制按钮"""
+        control_frame = QFrame()
+        control_frame.setFrameStyle(QFrame.StyledPanel)
+        control_frame.setMaximumHeight(50)
+        
+        layout = QHBoxLayout(control_frame)
+        layout.setContentsMargins(8, 8, 8, 8)
+        
+        # 视图模式标签
+        view_label = QLabel("视图模式:")
+        view_label.setFont(QFont("Arial", 10, QFont.Bold))
+        layout.addWidget(view_label)
+        
+        # 宏观区域视图按钮
+        self.macro_view_btn = QPushButton("宏观区域视图")
+        self.macro_view_btn.setCheckable(True)
+        self.macro_view_btn.setChecked(True)  # 默认选中
+        self.macro_view_btn.setMinimumHeight(30)
+        self.macro_view_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 10px;
+            }
+            QPushButton:checked {
+                background-color: #45a049;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        self.macro_view_btn.clicked.connect(self.switch_to_macro_view)
+        layout.addWidget(self.macro_view_btn)
+        
+        # 微观管孔视图按钮
+        self.micro_view_btn = QPushButton("微观管孔视图")
+        self.micro_view_btn.setCheckable(True)
+        self.micro_view_btn.setMinimumHeight(30)
+        self.micro_view_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 10px;
+            }
+            QPushButton:checked {
+                background-color: #1976D2;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+        self.micro_view_btn.clicked.connect(self.switch_to_micro_view)
+        layout.addWidget(self.micro_view_btn)
+        
+        layout.addStretch()
+        
+        return control_frame
 
     def create_right_operations_panel(self) -> QWidget:
         """创建右侧操作面板"""
@@ -668,10 +764,10 @@ class MainWindow(QMainWindow):
         # 文件菜单
         file_menu = menubar.addMenu("文件")
 
-        open_action = QAction("打开DXF文件", self)
-        open_action.setShortcut("Ctrl+O")
-        open_action.triggered.connect(self.load_dxf_file)
-        file_menu.addAction(open_action)
+        select_product_action = QAction("选择产品型号", self)
+        select_product_action.setShortcut("Ctrl+O")
+        select_product_action.triggered.connect(self.select_product_model)
+        file_menu.addAction(select_product_action)
 
         file_menu.addSeparator()
 
@@ -682,6 +778,12 @@ class MainWindow(QMainWindow):
 
         # 工具菜单
         tools_menu = menubar.addMenu("工具")
+
+        product_management_action = QAction("产品信息维护", self)
+        product_management_action.triggered.connect(self.open_product_management)
+        tools_menu.addAction(product_management_action)
+        
+        tools_menu.addSeparator()
 
         settings_action = QAction("设置", self)
         settings_action.triggered.connect(self.show_settings)
@@ -783,7 +885,7 @@ class MainWindow(QMainWindow):
     def setup_connections(self):
         """设置信号槽连接"""
         # 工具栏连接
-        self.load_dxf_btn.clicked.connect(self.load_dxf_file)
+        self.product_select_btn.clicked.connect(self.select_product_model)
         self.search_btn.clicked.connect(self.perform_search)
         self.search_input.returnPressed.connect(self.perform_search)
         self.view_combo.currentTextChanged.connect(self.filter_holes)
@@ -1011,36 +1113,70 @@ class MainWindow(QMainWindow):
         else:
             self.log_message(f"搜索 '{search_text}' 没有找到匹配的孔位")
 
-    def load_dxf_file(self):
-        """加载DXF文件"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择DXF文件", "", "DXF文件 (*.dxf);;所有文件 (*)"
-        )
-
-        if not file_path:
-            return
-
+    def select_product_model(self):
+        """选择产品型号"""
         try:
-            self.status_label.setText("正在加载DXF文件...")
-            self.log_message(f"开始加载DXF文件: {file_path}")
-
+            dialog = ProductSelectionDialog(self)
+            dialog.product_selected.connect(self.on_product_selected)
+            dialog.exec()
+        except Exception as e:
+            error_msg = f"打开产品选择对话框失败: {str(e)}"
+            self.logger.error(error_msg, exc_info=True)
+            self.log_message(f"❌ {error_msg}")
+            QMessageBox.critical(self, "错误", error_msg)
+    
+    def on_product_selected(self, product):
+        """处理产品选择"""
+        try:
+            self.current_product = product
+            self.status_label.setText(f"正在加载产品型号: {product.model_name}")
+            self.log_message(f"选择产品型号: {product.model_name}")
+            
+            # 如果产品有关联的DXF文件，自动加载
+            if product.dxf_file_path:
+                self.load_dxf_from_product(product.dxf_file_path)
+            else:
+                # 没有DXF文件时，创建默认的孔位数据或提示用户
+                self.create_default_hole_data_for_product(product)
+            
+            # 更新界面显示产品信息
+            self.update_product_info_display(product)
+            
+            self.status_label.setText(f"产品型号已选择: {product.model_name}")
+            self.log_message(f"✅ 成功选择产品型号: {product.model_name}")
+            
+        except Exception as e:
+            error_msg = f"处理产品选择失败: {str(e)}"
+            self.logger.error(error_msg, exc_info=True)
+            self.log_message(f"❌ {error_msg}")
+            QMessageBox.critical(self, "错误", error_msg)
+    
+    def load_dxf_from_product(self, dxf_file_path):
+        """从产品关联的DXF文件加载数据"""
+        if not dxf_file_path or not Path(dxf_file_path).exists():
+            self.log_message(f"警告: DXF文件不存在 - {dxf_file_path}")
+            return
+        
+        try:
+            self.log_message(f"加载产品关联的DXF文件: {dxf_file_path}")
+            
             # 使用DXF解析器加载文件
-            self.hole_collection = self.dxf_parser.parse_file(file_path)
-
+            self.hole_collection = self.dxf_parser.parse_file(dxf_file_path)
+            
             if not self.hole_collection or len(self.hole_collection) == 0:
                 error_msg = "DXF文件中未找到符合条件的孔位"
                 self.log_message(f"警告: {error_msg}")
                 QMessageBox.warning(self, "警告", error_msg)
                 return
-
+            
             self.log_message(f"DXF解析成功，找到 {len(self.hole_collection)} 个孔位")
-
+            
             # 更新UI
-            self.update_file_info(file_path)
+            self.update_file_info(dxf_file_path)
             self.update_hole_display()
             self.update_status_display()
             self.update_completer_data()
-
+            
             # 启用相关按钮
             self.start_detection_btn.setEnabled(True)
             self.simulate_btn.setEnabled(True)
@@ -1048,21 +1184,68 @@ class MainWindow(QMainWindow):
             self.zoom_in_btn.setEnabled(True)
             self.zoom_out_btn.setEnabled(True)
             self.reset_view_btn.setEnabled(True)
-
-            self.status_label.setText("DXF文件加载完成")
-            self.log_message(f"✅ 成功加载 {len(self.hole_collection)} 个孔位")
-
+            
             # 自动适应视图
             if hasattr(self.graphics_view, 'fit_in_view'):
                 self.graphics_view.fit_in_view()
                 self.log_message("已自动适应视图范围")
-
+                
         except Exception as e:
             error_msg = f"加载DXF文件失败: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
             self.log_message(f"❌ {error_msg}")
             QMessageBox.critical(self, "错误", error_msg)
-            self.status_label.setText("加载失败")
+    
+    def create_default_hole_data_for_product(self, product):
+        """为产品创建默认的孔位数据"""
+        # 这里可以根据产品的标准直径创建一些默认的孔位
+        # 或者提示用户加载DXF文件
+        reply = QMessageBox.question(
+            self, "需要加载DXF文件", 
+            f"产品型号 '{product.model_name}' 没有关联的DXF文件。\n是否现在选择一个DXF文件？",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes
+        )
+        
+        if reply == QMessageBox.Yes:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "选择DXF文件", "", "DXF文件 (*.dxf);;所有文件 (*)"
+            )
+            
+            if file_path:
+                # 保存DXF文件路径到产品
+                try:
+                    self.product_manager.update_product(product.id, dxf_file_path=file_path)
+                    self.load_dxf_from_product(file_path)
+                except Exception as e:
+                    self.log_message(f"保存DXF文件路径失败: {str(e)}")
+    
+    def update_product_info_display(self, product):
+        """更新产品信息显示"""
+        # 在日志中显示产品详细信息
+        self.log_message("=" * 50)
+        self.log_message(f"当前产品型号: {product.model_name}")
+        if product.model_code:
+            self.log_message(f"产品代码: {product.model_code}")
+        self.log_message(f"标准直径: {product.standard_diameter:.3f} mm")
+        self.log_message(f"公差范围: {product.tolerance_range}")
+        min_dia, max_dia = product.diameter_range
+        self.log_message(f"直径范围: {min_dia:.3f} - {max_dia:.3f} mm")
+        if product.description:
+            self.log_message(f"产品描述: {product.description}")
+        self.log_message("=" * 50)
+    
+    def open_product_management(self):
+        """打开产品信息维护界面"""
+        try:
+            from modules.product_management import ProductManagementDialog
+            dialog = ProductManagementDialog(self)
+            dialog.exec()
+        except Exception as e:
+            error_msg = f"打开产品信息维护界面失败: {str(e)}"
+            self.logger.error(error_msg, exc_info=True)
+            self.log_message(f"❌ {error_msg}")
+            QMessageBox.critical(self, "错误", error_msg)
 
     def test_load_default_dxf(self):
         """测试加载默认DXF文件 (快捷键: Ctrl+T)"""
@@ -1616,6 +1799,41 @@ class MainWindow(QMainWindow):
         """视图改变时的处理"""
         # 可以在这里更新缩放信息等
         pass
+
+    def switch_to_macro_view(self):
+        """切换到宏观区域视图"""
+        if hasattr(self, 'graphics_view'):
+            self.graphics_view.switch_to_macro_view()
+            
+        # 更新按钮状态
+        self.macro_view_btn.setChecked(True)
+        self.micro_view_btn.setChecked(False)
+        
+        self.log_message("切换到宏观区域视图")
+
+    def switch_to_micro_view(self):
+        """切换到微观管孔视图"""
+        if hasattr(self, 'graphics_view'):
+            self.graphics_view.switch_to_micro_view()
+            
+        # 更新按钮状态
+        self.micro_view_btn.setChecked(True)
+        self.macro_view_btn.setChecked(False)
+        
+        self.log_message("切换到微观管孔视图")
+
+    def on_view_mode_changed(self, mode: str):
+        """处理视图模式变化"""
+        mode_text = "宏观区域视图" if mode == "macro" else "微观管孔视图"
+        self.log_message(f"视图模式已切换为: {mode_text}")
+
+    def on_report_generated(self, report_type: str, file_path: str):
+        """处理报告生成完成事件"""
+        self.log_message(f"{report_type}报告生成完成: {file_path}")
+        
+        # 可以在这里添加更多处理逻辑，如发送通知、更新状态等
+        if hasattr(self, 'status_bar'):
+            self.status_bar.showMessage(f"{report_type}报告已生成", 3000)
 
     def log_message(self, message: str):
         """添加日志消息"""

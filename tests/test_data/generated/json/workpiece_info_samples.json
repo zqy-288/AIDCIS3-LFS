@@ -1,0 +1,29 @@
+[
+  {
+    "model": "CP1400",
+    "serial": "SN-TEST-001",
+    "operator": "张工程师",
+    "start_time": "2025-07-10 22:53:25.739499",
+    "end_time": "2025-07-10 23:53:25.739499",
+    "equipment_id": "AIDCIS-001",
+    "batch_number": "BATCH-2025-001"
+  },
+  {
+    "model": "CP1500",
+    "serial": "SN-TEST-002",
+    "operator": "李技师",
+    "start_time": "2025-07-10 20:53:25.739499",
+    "end_time": "2025-07-10 21:53:25.739499",
+    "equipment_id": "AIDCIS-002",
+    "batch_number": "BATCH-2025-002"
+  },
+  {
+    "model": "CP1600",
+    "serial": "SN-TEST-003",
+    "operator": "王工程师",
+    "start_time": "2025-07-10 18:53:25.739499",
+    "end_time": "2025-07-10 19:53:25.739499",
+    "equipment_id": "AIDCIS-001",
+    "batch_number": "BATCH-2025-003"
+  }
+]
