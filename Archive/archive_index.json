@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "updated_at": "2025-07-09T17:52:04.758130",
+  "total_records": 1,
+  "records": [
+    {
+      "hole_id": "H00001",
+      "archived_at": "2025-07-09T17:52:04.757403",
+      "total_images": 5,
+      "annotated_images": 1,
+      "total_annotations": 1,
+      "annotation_summary": {
+        "0": 1
+      },
+      "archive_path": "Archive\\H00001",
+      "notes": "标注完成归档 - 1个标注"
+    }
+  ]
+}
