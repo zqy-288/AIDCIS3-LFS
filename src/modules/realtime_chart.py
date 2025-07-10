@@ -51,33 +51,79 @@ class RealtimeChart(QWidget):
         """设置用户界面布局 - 双面板设计"""
         layout = QVBoxLayout(self)
 
-        # 状态信息面板
+        # 状态信息面板 - 优化样式
         status_group = QGroupBox("检测状态")
+        status_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 12px;
+                border: 2px solid #cccccc;
+                border-radius: 8px;
+                margin-top: 8px;
+                padding-top: 8px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                color: #333333;
+            }
+        """)
         status_layout = QHBoxLayout(status_group)
 
-        # 孔位选择区域 - 简化版本
-        hole_selection_widget = QWidget()
-        hole_selection_layout = QHBoxLayout(hole_selection_widget)
-        hole_selection_layout.setContentsMargins(0, 0, 0, 0)
+        # 当前孔位显示 - 改为文本显示，增大字体
+        self.current_hole_label = QLabel("当前孔位：未选择")
+        self.current_hole_label.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                font-weight: bold;
+                color: #2196F3;
+                padding: 8px 12px;
+                background-color: #f0f8ff;
+                border: 2px solid #2196F3;
+                border-radius: 6px;
+            }
+        """)
+        self.current_hole_label.setMinimumWidth(140)
 
-        hole_selection_layout.addWidget(QLabel("当前孔位:"))
-        self.hole_selector = QComboBox()
-        self.hole_selector.addItems(["请选择孔位", "H00001", "H00002"])
-        self.hole_selector.setMinimumWidth(120)
-        # 暂时移除所有自定义样式，确保基本功能正常
-        # self.hole_selector.setStyleSheet("")  # 使用系统默认样式
-        self.hole_selector.currentTextChanged.connect(self.on_hole_selection_changed)
-        hole_selection_layout.addWidget(self.hole_selector)
+        # 标准直径显示
+        self.standard_diameter_label = QLabel("标准直径：17.6mm")
+        self.standard_diameter_label.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                font-weight: bold;
+                color: #4CAF50;
+                padding: 8px 12px;
+                background-color: #f8fff8;
+                border: 2px solid #4CAF50;
+                border-radius: 6px;
+            }
+        """)
+        self.standard_diameter_label.setMinimumWidth(140)
 
-        # 添加弹性空间，让孔位选择器居左显示
-        hole_selection_layout.addStretch()
-
+        # 其他状态标签 - 增大字体
         self.depth_label = QLabel("探头深度: -- mm")
         self.comm_status_label = QLabel("通信状态: --")
         self.max_diameter_label = QLabel("最大圆直径: --")
         self.min_diameter_label = QLabel("最小圆直径: --")
 
-        status_layout.addWidget(hole_selection_widget)
+        # 设置状态标签样式 - 增大字体和内边距
+        status_label_style = """
+            QLabel {
+                font-size: 13px;
+                padding: 6px 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background-color: #fafafa;
+            }
+        """
+        self.depth_label.setStyleSheet(status_label_style)
+        self.comm_status_label.setStyleSheet(status_label_style)
+        self.max_diameter_label.setStyleSheet(status_label_style)
+        self.min_diameter_label.setStyleSheet(status_label_style)
+
+        status_layout.addWidget(self.current_hole_label)
+        status_layout.addWidget(self.standard_diameter_label)
         status_layout.addWidget(self.depth_label)
         status_layout.addWidget(self.comm_status_label)
         status_layout.addWidget(self.max_diameter_label)
@@ -89,8 +135,27 @@ class RealtimeChart(QWidget):
         # 双面板区域 - 改为垂直布局（A在上，B在下）
         splitter = QSplitter(Qt.Vertical)
 
-        # 面板A: 管孔直径数据
+        # 面板A: 管孔直径数据 - 优化样式，增大字体
         panel_a = QGroupBox("面板A - 光谱共焦传感器数据")
+        panel_a.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 15px;
+                border: 2px solid #4CAF50;
+                border-radius: 10px;
+                margin-top: 12px;
+                padding-top: 12px;
+                background-color: #f8fff8;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 15px;
+                padding: 0 10px 0 10px;
+                color: #2E7D32;
+                background-color: white;
+                font-size: 15px;
+            }
+        """)
         panel_a_layout = QHBoxLayout(panel_a)  # 水平布局：图表在左，异常窗口在右
 
         # 面板A左侧：图表区域（matplotlib）
@@ -106,30 +171,31 @@ class RealtimeChart(QWidget):
         self.canvas.mpl_connect('scroll_event', self.on_scroll)
         self.canvas.mpl_connect('button_press_event', self.on_mouse_press)
 
-        # 创建子图
+        # 创建子图 - 增大字体
         self.ax = self.figure.add_subplot(111)
-        self.ax.set_xlabel('深度 (mm)', fontsize=12)
-        self.ax.set_ylabel('直径 (mm)', fontsize=12)
-        self.ax.set_title('管孔直径实时监测', fontsize=14, fontweight='bold', pad=10)
+        self.ax.set_xlabel('深度 (mm)', fontsize=14, fontweight='bold')
+        self.ax.set_ylabel('直径 (mm)', fontsize=14, fontweight='bold')
+        self.ax.set_title('管孔直径实时监测', fontsize=16, fontweight='bold', pad=15)
         self.ax.grid(True, alpha=0.3)
+
+        # 设置坐标轴刻度字体大小
+        self.ax.tick_params(axis='both', which='major', labelsize=12)
+        self.ax.tick_params(axis='both', which='minor', labelsize=10)
 
         # 设置初始范围
         self.ax.set_ylim(16.5, 20.5)
         self.ax.set_xlim(0, 950)
 
         # 初始化数据线
-        self.data_line, = self.ax.plot([], [], 'b-', linewidth=2, label='直径数据')
+        self.data_line, = self.ax.plot([], [], 'b-', linewidth=3, label='直径数据')
 
         # 设置图形样式，确保所有标签都能完整显示
-        self.figure.subplots_adjust(left=0.10, bottom=0.20, right=0.95, top=0.80)
+        self.figure.subplots_adjust(left=0.12, bottom=0.15, right=0.95, top=0.85)
 
-        # 设置图例位置，确保不被遮挡
-        self.ax.legend(loc='upper right', bbox_to_anchor=(0.95, 0.95), fontsize=10)
+        # 设置图例位置，确保不被遮挡 - 增大字体
+        self.ax.legend(loc='upper right', bbox_to_anchor=(0.95, 0.95), fontsize=12)
 
-        # 在图表下方添加标准直径输入区域
-        self.create_standard_diameter_input(chart_layout)
-
-        # 在图表下方添加面板A专用控制按钮
+        # 在图表下方添加面板A专用控制按钮（移除标准直径输入）
         self.create_panel_a_controls(chart_layout)
 
         panel_a_layout.addWidget(chart_widget)
@@ -148,12 +214,28 @@ class RealtimeChart(QWidget):
         # 添加固定间距，确保按钮不会紧贴异常面板
         right_layout.addSpacing(15)
 
-        # 添加【查看下一个样品】按钮
+        # 添加【查看下一个样品】按钮 - 增大字体和尺寸
         self.next_sample_button = QPushButton("查看下一个样品")
         self.next_sample_button.clicked.connect(self.view_next_sample)
-        # 移除自定义样式，使用与其他按钮一致的默认样式
-        # 只保留必要的尺寸设置
-        self.next_sample_button.setFixedHeight(35)  # 保持合适的高度
+        self.next_sample_button.setStyleSheet("""
+            QPushButton {
+                font-size: 14px;
+                font-weight: bold;
+                padding: 10px 16px;
+                border: 2px solid #4CAF50;
+                border-radius: 8px;
+                background-color: #4CAF50;
+                color: white;
+                min-height: 40px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+                border-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3d8b40;
+            }
+        """)
         from PySide6.QtWidgets import QSizePolicy
         self.next_sample_button.setSizePolicy(
             QSizePolicy.Expanding,
@@ -167,8 +249,27 @@ class RealtimeChart(QWidget):
         panel_a_layout.addWidget(right_panel)
         splitter.addWidget(panel_a)
 
-        # 面板B: 内窥镜图像
+        # 面板B: 内窥镜图像 - 优化样式，增大字体
         panel_b = QGroupBox("面板B - 内窥镜实时图像")
+        panel_b.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 15px;
+                border: 2px solid #2196F3;
+                border-radius: 10px;
+                margin-top: 12px;
+                padding-top: 12px;
+                background-color: #f0f8ff;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 15px;
+                padding: 0 10px 0 10px;
+                color: #1976D2;
+                background-color: white;
+                font-size: 15px;
+            }
+        """)
         panel_b_layout = QVBoxLayout(panel_b)
 
         self.endoscope_view = EndoscopeView()
@@ -190,11 +291,35 @@ class RealtimeChart(QWidget):
         # 初始化孔位数据映射
         self.init_hole_data_mapping()
 
-        # 控制按钮
+        # 控制按钮 - 增大字体和尺寸
         button_layout = QHBoxLayout()
         self.start_button = QPushButton("开始测量")
         self.stop_button = QPushButton("停止测量")
         self.clear_button = QPushButton("清除数据")
+
+        # 设置按钮样式 - 增大字体和尺寸
+        button_style = """
+            QPushButton {
+                font-size: 14px;
+                font-weight: bold;
+                padding: 8px 16px;
+                border: 2px solid #ddd;
+                border-radius: 6px;
+                background-color: #f8f9fa;
+                min-height: 35px;
+            }
+            QPushButton:hover {
+                background-color: #e9ecef;
+                border-color: #adb5bd;
+            }
+            QPushButton:pressed {
+                background-color: #dee2e6;
+            }
+        """
+
+        self.start_button.setStyleSheet(button_style)
+        self.stop_button.setStyleSheet(button_style)
+        self.clear_button.setStyleSheet(button_style)
 
         button_layout.addWidget(self.start_button)
         button_layout.addWidget(self.stop_button)
@@ -240,16 +365,18 @@ class RealtimeChart(QWidget):
             print(f"    🖼️ 图像: {image_path}")
             print(f"    📂 图像目录存在: {os.path.exists(image_path)}")
 
-    def on_hole_selection_changed(self, hole_id):
-        """处理孔位选择变化"""
-        if hole_id in ["H00001", "H00002"]:
-            # 检查是否已经是当前孔位，避免重复加载
-            if hasattr(self, 'current_hole_id') and self.current_hole_id == hole_id:
-                print(f"📌 孔位 {hole_id} 已经是当前选择，跳过重复加载")
-                return
-
-            print(f"🔄 用户选择孔位: {hole_id}")
-            self.load_data_for_hole(hole_id)
+    def set_current_hole_display(self, hole_id):
+        """设置当前孔位显示"""
+        if hole_id:
+            self.current_hole_label.setText(f"当前孔位：{hole_id}")
+            self.current_hole_id = hole_id
+            print(f"🔄 设置当前孔位显示: {hole_id}")
+            # 如果有对应的数据文件，自动加载
+            if hole_id in ["H00001", "H00002"]:
+                self.load_data_for_hole(hole_id)
+        else:
+            self.current_hole_label.setText("当前孔位：未选择")
+            self.current_hole_id = None
 
 
 
@@ -286,18 +413,36 @@ class RealtimeChart(QWidget):
         print("✅ 图像切换功能已停止")
 
     def create_anomaly_panel(self, parent_layout):
-        """创建异常数据显示面板"""
+        """创建异常数据显示面板 - 增大字体"""
         anomaly_widget = QGroupBox("异常直径监控")
+        anomaly_widget.setStyleSheet("""
+            QGroupBox {
+                font-size: 14px;
+                font-weight: bold;
+                border: 2px solid #FF5722;
+                border-radius: 8px;
+                margin-top: 8px;
+                padding-top: 8px;
+                background-color: #fff5f5;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 8px 0 8px;
+                color: #D32F2F;
+                background-color: white;
+            }
+        """)
         anomaly_widget.setMinimumWidth(310)  # 设置最小宽度
         anomaly_widget.setMaximumWidth(390)  # 设置最大宽度，允许适度调整
         anomaly_layout = QVBoxLayout(anomaly_widget)
         anomaly_layout.setContentsMargins(8, 8, 8, 8)
         anomaly_layout.setSpacing(5)  # 设置组件间距
 
-        # 标题
+        # 标题 - 增大字体
         title_label = QLabel("超出公差的测量点")
-        title_label.setStyleSheet("font-weight: bold; color: red; margin-bottom: 3px; font-size: 11px;")
-        title_label.setFixedHeight(20)  # 固定标题高度
+        title_label.setStyleSheet("font-weight: bold; color: red; margin-bottom: 3px; font-size: 13px;")
+        title_label.setFixedHeight(25)  # 增加标题高度
         anomaly_layout.addWidget(title_label)
 
         # 滚动区域用于显示异常数据
@@ -335,8 +480,8 @@ class RealtimeChart(QWidget):
         stats_layout.setSpacing(2)
 
         stats_label = QLabel("异常统计")
-        stats_label.setStyleSheet("font-weight: bold; color: #333; font-size: 10px;")
-        stats_label.setFixedHeight(15)
+        stats_label.setStyleSheet("font-weight: bold; color: #333; font-size: 12px;")
+        stats_label.setFixedHeight(18)
         stats_layout.addWidget(stats_label)
 
         # 统计信息水平布局，节省空间
@@ -345,9 +490,9 @@ class RealtimeChart(QWidget):
         stats_info_layout.setSpacing(10)
 
         self.anomaly_count_label = QLabel("异常点数: 0")
-        self.anomaly_count_label.setStyleSheet("font-size: 9px; color: #666;")
+        self.anomaly_count_label.setStyleSheet("font-size: 11px; color: #666; font-weight: bold;")
         self.anomaly_rate_label = QLabel("异常率: 0.0%")
-        self.anomaly_rate_label.setStyleSheet("font-size: 9px; color: #666;")
+        self.anomaly_rate_label.setStyleSheet("font-size: 11px; color: #666; font-weight: bold;")
 
         stats_info_layout.addWidget(self.anomaly_count_label)
         stats_info_layout.addWidget(self.anomaly_rate_label)
@@ -361,136 +506,9 @@ class RealtimeChart(QWidget):
         # 让异常面板占据可用空间，但为按钮预留空间
         parent_layout.addWidget(anomaly_widget, 1)  # 使用stretch factor
 
-    def create_standard_diameter_input(self, parent_layout):
-        """创建标准直径输入区域"""
-        input_widget = QWidget()
-        input_widget.setFixedHeight(40)  # 固定高度
-        input_layout = QHBoxLayout(input_widget)
-        input_layout.setContentsMargins(10, 5, 10, 5)
 
-        # 标签
-        label = QLabel("标准直径:")
-        label.setStyleSheet("font-size: 12px; font-weight: bold; color: #333;")
-        input_layout.addWidget(label)
 
-        # 输入框
-        self.standard_diameter_input = QLineEdit()
-        self.standard_diameter_input.setPlaceholderText("请输入标准直径 (mm)")
-        self.standard_diameter_input.setFixedWidth(120)
-        self.standard_diameter_input.setStyleSheet("""
-            QLineEdit {
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                padding: 5px;
-                font-size: 11px;
-            }
-            QLineEdit:focus {
-                border-color: #4CAF50;
-            }
-        """)
 
-        # 连接输入变化事件
-        self.standard_diameter_input.textChanged.connect(self.on_standard_diameter_changed)
-        self.standard_diameter_input.returnPressed.connect(self.on_standard_diameter_entered)
-
-        input_layout.addWidget(self.standard_diameter_input)
-
-        # 单位标签
-        unit_label = QLabel("mm")
-        unit_label.setStyleSheet("font-size: 11px; color: #666;")
-        input_layout.addWidget(unit_label)
-
-        # 误差范围说明
-        tolerance_label = QLabel("误差范围: +0.05/-0.07mm")
-        tolerance_label.setStyleSheet("font-size: 10px; color: #888; margin-left: 10px;")
-        input_layout.addWidget(tolerance_label)
-
-        # 添加弹性空间
-        input_layout.addStretch()
-
-        # 重置图形按钮
-        self.reset_view_button = QPushButton("重置图形")
-        self.reset_view_button.clicked.connect(self.reset_to_standard_view)
-        # 使用与【查看下一个样品】按钮一致的默认样式
-        # 只保留必要的尺寸设置
-        self.reset_view_button.setFixedHeight(35)  # 保持合适的高度
-        from PySide6.QtWidgets import QSizePolicy
-        self.reset_view_button.setSizePolicy(
-            QSizePolicy.Fixed,
-            QSizePolicy.Fixed
-        )
-        input_layout.addWidget(self.reset_view_button)
-
-        parent_layout.addWidget(input_widget)
-
-    def on_standard_diameter_changed(self, text):
-        """标准直径输入变化事件"""
-        # 实时验证输入
-        if text:
-            try:
-                value = float(text)
-                if 10.0 <= value <= 30.0:  # 合理的直径范围
-                    self.standard_diameter_input.setStyleSheet("""
-                        QLineEdit {
-                            border: 2px solid #4CAF50;
-                            border-radius: 5px;
-                            padding: 5px;
-                            font-size: 11px;
-                            background-color: #f8fff8;
-                        }
-                    """)
-                else:
-                    self.standard_diameter_input.setStyleSheet("""
-                        QLineEdit {
-                            border: 2px solid #ff9800;
-                            border-radius: 5px;
-                            padding: 5px;
-                            font-size: 11px;
-                            background-color: #fff8f0;
-                        }
-                    """)
-            except ValueError:
-                self.standard_diameter_input.setStyleSheet("""
-                    QLineEdit {
-                        border: 2px solid #f44336;
-                        border-radius: 5px;
-                        padding: 5px;
-                        font-size: 11px;
-                        background-color: #fff5f5;
-                    }
-                """)
-        else:
-            # 恢复默认样式
-            self.standard_diameter_input.setStyleSheet("""
-                QLineEdit {
-                    border: 2px solid #ddd;
-                    border-radius: 5px;
-                    padding: 5px;
-                    font-size: 11px;
-                }
-                QLineEdit:focus {
-                    border-color: #4CAF50;
-                }
-            """)
-
-    def on_standard_diameter_entered(self):
-        """标准直径输入确认事件"""
-        text = self.standard_diameter_input.text().strip()
-        if text:
-            try:
-                value = float(text)
-                if 10.0 <= value <= 30.0:
-                    self.set_standard_diameter(value)
-                    print(f"设置标准直径: {value}mm")
-                else:
-                    QMessageBox.warning(self, "输入错误", "标准直径应在10.0-30.0mm范围内")
-            except ValueError:
-                QMessageBox.warning(self, "输入错误", "请输入有效的数值")
-        else:
-            # 清空输入时重置标准直径并恢复默认Y轴范围
-            self.standard_diameter = None
-            self.remove_error_lines_and_reset_y_axis()
-            print("清除标准直径，恢复默认Y轴范围")
 
     def set_standard_diameter(self, diameter):
         """设置标准直径并绘制公差线"""
@@ -650,9 +668,9 @@ class RealtimeChart(QWidget):
 
     def setup_chart(self):
         """设置图表属性和样式（matplotlib版本）"""
-        # 初始化标准直径相关参数
-        self.standard_diameter = None
-        self.target_diameter = 18.5  # 默认目标直径，用于Y轴范围设置
+        # 固定标准直径为17.6mm
+        self.standard_diameter = 17.6
+        self.target_diameter = 17.6  # 目标直径，用于Y轴范围设置
         self.tolerance = 0.5  # 默认公差，用于异常检测
         self.upper_tolerance = 0.05  # 上公差 +0.05mm
         self.lower_tolerance = 0.07  # 下公差 -0.07mm
@@ -670,6 +688,10 @@ class RealtimeChart(QWidget):
         self.zoom_factor = 1.0
         self.min_zoom = 0.1
         self.max_zoom = 10.0
+
+        # 自动设置标准直径并绘制误差线
+        self.set_standard_diameter(17.6)
+        print(f"✅ 自动设置标准直径为: {self.standard_diameter}mm")
 
     def update_plot(self):
         """更新matplotlib图表显示 - 超级安全版本"""
@@ -705,9 +727,13 @@ class RealtimeChart(QWidget):
 
                     if x_range > 0:
                         margin = max(x_range * 0.1, 50)
-                        self.ax.set_xlim(x_min - margin, x_max + margin)
+                        # 确保X轴最小值不小于0（深度不能为负）
+                        x_min_display = max(0, x_min - margin)
+                        self.ax.set_xlim(x_min_display, x_max + margin)
                     else:
-                        self.ax.set_xlim(x_min - 50, x_min + 50)
+                        # 确保X轴最小值不小于0
+                        x_min_display = max(0, x_min - 50)
+                        self.ax.set_xlim(x_min_display, x_min + 50)
             except Exception:
                 pass
 
@@ -823,7 +849,9 @@ class RealtimeChart(QWidget):
 
             if x_range > 0:
                 margin = max(x_range * 0.1, 50)
-                self.ax.set_xlim(x_min - margin, x_max + margin)
+                # 确保X轴最小值不小于0（深度不能为负）
+                x_min_display = max(0, x_min - margin)
+                self.ax.set_xlim(x_min_display, x_max + margin)
             else:
                 self.ax.set_xlim(0, 950)
         else:
@@ -850,7 +878,9 @@ class RealtimeChart(QWidget):
 
                 if x_range > 0:
                     margin = max(x_range * 0.1, 50)
-                    self.ax.set_xlim(x_min - margin, x_max + margin)
+                    # 确保X轴最小值不小于0（深度不能为负）
+                    x_min_display = max(0, x_min - margin)
+                    self.ax.set_xlim(x_min_display, x_max + margin)
                 else:
                     self.ax.set_xlim(0, 950)
             else:
@@ -985,8 +1015,8 @@ class RealtimeChart(QWidget):
         self.comm_status_label.setText("通信状态: --")
         self.comm_status_label.setStyleSheet("")
 
-        # 重置孔位选择器
-        self.hole_selector.setCurrentText("请选择孔位")
+        # 重置孔位显示
+        self.current_hole_label.setText("当前孔位：未选择")
         self.current_hole_id = None
 
         # 重置最大最小直径
@@ -997,7 +1027,9 @@ class RealtimeChart(QWidget):
     def set_current_hole(self, hole_id):
         """设置当前检测的孔ID"""
         self.current_hole_id = hole_id
+        self.current_hole_label.setText(f"当前孔位：{hole_id}")
         self.endoscope_view.set_hole_id(hole_id)
+        print(f"✅ 设置当前检测孔位: {hole_id}")
 
     def start_measurement_for_hole(self, hole_id):
         """为指定孔开始测量"""
@@ -1463,12 +1495,8 @@ class RealtimeChart(QWidget):
 
     def set_standard_diameter_for_csv(self):
         """为CSV数据设置标准直径"""
-        if hasattr(self, 'csv_avg_diameter'):
-            # 基于平均直径设置标准直径
-            standard_diameter = 17.6  # 基于数据分析的最佳值
-            self.standard_diameter_input.setText(str(standard_diameter))
-            self.on_standard_diameter_entered()
-            print(f"🎯 自动设置标准直径为: {standard_diameter} mm")
+        # 标准直径已固定为17.6mm，无需额外设置
+        print(f"🎯 使用固定标准直径: {self.standard_diameter} mm")
 
     def update_csv_data_point(self):
         """更新CSV数据点"""

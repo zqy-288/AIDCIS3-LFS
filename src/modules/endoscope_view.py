@@ -4,8 +4,8 @@
 """
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QGroupBox, QGraphicsView, QGraphicsScene, QGraphicsTextItem
+    QWidget, QVBoxLayout, QLabel,
+    QGraphicsView, QGraphicsScene, QGraphicsTextItem
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPainter, QFont
@@ -57,37 +57,10 @@ class EndoscopeView(QWidget):
         
         layout.addWidget(self.graphics_view)
         
-        # 控制面板
-        self.create_control_panel(layout)
+        # 控制面板已被移除
+        # 不再显示控制面板按钮
         
-    def create_control_panel(self, layout):
-        """创建控制面板"""
-        control_group = QGroupBox("控制面板")
-        control_layout = QHBoxLayout(control_group)
-        
-        self.start_button = QPushButton("启动算法")
-        self.start_button.clicked.connect(self.start_algorithm)
-        control_layout.addWidget(self.start_button)
 
-        self.stop_button = QPushButton("停止算法")
-        self.stop_button.setEnabled(False)
-        self.stop_button.clicked.connect(self.stop_algorithm)
-        control_layout.addWidget(self.stop_button)
-        
-        self.clear_button = QPushButton("清除图像")
-        self.clear_button.clicked.connect(self.clear_image)
-        control_layout.addWidget(self.clear_button)
-        
-        self.save_button = QPushButton("保存图像")
-        control_layout.addWidget(self.save_button)
-
-        # 添加测试按钮
-        self.test_button = QPushButton("测试显示")
-        self.test_button.clicked.connect(self.test_image_display)
-        control_layout.addWidget(self.test_button)
-
-        control_layout.addStretch()
-        layout.addWidget(control_group)
 
     def update_image(self, image_data):
         """
@@ -190,35 +163,7 @@ class EndoscopeView(QWidget):
         self.update_image(test_pixmap)
         print("✅ 测试图像已发送到显示组件")
 
-    def start_algorithm(self):
-        """启动内窥镜图像处理算法"""
-        print("🚀 启动面板B图像处理算法")
 
-        # 发送信号给父组件，启动图像切换功能
-        if hasattr(self.parent(), 'start_endoscope_image_switching'):
-            self.parent().start_endoscope_image_switching()
-
-        # 更新按钮状态
-        self.start_button.setEnabled(False)
-        self.start_button.setText("算法运行中...")
-        self.stop_button.setEnabled(True)
-
-        print("✅ 面板B算法已启动，图像将根据数据进度自动切换")
-
-    def stop_algorithm(self):
-        """停止内窥镜图像处理算法"""
-        print("⏹️ 停止面板B图像处理算法")
-
-        # 发送信号给父组件，停止图像切换功能
-        if hasattr(self.parent(), 'stop_endoscope_image_switching'):
-            self.parent().stop_endoscope_image_switching()
-
-        # 更新按钮状态
-        self.start_button.setEnabled(True)
-        self.start_button.setText("启动算法")
-        self.stop_button.setEnabled(False)
-
-        print("✅ 面板B算法已停止")
 
 
 if __name__ == "__main__":

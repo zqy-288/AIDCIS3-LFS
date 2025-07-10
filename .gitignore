@@ -198,7 +198,8 @@ tmp/
 # Test reports and outputs
 test_results/
 detection_report_*.json
-measurement_data_*.csv
+# 只忽略cache目录下的临时CSV文件，保留Data目录下的重要数据文件
+cache/measurement_data_*.csv
 
 # IDE and editor files
 *.sublime-project
@@ -238,7 +239,14 @@ env/
 *.app/
 *.framework/
 
+# 允许重要的项目文件
+!Data/
+!Data/**/*.csv
+!"DXF Graph"/
+!"DXF Graph"/*.dxf
+
 # Large DXF files (keep small ones, ignore large ones)
+# 注意：东重管板.dxf 文件较大，如果需要可以单独处理
 **/东重管板.dxf
 **/大型*.dxf
 **/*大*.dxf

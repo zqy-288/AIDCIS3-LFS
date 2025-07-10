@@ -1,11 +1,11 @@
 {
   "version": "1.0",
-  "updated_at": "2025-07-09T17:52:04.758130",
+  "updated_at": "2025-07-10T13:15:51.492976",
   "total_records": 1,
   "records": [
     {
       "hole_id": "H00001",
-      "archived_at": "2025-07-09T17:52:04.757403",
+      "archived_at": "2025-07-10T13:15:51.492518",
       "total_images": 5,
       "annotated_images": 1,
       "total_annotations": 1,
