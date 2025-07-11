@@ -54,10 +54,10 @@ class SectorGraphicsItem(QGraphicsPathItem):
         Qt坐标系中，0度从正右方开始，顺时针增加
         """
         angle_map = {
-            SectorQuadrant.SECTOR_1: -90,   # 右上角：从正上方开始
-            SectorQuadrant.SECTOR_2: 0,     # 左上角：从正右方开始  
-            SectorQuadrant.SECTOR_3: 90,    # 左下角：从正下方开始
-            SectorQuadrant.SECTOR_4: 180    # 右下角：从正左方开始
+            SectorQuadrant.SECTOR_1: 0,     # 右上角：从正右方开始 (0°-90°)
+            SectorQuadrant.SECTOR_2: 90,    # 左上角：从正上方开始 (90°-180°)
+            SectorQuadrant.SECTOR_3: 180,   # 左下角：从正左方开始 (180°-270°)
+            SectorQuadrant.SECTOR_4: 270    # 右下角：从正下方开始 (270°-360°)
         }
         return angle_map[self.sector]
     
