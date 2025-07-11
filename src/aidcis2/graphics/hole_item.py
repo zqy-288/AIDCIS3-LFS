@@ -55,8 +55,8 @@ class HoleGraphicsItem(QGraphicsEllipseItem):
         # 设置初始样式
         self.update_appearance()
         
-        # 设置工具提示
-        self.setToolTip(self._create_tooltip())
+        # 不设置工具提示，以减少内存使用
+        # self.setToolTip(self._create_tooltip())
     
     def update_appearance(self):
         """更新外观"""

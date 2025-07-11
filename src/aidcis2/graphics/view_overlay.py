@@ -80,21 +80,7 @@ class MicroViewOverlay(ViewOverlayWidget):
     
     def setup_micro_view(self):
         """设置微观视图内容"""
-        # 创建微观视图图形区域
-        self.micro_view = QGraphicsView()
-        self.micro_view.setFixedSize(150, 150)
-        self.micro_view.setStyleSheet("background: transparent; border: none;")
-        self.micro_view.setRenderHint(QPainter.Antialiasing)
-        self.micro_view.setFrameShape(QFrame.NoFrame)
-        self.micro_view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.micro_view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        
-        self.micro_scene = QGraphicsScene()
-        self.micro_view.setScene(self.micro_scene)
-        
-        # 添加到内容区域
-        self.add_content(self.micro_view)
-        
+        # 只保留标题，不创建图形视图
         # 创建信息显示区域
         self.info_label = QLabel("点击孔位查看详情")
         self.info_label.setAlignment(Qt.AlignCenter)
@@ -109,72 +95,18 @@ class MicroViewOverlay(ViewOverlayWidget):
         """)
         self.info_label.setWordWrap(True)
         self.add_content(self.info_label)
-        
-        # 初始化视图
-        self.create_placeholder_view()
     
     def create_placeholder_view(self):
         """创建占位符视图"""
-        # 清空场景
-        self.micro_scene.clear()
-        
-        # 添加占位符圆形
-        placeholder = QGraphicsEllipseItem(-60, -60, 120, 120)
-        placeholder.setBrush(QBrush(QColor(200, 200, 200, 100)))
-        placeholder.setPen(QPen(QColor(150, 150, 150), 2, Qt.DashLine))
-        self.micro_scene.addItem(placeholder)
-        
-        # 添加文本
-        text_item = self.micro_scene.addText("微观视图", QFont("Arial", 12))
-        text_item.setPos(-40, -10)
-        text_item.setDefaultTextColor(QColor(100, 100, 100))
-        
-        # 设置场景范围
-        self.micro_scene.setSceneRect(-75, -75, 150, 150)
-        self.micro_view.fitInView(self.micro_scene.sceneRect(), Qt.KeepAspectRatio)
+        # 不再需要创建图形占位符，因为已经移除了图形视图
+        pass
     
     def show_hole_detail(self, hole_data):
         """显示孔位详情"""
         self.current_hole_data = hole_data
         
-        # 清空场景
-        self.micro_scene.clear()
-        
-        # 创建孔位详细视图
-        hole_item = QGraphicsEllipseItem(-25, -25, 50, 50)
-        
-        # 根据状态设置颜色
-        status_colors = {
-            'not_detected': QColor(128, 128, 128),
-            'detecting': QColor(255, 255, 0),
-            'qualified': QColor(0, 255, 0),
-            'unqualified': QColor(255, 0, 0),
-            'real_data': QColor(255, 165, 0)
-        }
-        
-        color = status_colors.get(hole_data.get('status', 'not_detected'), QColor(128, 128, 128))
-        hole_item.setBrush(QBrush(color))
-        hole_item.setPen(QPen(QColor(0, 0, 0), 2))
-        self.micro_scene.addItem(hole_item)
-        
-        # 添加孔位ID
+        # 只更新信息标签，不再显示图形
         hole_id = hole_data.get('hole_id', 'N/A')
-        text_item = self.micro_scene.addText(hole_id, QFont("Arial", 10, QFont.Bold))
-        text_item.setPos(-len(hole_id) * 3, 30)
-        text_item.setDefaultTextColor(QColor(0, 0, 0))
-        
-        # 添加周围的相邻孔位（模拟）
-        for i, (dx, dy) in enumerate([(0, -80), (80, 0), (0, 80), (-80, 0)]):
-            neighbor_item = QGraphicsEllipseItem(dx-15, dy-15, 30, 30)
-            neighbor_item.setBrush(QBrush(QColor(200, 200, 200, 150)))
-            neighbor_item.setPen(QPen(QColor(100, 100, 100), 1))
-            self.micro_scene.addItem(neighbor_item)
-        
-        # 设置场景范围
-        self.micro_scene.setSceneRect(-100, -100, 200, 200)
-        self.micro_view.fitInView(self.micro_scene.sceneRect(), Qt.KeepAspectRatio)
-        
-        # 更新信息标签
         status_text = hole_data.get('status', 'not_detected')
         coord_text = f"({hole_data.get('x', 0):.1f}, {hole_data.get('y', 0):.1f})"
         self.info_label.setText(f"孔位: {hole_id}\n坐标: {coord_text}\n状态: {status_text}")
@@ -186,7 +118,7 @@ class MacroViewOverlay(ViewOverlayWidget):
     sector_selected = Signal(str)
     
     def __init__(self, parent=None):
-        super().__init__("📊 宏观视图", parent)
+        super().__init__("宏观视图", parent)
         self.setup_macro_view()
     
     def setup_macro_view(self):
@@ -229,31 +161,7 @@ class MacroViewOverlay(ViewOverlayWidget):
         # 清空场景
         self.macro_scene.clear()
         
-        # 创建管板整体轮廓
-        outline = QGraphicsRectItem(-60, -45, 120, 90)
-        outline.setBrush(QBrush(QColor(240, 240, 240, 200)))
-        outline.setPen(QPen(QColor(100, 100, 100), 2))
-        self.macro_scene.addItem(outline)
-        
-        # 添加网格点表示孔位分布
-        rows, cols = 6, 8
-        start_x, start_y = -50, -35
-        spacing_x, spacing_y = 12, 11
-        
-        for row in range(rows):
-            for col in range(cols):
-                x = start_x + col * spacing_x
-                y = start_y + row * spacing_y
-                
-                dot = QGraphicsEllipseItem(x-1, y-1, 2, 2)
-                dot.setBrush(QBrush(QColor(100, 100, 100)))
-                dot.setPen(QPen(QColor(100, 100, 100), 1))
-                self.macro_scene.addItem(dot)
-        
-        # 添加标题
-        text_item = self.macro_scene.addText("管板全貌", QFont("Arial", 10))
-        text_item.setPos(-30, -70)
-        text_item.setDefaultTextColor(QColor(100, 100, 100))
+        # 不再创建管板图形，保持场景为空
         
         # 设置场景范围
         self.macro_scene.setSceneRect(-75, -75, 150, 150)
@@ -288,35 +196,12 @@ class ViewOverlayManager:
         self.parent_widget = parent_widget
         self.micro_overlay: Optional[MicroViewOverlay] = None
         self.macro_overlay: Optional[MacroViewOverlay] = None
-        
-        # 创建叠加层
-        self.create_overlays()
-        
-        # 设置定时器用于更新位置
-        self.position_timer = QTimer()
-        self.position_timer.timeout.connect(self.update_overlay_positions)
-        self.position_timer.start(100)  # 每100ms更新一次位置
+        self.position_timer = None
     
     def create_overlays(self):
         """创建叠加层组件"""
-        # 创建微观视图叠加层（左上角）
-        self.micro_overlay = MicroViewOverlay(self.parent_widget)
-        self.micro_overlay.setFixedSize(160, 200)
-        
-        # 创建宏观视图叠加层（右上角）
-        self.macro_overlay = MacroViewOverlay(self.parent_widget)
-        self.macro_overlay.setFixedSize(160, 200)
-        
-        # 初始位置
-        self.update_overlay_positions()
-        
-        # 确保在最上层显示
-        self.micro_overlay.raise_()
-        self.macro_overlay.raise_()
-        
-        # 显示叠加层
-        self.micro_overlay.show()
-        self.macro_overlay.show()
+        # 不再创建任何叠加层
+        pass
     
     def update_overlay_positions(self):
         """更新叠加层位置"""

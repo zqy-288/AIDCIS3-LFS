@@ -460,9 +460,6 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         # 更新显示模式
         self.update_view_display()
         
-        # 确保管板竖向摆放
-        self.ensure_vertical_orientation()
-        
         # 适应视图显示全部内容，并留有适当边距
         self.fit_in_view_with_margin()
         
@@ -489,9 +486,6 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         
         # 更新显示模式
         self.update_view_display()
-        
-        # 确保管板竖向摆放
-        self.ensure_vertical_orientation()
         
         # 如果有选中的管孔，聚焦到选中区域
         if self.selected_holes:
@@ -533,51 +527,6 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         # 刷新视图
         self.scene.update()
         self.viewport().update()
-        
-    def ensure_vertical_orientation(self):
-        """确保管板竖向摆放
-        
-        统一所有界面中管板二维图的摆放方向为竖向，满足甲方方向统一要求
-        """
-        if not self.hole_collection:
-            return
-            
-        # 获取管板边界
-        bounds = self.hole_collection.get_bounds()
-        width = bounds[2] - bounds[0]
-        height = bounds[3] - bounds[1]
-        center_x = (bounds[0] + bounds[2]) / 2
-        center_y = (bounds[1] + bounds[3]) / 2
-        
-        # 防止无效尺寸
-        if width <= 0 or height <= 0:
-            self.logger.warning(f"管板尺寸无效: {width}x{height}")
-            return
-        
-        self.logger.info(f"应用管板方向统一化: 尺寸({width:.1f}x{height:.1f}), 中心({center_x:.1f}, {center_y:.1f})")
-        
-        # 重置变换矩阵，确保统一的基准方向
-        self.resetTransform()
-        
-        # 检查当前是否为横向摆放（宽度大于高度）
-        if width > height:
-            # 管板需要旋转90度变为竖向
-            self.logger.info("检测到横向管板，应用竖向转换")
-            
-            # 应用90度旋转变换，使管板竖向显示
-            transform = QTransform()
-            transform.translate(center_x, center_y)
-            transform.rotate(90)
-            transform.translate(-center_x, -center_y)
-            self.setTransform(transform)
-        else:
-            # 管板已是竖向，确保标准方向
-            self.logger.info("管板已为竖向摆放，确保标准方向")
-        
-        # 居中显示
-        self.centerOn(center_x, center_y)
-        
-        self.logger.info("✅ 管板方向统一化完成：确保竖向摆放")
     
     def set_macro_view_scale(self):
         """设置适合宏观视图的缩放比例"""

@@ -87,7 +87,6 @@ class WorkpieceDiagram(QWidget):
         self.detection_points = {}  # 存储所有检测点
         self.highlighted_hole = None
         self.current_view_mode = "macro"  # 当前视图模式：macro(宏观) 或 micro(微观)
-        self.orientation_unified = True  # 统一为竖向摆放
         self.setup_ui()
         self.create_sample_workpiece()
         
@@ -118,14 +117,8 @@ class WorkpieceDiagram(QWidget):
         self.micro_btn.setToolTip("显示检测点的详细信息")
         self.micro_btn.clicked.connect(self.switch_to_micro_view)
         
-        # 确保竖向摆放按钮
-        self.orient_btn = QPushButton("📐 竖向摆放")
-        self.orient_btn.setToolTip("确保工件图纸竖向摆放")
-        self.orient_btn.clicked.connect(self.ensure_vertical_orientation)
-        
         control_layout.addWidget(self.macro_btn)
         control_layout.addWidget(self.micro_btn)
-        control_layout.addWidget(self.orient_btn)
         control_layout.addStretch()
         
         layout.addWidget(control_frame)
@@ -392,9 +385,6 @@ class WorkpieceDiagram(QWidget):
         self.macro_btn.setChecked(True)
         self.micro_btn.setChecked(False)
         
-        # 确保竖向摆放
-        self.ensure_vertical_orientation()
-        
         # 更新显示模式
         self.update_view_display()
         
@@ -407,73 +397,12 @@ class WorkpieceDiagram(QWidget):
         self.micro_btn.setChecked(True)
         self.macro_btn.setChecked(False)
         
-        # 确保竖向摆放
-        self.ensure_vertical_orientation()
-        
         # 更新显示模式
         self.update_view_display()
         
         # 放大到详细视图
         self.graphics_view.scale(2.0, 2.0)
         
-    def ensure_vertical_orientation(self):
-        """确保工件图纸竖向摆放
-        
-        统一所有界面中管板二维图的摆放方向为竖向
-        """
-        if not self.detection_points:
-            return
-            
-        # 计算当前工件的边界
-        min_x = min_y = float('inf')
-        max_x = max_y = float('-inf')
-        
-        for point in self.detection_points.values():
-            pos = point.pos()
-            min_x = min(min_x, pos.x())
-            min_y = min(min_y, pos.y())
-            max_x = max(max_x, pos.x())
-            max_y = max(max_y, pos.y())
-        
-        width = max_x - min_x
-        height = max_y - min_y
-        
-        # 检查是否需要旋转（宽度大于高度时需要旋转）
-        if width > height and not self.orientation_unified:
-            print(f"检测到横向工件 ({width:.1f}x{height:.1f})，转换为竖向摆放")
-            
-            # 计算旋转中心
-            center_x = (min_x + max_x) / 2
-            center_y = (min_y + max_y) / 2
-            
-            # 旋转所有检测点（90度）
-            for hole_id, point in self.detection_points.items():
-                current_pos = point.pos()
-                
-                # 计算相对于中心的位置
-                rel_x = current_pos.x() - center_x
-                rel_y = current_pos.y() - center_y
-                
-                # 旋转90度：(x, y) -> (-y, x)
-                new_x = center_x - rel_y
-                new_y = center_y + rel_x
-                
-                # 设置新位置
-                point.setPos(new_x, new_y)
-            
-            # 更新场景矩形以适应新的布局
-            new_scene_rect = QRectF(
-                center_x - height/2 - 50, center_y - width/2 - 50,
-                height + 100, width + 100
-            )
-            self.graphics_scene.setSceneRect(new_scene_rect)
-            
-            # 标记已统一方向
-            self.orientation_unified = True
-            
-            print(f"工件已转换为竖向摆放 ({height:.1f}x{width:.1f})")
-        else:
-            print(f"工件已为竖向摆放 ({width:.1f}x{height:.1f})")
         
     def update_view_display(self):
         """根据当前视图模式更新显示"""

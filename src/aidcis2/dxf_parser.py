@@ -91,6 +91,9 @@ class DXFParser:
                 if hole.row is not None and hole.column is not None:
                     hole.hole_id = f"({hole.row},{hole.column})"
 
+            # 对所有孔位进行90度逆时针旋转
+            self._rotate_holes_90_ccw(holes)
+            
             # 创建孔集合
             hole_collection = HoleCollection(
                 holes={hole.hole_id: hole for hole in holes},
@@ -99,11 +102,12 @@ class DXFParser:
                     'dxf_version': doc.dxfversion,
                     'total_entities': len(entities),
                     'total_arcs': len(arcs),
-                    'file_size': file_size
+                    'file_size': file_size,
+                    'pre_rotated': True  # 标记已预旋转
                 }
             )
 
-            self.logger.info(f"DXF解析完成，共解析出 {len(hole_collection)} 个管孔")
+            self.logger.info(f"DXF解析完成，共解析出 {len(hole_collection)} 个管孔（已逆时针旋转90度）")
             return hole_collection
 
         except (FileNotFoundError, ValueError) as e:
@@ -331,3 +335,33 @@ class DXFParser:
             'layer_distribution': layer_counts,
             'status_counts': hole_collection.get_status_counts()
         }
+    
+    def _rotate_holes_90_ccw(self, holes: List[HoleData]) -> None:
+        """
+        对所有孔位进行90度逆时针旋转
+        旋转公式: (x, y) -> (-y, x)
+        
+        Args:
+            holes: 孔位列表
+        """
+        # 计算旋转中心（使用所有孔位的中心）
+        if not holes:
+            return
+            
+        center_x = sum(hole.center_x for hole in holes) / len(holes)
+        center_y = sum(hole.center_y for hole in holes) / len(holes)
+        
+        self.logger.info(f"执行90度逆时针旋转，旋转中心: ({center_x:.2f}, {center_y:.2f})")
+        
+        for hole in holes:
+            # 平移到原点
+            x = hole.center_x - center_x
+            y = hole.center_y - center_y
+            
+            # 逆时针旋转90度: (x, y) -> (-y, x)
+            new_x = -y
+            new_y = x
+            
+            # 平移回原位置
+            hole.center_x = new_x + center_x
+            hole.center_y = new_y + center_y

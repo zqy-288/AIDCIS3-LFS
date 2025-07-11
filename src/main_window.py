@@ -2474,6 +2474,23 @@ class MainWindow(QMainWindow):
 
             # 更新统计计数
             self.v2_stats[status_text] += 1
+            
+            # 更新孔位数据状态
+            if status_text == "合格":
+                current_hole.status = HoleStatus.QUALIFIED
+            elif status_text == "异常":
+                current_hole.status = HoleStatus.DEFECTIVE
+            elif status_text == "盲孔":
+                current_hole.status = HoleStatus.BLIND
+            elif status_text == "拉杆孔":
+                current_hole.status = HoleStatus.TIE_ROD
+            
+            # 更新扇形管理器
+            if hasattr(self, 'sector_manager') and self.sector_manager:
+                self.sector_manager.update_hole_status(hole_id, current_hole.status)
+            
+            # 更新状态统计显示
+            self.update_status_display()
 
             # 多重强制刷新
             self.graphics_view.scene.update()
@@ -2618,9 +2635,9 @@ class MainWindow(QMainWindow):
             # 获取动态扇形显示区域的大小
             sector_rect = self.dynamic_sector_display.geometry()
             
-            # 计算右上角位置（考虑边距）
-            x = sector_rect.width() - self.complete_panorama.width() - 15
-            y = 15
+            # 计算左上角位置（考虑边距）
+            x = 15  # 左边距
+            y = 15  # 上边距
             
             # 设置位置
             self.complete_panorama.move(x, y)

@@ -78,14 +78,24 @@ class SectorGraphicsManager:
             angle_deg += 360
         
         # 判断属于哪个扇形
+        # 将数学坐标系角度转换为Qt坐标系角度（顺时针）
+        # 数学坐标系：0度在右，逆时针增加
+        # Qt坐标系：0度在右，顺时针增加
+        qt_angle = (360 - angle_deg) % 360
+        
+        # Qt坐标系中的扇形定义（与sector_view.py中的定义一致）：
+        # 区域1：0°-90°（右上）
+        # 区域2：90°-180°（左上）
+        # 区域3：180°-270°（左下）
+        # 区域4：270°-360°（右下）
         if sector == SectorQuadrant.SECTOR_1:
-            return 0 <= angle_deg < 90
+            return 0 <= qt_angle < 90      # 右上
         elif sector == SectorQuadrant.SECTOR_2:
-            return 90 <= angle_deg < 180
+            return 90 <= qt_angle < 180    # 左上
         elif sector == SectorQuadrant.SECTOR_3:
-            return 180 <= angle_deg < 270
+            return 180 <= qt_angle < 270   # 左下
         elif sector == SectorQuadrant.SECTOR_4:
-            return 270 <= angle_deg < 360
+            return 270 <= qt_angle < 360   # 右下
         
         return False
     
@@ -187,7 +197,6 @@ class DynamicSectorDisplayWidget(QWidget):
                 # 为该扇形创建独立的图形视图（不显示，仅预备）
                 view = OptimizedGraphicsView()
                 view.load_holes(sector_collection)
-                view.ensure_vertical_orientation()
                 view.switch_to_macro_view()
                 
                 self.sector_views[sector] = {
@@ -212,7 +221,6 @@ class DynamicSectorDisplayWidget(QWidget):
         # 加载扇形区域的孔位到主显示视图
         sector_collection = sector_info['collection']
         self.graphics_view.load_holes(sector_collection)
-        self.graphics_view.ensure_vertical_orientation()
         self.graphics_view.switch_to_macro_view()
         
         # 更新标题和状态（移除，因为已删除标题栏）
@@ -281,7 +289,6 @@ class CompletePanoramaWidget(QWidget):
         """加载完整的全景图"""
         if hole_collection and len(hole_collection) > 0:
             self.panorama_view.load_holes(hole_collection)
-            self.panorama_view.ensure_vertical_orientation()
             self.panorama_view.switch_to_macro_view()
             
             # 确保显示全景 - 调用适应窗口方法

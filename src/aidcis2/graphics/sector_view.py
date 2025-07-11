@@ -114,13 +114,13 @@ class SectorGraphicsItem(QGraphicsPathItem):
         """定位文本标签"""
         # 计算标签位置（扇形中心）
         angle_rad = math.radians(self.start_angle + self.span_angle / 2)
-        label_radius = self.radius * 0.45  # 进一步调整标签位置，适应更小扇形
+        label_radius = self.radius * 0.5  # 调整标签位置，让文字更靠近中心
 
         x = self.center.x() + label_radius * math.cos(angle_rad)
         y = self.center.y() + label_radius * math.sin(angle_rad)
 
-        # 调整文本位置以居中 - 使用更小的字体以适应更小空间
-        font = QFont("Arial", 6, QFont.Bold)  # 再次减小字体大小
+        # 调整文本位置以居中
+        font = QFont("Arial", 36, QFont.Bold)  # 调整为36大小
         self.text_item.setFont(font)
 
         text_rect = self.text_item.boundingRect()
@@ -131,6 +131,9 @@ class SectorGraphicsItem(QGraphicsPathItem):
 
         # 设置文本颜色
         self.text_item.setDefaultTextColor(QColor(255, 255, 255))
+        
+        # 确保文字在最顶层
+        self.text_item.setZValue(1000)
     
     def update_progress(self, progress: SectorProgress):
         """更新进度显示"""
@@ -178,7 +181,7 @@ class SectorOverviewWidget(QWidget):
         """)
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(5, 5, 5, 5)
         
         # 标题
         title_label = QLabel("扇形区域进度")
@@ -186,11 +189,11 @@ class SectorOverviewWidget(QWidget):
         title_label.setStyleSheet("""
             QLabel {
                 color: #333;
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: bold;
                 background: transparent;
                 border: none;
-                padding: 8px;
+                padding: 4px;
             }
         """)
         layout.addWidget(title_label)
@@ -238,20 +241,28 @@ class SectorOverviewWidget(QWidget):
     def _create_sector_items(self):
         """创建扇形图形项"""
         center = QPointF(0, 0)
-        radius = 60  # 进一步减小半径使扇形更紧凑
+        radius = 10  # 显著减小半径使扇形更紧凑，适应外框大小
 
         for sector in SectorQuadrant:
             item = SectorGraphicsItem(sector, center, radius)
             self.sector_items[sector] = item
             self.graphics_scene.addItem(item)
 
-        # 设置场景范围 - 优化以确保完整显示
-        margin = 15  # 进一步减小边距
-        self.graphics_scene.setSceneRect(-radius - margin, -radius - margin,
-                                       (radius + margin) * 2, (radius + margin) * 2)
+        # 获取所有项的实际边界
+        items_rect = self.graphics_scene.itemsBoundingRect()
         
-        # 适应视图
-        self.graphics_view.fitInView(self.graphics_scene.sceneRect(), Qt.KeepAspectRatio)
+        # 设置场景范围 - 基于实际项边界并添加适当边距
+        margin = 3  # 减小边距以更紧凑的显示
+        scene_rect = items_rect.adjusted(-margin, -margin, margin, margin)
+        self.graphics_scene.setSceneRect(scene_rect)
+        
+        # 设置视图的最小大小以确保能完整显示
+        min_size = max(scene_rect.width(), scene_rect.height()) + 3
+        self.graphics_view.setMinimumSize(int(min_size), int(min_size))
+        
+        # 适应视图 - 使用稍微缩小的比例以确保完整显示
+        self.graphics_view.fitInView(scene_rect, Qt.KeepAspectRatio)
+        self.graphics_view.scale(0.6, 0.6)  # 进一步缩小以确保完整显示所有饼图
     
     def set_sector_manager(self, sector_manager: SectorManager):
         """设置扇形管理器"""
@@ -290,8 +301,12 @@ class SectorOverviewWidget(QWidget):
         """处理大小变化事件"""
         super().resizeEvent(event)
         # 重新适应视图
-        if hasattr(self, 'graphics_view'):
-            self.graphics_view.fitInView(self.graphics_scene.sceneRect(), Qt.KeepAspectRatio)
+        if hasattr(self, 'graphics_view') and hasattr(self, 'graphics_scene'):
+            # 保持扇形图居中并完整显示
+            scene_rect = self.graphics_scene.sceneRect()
+            self.graphics_view.resetTransform()  # 重置变换
+            self.graphics_view.fitInView(scene_rect, Qt.KeepAspectRatio)
+            self.graphics_view.scale(0.6, 0.6)  # 保持一致的缩放比例
 
 
 class SectorDetailView(QWidget):
