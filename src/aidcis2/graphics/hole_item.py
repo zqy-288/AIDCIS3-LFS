@@ -114,9 +114,11 @@ class HoleGraphicsItem(QGraphicsEllipseItem):
     
     def _create_tooltip(self) -> str:
         """创建工具提示文本"""
+        grid_pos = f"第{self.hole_data.row}行第{self.hole_data.column}列" if self.hole_data.row and self.hole_data.column else "未分配"
         return (
-            f"孔ID: {self.hole_data.hole_id}\n"
-            f"位置: ({self.hole_data.center_x:.3f}, {self.hole_data.center_y:.3f})\n"
+            f"孔位置: {self.hole_data.hole_id}\n"
+            f"网格位置: {grid_pos}\n"
+            f"坐标: ({self.hole_data.center_x:.3f}, {self.hole_data.center_y:.3f})\n"
             f"半径: {self.hole_data.radius:.3f}\n"
             f"状态: {self.hole_data.status.value}\n"
             f"图层: {self.hole_data.layer}"

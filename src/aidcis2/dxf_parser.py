@@ -85,6 +85,11 @@ class DXFParser:
 
             # 分配网格位置
             self._assign_grid_positions(holes)
+            
+            # 更新hole_id为(row, column)格式
+            for hole in holes:
+                if hole.row is not None and hole.column is not None:
+                    hole.hole_id = f"({hole.row},{hole.column})"
 
             # 创建孔集合
             hole_collection = HoleCollection(

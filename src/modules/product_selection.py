@@ -10,6 +10,9 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QSizePolicy)
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'models'))
 from product_model import get_product_manager
 
 class ProductSelectionDialog(QDialog):
@@ -217,11 +220,31 @@ class ProductSelectionDialog(QDialog):
     
     def select_product(self):
         """选择产品"""
-        if self.selected_product:
-            self.product_selected.emit(self.selected_product)
-            self.accept()
-        else:
+        if not self.selected_product:
             QMessageBox.warning(self, "警告", "请先选择一个产品型号")
+            return
+        
+        # 重新验证产品是否存在
+        try:
+            existing_product = self.product_manager.get_product_by_id(self.selected_product.id)
+            if not existing_product:
+                QMessageBox.warning(self, "警告", f"产品 '{self.selected_product.model_name}' 不存在，可能已被删除")
+                self.load_products()  # 刷新列表
+                return
+                
+            # 检查产品是否仍然启用
+            if not existing_product.is_active:
+                QMessageBox.warning(self, "警告", f"产品 '{existing_product.model_name}' 已被停用，无法选择")
+                self.load_products()  # 刷新列表
+                return
+                
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"验证产品失败: {str(e)}")
+            return
+        
+        # 使用最新的产品数据
+        self.product_selected.emit(existing_product)
+        self.accept()
     
     def open_product_management(self):
         """打开产品信息维护界面"""

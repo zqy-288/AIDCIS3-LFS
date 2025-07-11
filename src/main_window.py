@@ -32,7 +32,15 @@ from aidcis2.graphics.graphics_view import OptimizedGraphicsView
 
 # 导入产品管理模块
 from modules.product_selection import ProductSelectionDialog
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), 'models'))
 from product_model import get_product_manager
+
+# 导入扇形区域管理组件
+from aidcis2.graphics.sector_manager import SectorManager
+from aidcis2.graphics.sector_view import SectorOverviewWidget, SectorDetailView
+from aidcis2.graphics.dynamic_sector_view import DynamicSectorDisplayWidget, CompletePanoramaWidget
 
 
 class MainWindow(QMainWindow):
@@ -59,6 +67,9 @@ class MainWindow(QMainWindow):
         self.dxf_parser = DXFParser()
         self.data_adapter = DataAdapter()
         self.status_manager = StatusManager()
+        
+        # 扇形区域管理器
+        self.sector_manager = SectorManager()
         
         # 产品管理
         self.product_manager = get_product_manager()
@@ -102,6 +113,9 @@ class MainWindow(QMainWindow):
         self.update_timer.start(1000)  # 每秒更新一次
         
         self.logger.info("合并主界面初始化完成")
+        
+        # 默认加载东重管板DXF文件
+        self._load_default_dxf()
         
     def setup_ui(self):
         """设置主界面布局"""
@@ -272,43 +286,44 @@ class MainWindow(QMainWindow):
 
         content_widget = QWidget()
         layout = QVBoxLayout(content_widget)
-        layout.setSpacing(8)  # 减少组件间距以节省空间
+        layout.setSpacing(6)  # 进一步减少组件间距
+        layout.setContentsMargins(8, 8, 8, 8)  # 减少边距
 
-        # 设置全局字体
+        # 设置全局字体 - 进一步减小
         from PySide6.QtGui import QFont
         panel_font = QFont()
-        panel_font.setPointSize(11)  # 设置字体大小为11pt
+        panel_font.setPointSize(10)  # 减小字体到10pt
         content_widget.setFont(panel_font)
 
         # 1. 检测进度组（放在最上方）
         progress_group = QGroupBox("检测进度")
         progress_group_font = QFont()
-        progress_group_font.setPointSize(11)  # 稍微减小组标题字体
+        progress_group_font.setPointSize(10)  # 减小组标题字体
         progress_group_font.setBold(True)
         progress_group.setFont(progress_group_font)
         progress_layout = QVBoxLayout(progress_group)
-        progress_layout.setSpacing(6)  # 减少内部间距
-        progress_layout.setContentsMargins(8, 8, 8, 8)  # 减少边距
+        progress_layout.setSpacing(4)  # 减少内部间距
+        progress_layout.setContentsMargins(6, 6, 6, 6)  # 减少边距
 
         # 进度条
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        self.progress_bar.setMinimumHeight(22)  # 稍微减小进度条高度
+        self.progress_bar.setMinimumHeight(18)  # 减小进度条高度
         progress_layout.addWidget(self.progress_bar)
 
         # 新增的统计信息 - 使用网格布局，更紧凑
         stats_grid_layout = QGridLayout()
-        stats_grid_layout.setSpacing(4)  # 减少网格间距
+        stats_grid_layout.setSpacing(2)  # 进一步减少网格间距
         stats_grid_layout.setContentsMargins(0, 0, 0, 0)
 
         # 已完成和待完成统计
         self.completed_count_label = QLabel("已完成: 0")
         self.pending_count_label = QLabel("待完成: 0")
 
-        # 设置标签字体，稍微减小
+        # 设置标签字体，进一步减小
         label_font = QFont()
-        label_font.setPointSize(10)  # 减小字体以节省空间
+        label_font.setPointSize(9)  # 进一步减小字体以节省空间
         self.completed_count_label.setFont(label_font)
         self.pending_count_label.setFont(label_font)
 
@@ -423,8 +438,8 @@ class MainWindow(QMainWindow):
         file_group = QGroupBox("文件信息")
         file_group.setFont(progress_group_font)  # 使用相同的组标题字体
         file_layout = QGridLayout(file_group)
-        file_layout.setSpacing(4)  # 减少间距
-        file_layout.setContentsMargins(8, 8, 8, 8)  # 减少边距
+        file_layout.setSpacing(2)  # 减少间距
+        file_layout.setContentsMargins(6, 6, 6, 6)  # 减少边距
 
         self.file_name_label = QLabel("未加载文件")
         self.file_path_label = QLabel("路径: -")
@@ -441,7 +456,7 @@ class MainWindow(QMainWindow):
 
         # 设置所有文件信息标签的字体，使用更小的字体
         file_info_font = QFont()
-        file_info_font.setPointSize(9)  # 进一步减小字体以节省空间
+        file_info_font.setPointSize(8)  # 进一步减小字体以节省空间
         file_info_labels = [
             file_name_desc_label, file_path_desc_label, file_size_desc_label,
             load_time_desc_label, hole_count_desc_label,
@@ -453,16 +468,43 @@ class MainWindow(QMainWindow):
 
         file_layout.addWidget(file_name_desc_label, 0, 0)
         file_layout.addWidget(self.file_name_label, 0, 1)
-        file_layout.addWidget(file_path_desc_label, 1, 0)
-        file_layout.addWidget(self.file_path_label, 1, 1)
-        file_layout.addWidget(file_size_desc_label, 2, 0)
-        file_layout.addWidget(self.file_size_label, 2, 1)
-        file_layout.addWidget(load_time_desc_label, 3, 0)
-        file_layout.addWidget(self.load_time_label, 3, 1)
-        file_layout.addWidget(hole_count_desc_label, 4, 0)
-        file_layout.addWidget(self.hole_count_label, 4, 1)
+        file_layout.addWidget(file_size_desc_label, 1, 0)
+        file_layout.addWidget(self.file_size_label, 1, 1)
+        file_layout.addWidget(hole_count_desc_label, 2, 0)
+        file_layout.addWidget(self.hole_count_label, 2, 1)
 
         layout.addWidget(file_group)
+
+        # 5. 扇形概览控制（新增到左侧信息面板）
+        sector_overview_group = QGroupBox("扇形区域概览")
+        sector_overview_group.setFont(progress_group_font)
+        sector_overview_layout = QVBoxLayout(sector_overview_group)
+        sector_overview_layout.setContentsMargins(8, 8, 8, 8)
+        
+        # 扇形概览控制 - 增大尺寸以显示完整内容
+        self.sector_overview = SectorOverviewWidget()
+        self.sector_overview.set_sector_manager(self.sector_manager)
+        self.sector_overview.sector_selected.connect(self.on_sector_selected)
+        self.sector_overview.setFixedSize(200, 280)  # 增大尺寸以显示完整的扇形图和标签
+        sector_overview_layout.addWidget(self.sector_overview)
+        
+        # 6. 扇形详细信息（移到左侧信息面板，放在扇形概览下方）
+        self.sector_detail_view = SectorDetailView()
+        self.sector_detail_view.set_sector_manager(self.sector_manager)
+        self.sector_detail_view.setMaximumHeight(150)  # 增加高度以显示完整信息
+        # 调整字体大小以适应更大的显示区域
+        self.sector_detail_view.setStyleSheet("""
+            QLabel { font-size: 9px; padding: 2px; margin: 1px; }
+            QFrame { padding: 3px; margin: 2px; }
+        """)
+        
+        # 默认显示第一个扇形区域的信息
+        from aidcis2.graphics.sector_manager import SectorQuadrant
+        self.sector_detail_view.show_sector_detail(SectorQuadrant.SECTOR_1)
+        
+        sector_overview_layout.addWidget(self.sector_detail_view)
+        
+        layout.addWidget(sector_overview_group)
 
         layout.addStretch()
 
@@ -491,17 +533,48 @@ class MainWindow(QMainWindow):
         view_controls_frame = self.create_view_controls()
         layout.addWidget(view_controls_frame)
 
-        # 创建优化的图形视图
-        self.graphics_view = OptimizedGraphicsView()
-        self.graphics_view.setFrameStyle(QFrame.StyledPanel)
-
-        # 连接图形视图信号
-        self.graphics_view.hole_clicked.connect(self.on_hole_selected)
-        self.graphics_view.hole_hovered.connect(self.on_hole_hovered)
-        self.graphics_view.view_changed.connect(self.on_view_changed)
-        self.graphics_view.view_mode_changed.connect(self.on_view_mode_changed)
-
-        layout.addWidget(self.graphics_view)
+        # 创建主要内容区域 - 单一显示区域，无分割器
+        # 主要显示区域：动态扇形区域显示（带叠放的完整全景图）
+        main_widget = QWidget()
+        main_layout = QVBoxLayout(main_widget)
+        main_layout.setContentsMargins(5, 5, 5, 5)
+        
+        # 创建扇形显示容器（支持叠放）
+        sector_container = QWidget()
+        sector_container_layout = QVBoxLayout(sector_container)
+        sector_container_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # 动态扇形区域显示（主要显示区域）
+        self.dynamic_sector_display = DynamicSectorDisplayWidget()
+        self.dynamic_sector_display.setMinimumSize(800, 650)  # 保持原有尺寸
+        sector_container_layout.addWidget(self.dynamic_sector_display)
+        
+        # 完整孔位全景图（叠放在右上角） - 增大尺寸以显示内容
+        self.complete_panorama = CompletePanoramaWidget()
+        self.complete_panorama.setParent(self.dynamic_sector_display)
+        self.complete_panorama.setFixedSize(250, 280)  # 增大尺寸以显示完整内容
+        self.complete_panorama.setStyleSheet("""
+            QWidget {
+                background-color: rgba(255, 255, 255, 240);
+                border: 2px solid #ccc;
+                border-radius: 8px;
+            }
+        """)
+        
+        main_layout.addWidget(sector_container)
+        
+        # 直接添加到布局，无分割器，无下半部分
+        layout.addWidget(main_widget)
+        
+        # 为了向后兼容，设置graphics_view引用
+        self.graphics_view = self.dynamic_sector_display.graphics_view
+        
+        # 连接动态扇形显示的信号
+        self.dynamic_sector_display.sector_changed.connect(self.on_dynamic_sector_changed)
+        
+        # 连接扇形管理器信号
+        self.sector_manager.sector_progress_updated.connect(self.on_sector_progress_updated)
+        self.sector_manager.overall_progress_updated.connect(self.on_overall_progress_updated)
 
         return panel
 
@@ -564,64 +637,113 @@ class MainWindow(QMainWindow):
         """创建层级化显示控制按钮"""
         control_frame = QFrame()
         control_frame.setFrameStyle(QFrame.StyledPanel)
-        control_frame.setMaximumHeight(50)
+        control_frame.setMaximumHeight(60)
         
         layout = QHBoxLayout(control_frame)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setContentsMargins(12, 8, 12, 8)
         
         # 视图模式标签
         view_label = QLabel("视图模式:")
-        view_label.setFont(QFont("Arial", 10, QFont.Bold))
+        view_label.setFont(QFont("Arial", 11, QFont.Bold))
         layout.addWidget(view_label)
         
         # 宏观区域视图按钮
-        self.macro_view_btn = QPushButton("宏观区域视图")
+        self.macro_view_btn = QPushButton("📊 宏观区域视图")
         self.macro_view_btn.setCheckable(True)
-        self.macro_view_btn.setChecked(True)  # 默认选中
-        self.macro_view_btn.setMinimumHeight(30)
+        self.macro_view_btn.setChecked(True)  # 默认选中宏观视图
+        self.macro_view_btn.setMinimumHeight(35)
+        self.macro_view_btn.setMinimumWidth(140)
+        self.macro_view_btn.setToolTip("显示整个管板的全貌，适合快速浏览和状态概览")
         self.macro_view_btn.setStyleSheet("""
             QPushButton {
                 background-color: #4CAF50;
                 color: white;
                 border: none;
-                padding: 6px 12px;
-                border-radius: 4px;
+                padding: 8px 16px;
+                border-radius: 6px;
                 font-weight: bold;
-                font-size: 10px;
+                font-size: 11px;
             }
             QPushButton:checked {
                 background-color: #45a049;
+                border: 2px solid #2E7D32;
             }
             QPushButton:hover {
                 background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3e8e41;
             }
         """)
         self.macro_view_btn.clicked.connect(self.switch_to_macro_view)
         layout.addWidget(self.macro_view_btn)
         
         # 微观管孔视图按钮
-        self.micro_view_btn = QPushButton("微观管孔视图")
+        self.micro_view_btn = QPushButton("🔍 微观管孔视图")
         self.micro_view_btn.setCheckable(True)
-        self.micro_view_btn.setMinimumHeight(30)
+        self.micro_view_btn.setMinimumHeight(35)
+        self.micro_view_btn.setMinimumWidth(140)
+        self.micro_view_btn.setToolTip("显示管孔的详细信息，适合精确检查和操作")
         self.micro_view_btn.setStyleSheet("""
             QPushButton {
                 background-color: #2196F3;
                 color: white;
                 border: none;
-                padding: 6px 12px;
-                border-radius: 4px;
+                padding: 8px 16px;
+                border-radius: 6px;
                 font-weight: bold;
-                font-size: 10px;
+                font-size: 11px;
             }
             QPushButton:checked {
                 background-color: #1976D2;
+                border: 2px solid #1565C0;
             }
             QPushButton:hover {
                 background-color: #1976D2;
             }
+            QPushButton:pressed {
+                background-color: #1565C0;
+            }
         """)
         self.micro_view_btn.clicked.connect(self.switch_to_micro_view)
         layout.addWidget(self.micro_view_btn)
+        
+        # 添加分隔符
+        separator = QFrame()
+        separator.setFrameShape(QFrame.VLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(separator)
+        
+        # 方向统一按钮
+        self.orient_btn = QPushButton("📐 统一竖向")
+        self.orient_btn.setMinimumHeight(35)
+        self.orient_btn.setMinimumWidth(100)
+        self.orient_btn.setToolTip("确保管板在所有视图中都是竖向摆放")
+        self.orient_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+            QPushButton:pressed {
+                background-color: #E65100;
+            }
+        """)
+        self.orient_btn.clicked.connect(self.ensure_vertical_orientation)
+        layout.addWidget(self.orient_btn)
+        
+        # 添加当前视图状态指示器
+        self.view_status_label = QLabel("当前: 宏观视图")
+        self.view_status_label.setFont(QFont("Arial", 10))
+        self.view_status_label.setStyleSheet("color: #666; font-style: italic;")
+        layout.addWidget(self.view_status_label)
         
         layout.addStretch()
         
@@ -1186,9 +1308,9 @@ class MainWindow(QMainWindow):
             self.reset_view_btn.setEnabled(True)
             
             # 自动适应视图
-            if hasattr(self.graphics_view, 'fit_in_view'):
-                self.graphics_view.fit_in_view()
-                self.log_message("已自动适应视图范围")
+            if hasattr(self.graphics_view, 'fit_to_window_width'):
+                QTimer.singleShot(200, self.graphics_view.fit_to_window_width)
+                self.log_message("已自动适应视图宽度")
                 
         except Exception as e:
             error_msg = f"加载DXF文件失败: {str(e)}"
@@ -1280,9 +1402,9 @@ class MainWindow(QMainWindow):
                         self.status_label.setText("测试DXF加载完成")
 
                         # 自动适应视图
-                        if hasattr(self.graphics_view, 'fit_in_view'):
-                            self.graphics_view.fit_in_view()
-                            self.log_message("已自动适应视图")
+                        if hasattr(self.graphics_view, 'fit_to_window_width'):
+                            QTimer.singleShot(200, self.graphics_view.fit_to_window_width)
+                            self.log_message("已自动适应视图宽度")
 
                         return
                     else:
@@ -1338,6 +1460,10 @@ class MainWindow(QMainWindow):
             # 使用图形视图加载孔位数据
             self.graphics_view.load_holes(self.hole_collection)
             self.log_message(f"✅ 图形视图已加载 {len(self.hole_collection)} 个孔位")
+            
+            # 加载到扇形管理器
+            self.sector_manager.load_hole_collection(self.hole_collection)
+            self.log_message(f"✅ 扇形管理器已加载孔位数据并进行区域划分")
 
             # 检查图形视图状态
             scene_rect = self.graphics_view.scene.sceneRect()
@@ -1455,8 +1581,11 @@ class MainWindow(QMainWindow):
         self.log_message(f"  📊 孔位数据: ID={hole.hole_id}, X={hole.center_x}, Y={hole.center_y}, R={hole.radius}, 状态={hole.status}")
 
         try:
-            # 基本信息 - 只设置值部分（前缀由布局中的描述标签提供）
-            id_text = f"{hole.hole_id}"
+            # 基本信息 - 使用(row,column)格式显示
+            if hole.row is not None and hole.column is not None:
+                id_text = f"({hole.row},{hole.column})"
+            else:
+                id_text = f"{hole.hole_id}"
             position_text = f"({hole.center_x:.1f}, {hole.center_y:.1f})"
 
             self.log_message(f"  📝 准备设置ID标签: '{id_text}'")
@@ -1802,38 +1931,127 @@ class MainWindow(QMainWindow):
 
     def switch_to_macro_view(self):
         """切换到宏观区域视图"""
-        if hasattr(self, 'graphics_view'):
-            self.graphics_view.switch_to_macro_view()
+        try:
+            if hasattr(self, 'graphics_view'):
+                self.graphics_view.switch_to_macro_view()
+                
+            # 更新按钮状态
+            self.macro_view_btn.setChecked(True)
+            self.micro_view_btn.setChecked(False)
             
-        # 更新按钮状态
-        self.macro_view_btn.setChecked(True)
-        self.micro_view_btn.setChecked(False)
-        
-        self.log_message("切换到宏观区域视图")
+            # 更新状态指示器
+            self.view_status_label.setText("当前: 宏观视图")
+            
+            self.log_message("📊 切换到宏观区域视图 - 显示整个管板全貌")
+            
+        except Exception as e:
+            self.log_message(f"❌ 切换宏观视图失败: {e}")
 
     def switch_to_micro_view(self):
         """切换到微观管孔视图"""
-        if hasattr(self, 'graphics_view'):
-            self.graphics_view.switch_to_micro_view()
+        try:
+            if hasattr(self, 'graphics_view'):
+                self.graphics_view.switch_to_micro_view()
+                
+            # 更新按钮状态
+            self.micro_view_btn.setChecked(True)
+            self.macro_view_btn.setChecked(False)
             
-        # 更新按钮状态
-        self.micro_view_btn.setChecked(True)
-        self.macro_view_btn.setChecked(False)
-        
-        self.log_message("切换到微观管孔视图")
+            # 更新状态指示器
+            self.view_status_label.setText("当前: 微观视图")
+            
+            self.log_message("🔍 切换到微观管孔视图 - 显示管孔详细信息")
+            
+        except Exception as e:
+            self.log_message(f"❌ 切换微观视图失败: {e}")
+            
+    def ensure_vertical_orientation(self):
+        """确保管板竖向摆放"""
+        try:
+            if hasattr(self, 'graphics_view'):
+                self.graphics_view.ensure_vertical_orientation()
+                
+            self.log_message("📐 统一管板方向为竖向摆放")
+            
+        except Exception as e:
+            self.log_message(f"❌ 统一方向失败: {e}")
 
     def on_view_mode_changed(self, mode: str):
         """处理视图模式变化"""
-        mode_text = "宏观区域视图" if mode == "macro" else "微观管孔视图"
+        if mode == "macro":
+            mode_text = "宏观区域视图"
+            self.macro_view_btn.setChecked(True)
+            self.micro_view_btn.setChecked(False)
+            self.view_status_label.setText("当前: 宏观视图")
+        else:
+            mode_text = "微观管孔视图"
+            self.micro_view_btn.setChecked(True)
+            self.macro_view_btn.setChecked(False)
+            self.view_status_label.setText("当前: 微观视图")
+            
         self.log_message(f"视图模式已切换为: {mode_text}")
+    
+    def on_sector_selected(self, sector):
+        """处理扇形区域选择"""
+        from aidcis2.graphics.sector_manager import SectorQuadrant
+        
+        sector_names = {
+            SectorQuadrant.SECTOR_1: "区域1 (右上)",
+            SectorQuadrant.SECTOR_2: "区域2 (左上)",
+            SectorQuadrant.SECTOR_3: "区域3 (左下)",
+            SectorQuadrant.SECTOR_4: "区域4 (右下)"
+        }
+        
+        self.log_message(f"🎯 选择扇形区域: {sector_names.get(sector, sector.value)}")
+        
+        # 在详细视图中显示该扇形的信息
+        if hasattr(self, 'sector_detail_view'):
+            self.sector_detail_view.show_sector_detail(sector)
+            
+        # 可以在图形视图中高亮该扇形区域的孔位
+        if hasattr(self, 'sector_manager') and hasattr(self, 'graphics_view'):
+            sector_holes = self.sector_manager.get_sector_holes(sector)
+            if sector_holes:
+                self.graphics_view.highlight_holes(sector_holes, search_highlight=False)
+                self.log_message(f"📍 高亮显示 {len(sector_holes)} 个孔位")
+    
+    def on_sector_progress_updated(self, sector, progress):
+        """处理扇形区域进度更新"""
+        from aidcis2.graphics.sector_manager import SectorQuadrant
+        
+        sector_names = {
+            SectorQuadrant.SECTOR_1: "区域1",
+            SectorQuadrant.SECTOR_2: "区域2",
+            SectorQuadrant.SECTOR_3: "区域3",
+            SectorQuadrant.SECTOR_4: "区域4"
+        }
+        
+        sector_name = sector_names.get(sector, sector.value)
+        self.log_message(f"📊 {sector_name} 进度更新: {progress.progress_percentage:.1f}% "
+                        f"(完成: {progress.completed_holes}/{progress.total_holes})")
+    
+    def on_overall_progress_updated(self, overall_stats):
+        """处理整体进度更新"""
+        total = overall_stats.get('total_holes', 0)
+        completed = overall_stats.get('completed_holes', 0)
+        qualified = overall_stats.get('qualified_holes', 0)
+        
+        if total > 0:
+            overall_progress = (completed / total) * 100
+            qualification_rate = (qualified / completed * 100) if completed > 0 else 0
+            
+            self.log_message(f"🏆 整体进度更新: {overall_progress:.1f}% "
+                           f"(合格率: {qualification_rate:.1f}%)")
+            
+            # 可以在这里更新界面上的整体进度显示
 
     def on_report_generated(self, report_type: str, file_path: str):
         """处理报告生成完成事件"""
         self.log_message(f"{report_type}报告生成完成: {file_path}")
         
         # 可以在这里添加更多处理逻辑，如发送通知、更新状态等
-        if hasattr(self, 'status_bar'):
-            self.status_bar.showMessage(f"{report_type}报告已生成", 3000)
+        if hasattr(self, 'statusBar'):
+            self.statusBar().showMessage(f"{report_type}报告已生成", 3000)
 
     def log_message(self, message: str):
         """添加日志消息"""
@@ -2387,23 +2605,144 @@ class MainWindow(QMainWindow):
                          "负责人: Tsinghua\n\n"
                          "集成DXF文件处理、孔位检测和实时监控功能")
 
-    def closeEvent(self, event):
-        """窗口关闭事件"""
-        # 停止所有定时器
-        if hasattr(self, 'detection_timer'):
-            self.detection_timer.stop()
-        if hasattr(self, 'simulation_timer'):
-            self.simulation_timer.stop()
-        if hasattr(self, 'update_timer'):
-            self.update_timer.stop()
-
-        # 停止工作线程
-        if self.worker_thread and self.worker_thread.isRunning():
-            self.worker_thread.quit()
-            self.worker_thread.wait()
-
-        self.logger.info("主窗口关闭")
-        event.accept()
+    def resizeEvent(self, event):
+        """处理窗口大小变化事件"""
+        super().resizeEvent(event)
+        
+        # 更新完整全景图位置到右上角
+        self._update_panorama_position()
+    
+    def _update_panorama_position(self):
+        """更新完整全景图位置到动态扇形显示的右上角"""
+        if hasattr(self, 'complete_panorama') and hasattr(self, 'dynamic_sector_display'):
+            # 获取动态扇形显示区域的大小
+            sector_rect = self.dynamic_sector_display.geometry()
+            
+            # 计算右上角位置（考虑边距）
+            x = sector_rect.width() - self.complete_panorama.width() - 15
+            y = 15
+            
+            # 设置位置
+            self.complete_panorama.move(x, y)
+            self.complete_panorama.raise_()  # 确保在最上层
+    
+    def showEvent(self, event):
+        """窗口显示事件"""
+        super().showEvent(event)
+        # 确保完整全景图位置正确
+        QTimer.singleShot(100, self._update_panorama_position)
+    
+    def _load_default_dxf(self):
+        """加载默认的东重管板DXF文件"""
+        default_dxf_path = Path(__file__).parent.parent / "assets" / "dxf" / "DXF Graph" / "东重管板.dxf"
+        
+        if not default_dxf_path.exists():
+            self.logger.warning(f"默认DXF文件不存在: {default_dxf_path}")
+            return
+        
+        try:
+            self.logger.info(f"开始加载默认DXF文件: {default_dxf_path}")
+            
+            # 使用DXF解析器解析文件
+            hole_collection = self.dxf_parser.parse_file(str(default_dxf_path))
+            
+            if hole_collection and len(hole_collection) > 0:
+                # 设置孔位集合
+                self.hole_collection = hole_collection
+                
+                # 加载到扇形管理器
+                self.sector_manager.load_hole_collection(hole_collection)
+                
+                # 更新动态扇形显示组件
+                if hasattr(self, 'dynamic_sector_display'):
+                    self.dynamic_sector_display.set_hole_collection(hole_collection)
+                
+                # 更新完整全景图
+                if hasattr(self, 'complete_panorama'):
+                    self.complete_panorama.load_complete_view(hole_collection)
+                
+                # 更新状态显示
+                self.statusBar().showMessage(f"已加载默认DXF文件：{default_dxf_path.name}，共 {len(hole_collection)} 个孔位")
+                
+                # 记录加载信息
+                stats = self.dxf_parser.get_parsing_stats(hole_collection)
+                self.logger.info(f"DXF文件加载成功：{stats}")
+                
+                # 开始模拟检测进度（用于演示）
+                self._start_demo_simulation()
+                
+            else:
+                self.logger.warning("DXF文件解析成功但没有找到孔位数据")
+                self.statusBar().showMessage("DXF文件解析成功但没有找到孔位数据")
+                
+        except Exception as e:
+            self.logger.error(f"加载默认DXF文件失败: {e}")
+            self.statusBar().showMessage(f"加载DXF文件失败: {e}")
+    
+    def _start_demo_simulation(self):
+        """启动演示模拟（逐步更新孔位状态以展示扇形进度）"""
+        if not self.hole_collection:
+            return
+        
+        # 获取所有孔位
+        all_holes = list(self.hole_collection.holes.values())
+        if not all_holes:
+            return
+        
+        # 随机选择一些孔位进行状态演示
+        import random
+        demo_holes = random.sample(all_holes, min(len(all_holes) // 3, 20))  # 选择1/3的孔位进行演示
+        
+        # 设置演示状态
+        demo_statuses = [
+            HoleStatus.QUALIFIED,   # 合格
+            HoleStatus.DEFECTIVE,   # 缺陷
+            HoleStatus.BLIND,       # 盲孔
+            HoleStatus.TIE_ROD,     # 拉杆孔
+        ]
+        
+        # 分配随机状态
+        for hole in demo_holes:
+            new_status = random.choice(demo_statuses)
+            hole.status = new_status
+            # 更新扇形管理器
+            self.sector_manager.update_hole_status(hole.hole_id, new_status)
+        
+        self.logger.info(f"演示模拟已启动，更新了 {len(demo_holes)} 个孔位的状态")
+    
+    def on_sector_selected(self, sector):
+        """处理扇形选择事件"""
+        self.logger.info(f"选择了扇形区域: {sector}")
+        if hasattr(self, 'sector_detail_view'):
+            self.sector_detail_view.show_sector_detail(sector)
+        
+        # 切换动态扇形显示到选中的区域
+        if hasattr(self, 'dynamic_sector_display'):
+            self.dynamic_sector_display.switch_to_sector(sector)
+    
+    def on_dynamic_sector_changed(self, sector):
+        """处理动态扇形显示切换事件"""
+        self.logger.info(f"动态扇形显示切换到: {sector}")
+        
+        # 同步更新扇形详细视图
+        if hasattr(self, 'sector_detail_view'):
+            self.sector_detail_view.show_sector_detail(sector)
+    
+    def on_sector_progress_updated(self, sector, progress):
+        """处理扇形进度更新事件"""
+        self.logger.debug(f"扇形 {sector} 进度更新: {progress.progress_percentage:.1f}%")
+        
+        # 如果有进度更新，自动切换动态显示到该扇形
+        if hasattr(self, 'dynamic_sector_display') and progress.completed_holes > 0:
+            self.dynamic_sector_display.update_sector_progress(sector, progress)
+    
+    def on_overall_progress_updated(self, overall_stats):
+        """处理整体进度更新事件"""
+        total = overall_stats.get('total_holes', 0)
+        completed = overall_stats.get('completed_holes', 0)
+        if total > 0:
+            overall_rate = (completed / total) * 100
+            self.logger.debug(f"整体进度更新: {overall_rate:.1f}%")
 
 
 if __name__ == "__main__":
