@@ -17,6 +17,11 @@ from PySide6.QtWidgets import QWidget, QMessageBox, QProgressDialog, QApplicatio
 from PySide6.QtCore import QThread, Signal, QTimer
 
 # 数据处理
+import matplotlib
+import threading
+# 确保线程安全的matplotlib后端
+if threading.current_thread() != threading.main_thread():
+    matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg

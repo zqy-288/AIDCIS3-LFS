@@ -33,31 +33,44 @@ class ProductManagementDialog(QDialog):
         """初始化界面"""
         self.setWindowTitle("产品信息维护")
         self.setModal(True)
-        self.resize(1000, 700)
+        self.resize(900, 600)  # 减小窗口大小
         
         # 主布局
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(10, 10, 10, 10)  # 设置紧凑的边距
         
         # 标题
         title_label = QLabel("产品信息维护")
         title_font = QFont()
-        title_font.setPointSize(16)
+        title_font.setPointSize(18)  # 增大标题字体
         title_font.setBold(True)
         title_label.setFont(title_font)
         title_label.setAlignment(Qt.AlignCenter)
+        title_label.setStyleSheet("padding: 5px; color: #333;")  # 减小padding
         main_layout.addWidget(title_label)
+        main_layout.setSpacing(5)  # 减小组件间距
         
         # 创建分割器
         splitter = QSplitter(Qt.Horizontal)
         
         # 左侧：产品列表
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
+        left_container = QWidget()
+        left_container.setObjectName("leftContainer")
+        left_container.setStyleSheet("""
+            #leftContainer {
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                background-color: #f9f9f9;
+                padding: 5px;
+            }
+        """)
+        left_layout = QVBoxLayout(left_container)
+        left_layout.setContentsMargins(10, 10, 10, 10)
         
         # 产品列表标题和操作按钮
         list_header_layout = QHBoxLayout()
         list_title = QLabel("产品列表")
-        list_title.setFont(QFont("", 12, QFont.Bold))
+        list_title.setFont(QFont("", 14, QFont.Bold))  # 增大标题字体
         list_header_layout.addWidget(list_title)
         
         list_header_layout.addStretch()
@@ -66,11 +79,6 @@ class ProductManagementDialog(QDialog):
         self.add_btn = QPushButton("新增产品")
         self.add_btn.clicked.connect(self.add_product)
         list_header_layout.addWidget(self.add_btn)
-        
-        # DXF导入按钮
-        self.import_dxf_btn = QPushButton("从DXF导入")
-        self.import_dxf_btn.clicked.connect(self.import_from_dxf)
-        list_header_layout.addWidget(self.import_dxf_btn)
         
         left_layout.addLayout(list_header_layout)
         
@@ -104,17 +112,29 @@ class ProductManagementDialog(QDialog):
         left_layout.addWidget(self.product_table)
         
         # 右侧：产品详情编辑
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
+        right_container = QWidget()
+        right_container.setObjectName("rightContainer")
+        right_container.setStyleSheet("""
+            #rightContainer {
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                background-color: #f9f9f9;
+                padding: 5px;
+            }
+        """)
+        right_layout = QVBoxLayout(right_container)
+        right_layout.setContentsMargins(10, 10, 10, 10)
         
         # 详情标题
         detail_title = QLabel("产品详情")
-        detail_title.setFont(QFont("", 12, QFont.Bold))
+        detail_title.setFont(QFont("", 14, QFont.Bold))  # 增大标题字体
         right_layout.addWidget(detail_title)
         
         # 创建表单
         form_group = QGroupBox("产品信息")
         form_layout = QFormLayout(form_group)
+        form_layout.setContentsMargins(10, 10, 10, 10)  # 减小表单边距
+        form_layout.setSpacing(8)  # 减小行间距
         
         # 表单字段
         self.model_name_edit = QLineEdit()
@@ -144,7 +164,7 @@ class ProductManagementDialog(QDialog):
         form_layout.addRow("公差下限*:", self.tolerance_lower_spin)
         
         self.description_edit = QTextEdit()
-        self.description_edit.setMaximumHeight(80)
+        self.description_edit.setMaximumHeight(60)  # 减小描述框高度
         self.description_edit.setPlaceholderText("请输入产品描述")
         form_layout.addRow("产品描述:", self.description_edit)
         
@@ -154,11 +174,14 @@ class ProductManagementDialog(QDialog):
         self.dxf_path_edit.setPlaceholderText("可选择关联的DXF文件")
         self.dxf_browse_btn = QPushButton("浏览")
         self.dxf_browse_btn.clicked.connect(self.browse_dxf_file)
+        self.dxf_import_btn = QPushButton("从DXF导入")
+        self.dxf_import_btn.clicked.connect(self.import_from_dxf)
         self.dxf_render_btn = QPushButton("渲染编号")
         self.dxf_render_btn.clicked.connect(self.render_dxf_file)
         self.dxf_render_btn.setEnabled(False)
         dxf_layout.addWidget(self.dxf_path_edit)
         dxf_layout.addWidget(self.dxf_browse_btn)
+        dxf_layout.addWidget(self.dxf_import_btn)
         dxf_layout.addWidget(self.dxf_render_btn)
         form_layout.addRow("DXF文件:", dxf_layout)
         
@@ -202,12 +225,12 @@ class ProductManagementDialog(QDialog):
         button_layout.addStretch()
         
         right_layout.addLayout(button_layout)
-        right_layout.addStretch()
+        # 移除addStretch()以减少底部空白
         
         # 添加到分割器
-        splitter.addWidget(left_widget)
-        splitter.addWidget(right_widget)
-        splitter.setSizes([400, 600])
+        splitter.addWidget(left_container)
+        splitter.addWidget(right_container)
+        splitter.setSizes([500, 400])  # 调整比例，减少右侧空白
         
         main_layout.addWidget(splitter)
         
@@ -423,7 +446,7 @@ class ProductManagementDialog(QDialog):
         return True
     
     def delete_product(self):
-        """删除产品"""
+        """删除产品（包含相关文件的选择性删除）"""
         if not self.current_product:
             QMessageBox.warning(self, "警告", "请先选择要删除的产品")
             return
@@ -440,24 +463,197 @@ class ProductManagementDialog(QDialog):
             QMessageBox.critical(self, "错误", f"验证产品失败: {str(e)}")
             return
         
-        reply = QMessageBox.question(
-            self, "确认删除", 
-            f"确定要删除产品型号 '{self.current_product.model_name}' 吗？\n此操作不可撤销。",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
+        # 收集相关文件信息
+        related_files = self._collect_related_files(existing_product)
         
-        if reply == QMessageBox.Yes:
+        # 显示删除确认对话框（带文件清单）
+        delete_choice = self._show_delete_confirmation_dialog(existing_product, related_files)
+        
+        if delete_choice in ['database_only', 'database_and_files']:
             try:
+                # 删除数据库记录
                 self.product_manager.delete_product(self.current_product.id)
-                QMessageBox.information(self, "成功", "产品删除成功!")
+                
+                # 根据用户选择删除相关文件
+                if delete_choice == 'database_and_files':
+                    deleted_files = self._delete_related_files(related_files)
+                    if deleted_files:
+                        QMessageBox.information(
+                            self, "删除成功", 
+                            f"产品删除成功!\n同时删除了 {len(deleted_files)} 个相关文件。"
+                        )
+                    else:
+                        QMessageBox.information(self, "删除成功", "产品删除成功!")
+                else:
+                    QMessageBox.information(
+                        self, "删除成功", 
+                        "产品数据库记录删除成功!\n相关文件已保留。"
+                    )
+                
                 self.load_products()
                 self.cancel_edit()
+                
             except Exception as e:
                 QMessageBox.critical(self, "错误", f"删除失败: {str(e)}")
                 # 刷新列表以防数据不同步
                 self.load_products()
                 self.cancel_edit()
+    
+    def _collect_related_files(self, product):
+        """收集产品相关的文件"""
+        related_files = []
+        
+        # DXF文件
+        if product.dxf_file_path and os.path.exists(product.dxf_file_path):
+            related_files.append({
+                'type': 'DXF文件',
+                'path': product.dxf_file_path,
+                'size': os.path.getsize(product.dxf_file_path)
+            })
+        
+        # 查找可能的产品数据目录
+        # 基于产品名称和ID搜索Data目录下的相关文件夹
+        data_dirs = self._find_product_data_directories(product)
+        for data_dir in data_dirs:
+            dir_size = self._calculate_directory_size(data_dir)
+            related_files.append({
+                'type': '检测数据目录',
+                'path': data_dir,
+                'size': dir_size
+            })
+        
+        return related_files
+    
+    def _find_product_data_directories(self, product):
+        """查找产品相关的数据目录"""
+        data_dirs = []
+        data_root = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', 'Data')
+        
+        if os.path.exists(data_root):
+            # 搜索可能的目录名模式
+            possible_patterns = [
+                product.model_name,
+                product.model_code,
+                f"product_{product.id}",
+                # 可以根据需要添加更多匹配模式
+            ]
+            
+            for item in os.listdir(data_root):
+                item_path = os.path.join(data_root, item)
+                if os.path.isdir(item_path):
+                    # 检查是否匹配任何模式
+                    for pattern in possible_patterns:
+                        if pattern and (pattern in item or item in pattern):
+                            data_dirs.append(item_path)
+                            break
+        
+        return data_dirs
+    
+    def _calculate_directory_size(self, directory):
+        """计算目录总大小"""
+        total_size = 0
+        try:
+            for dirpath, dirnames, filenames in os.walk(directory):
+                for filename in filenames:
+                    filepath = os.path.join(dirpath, filename)
+                    if os.path.exists(filepath):
+                        total_size += os.path.getsize(filepath)
+        except Exception:
+            pass
+        return total_size
+    
+    def _show_delete_confirmation_dialog(self, product, related_files):
+        """显示删除确认对话框"""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QRadioButton, QDialogButtonBox, QTextEdit
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("确认删除产品")
+        dialog.setModal(True)
+        dialog.resize(500, 400)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # 基本信息
+        info_label = QLabel(f"确定要删除产品型号 '{product.model_name}' 吗？")
+        info_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        layout.addWidget(info_label)
+        
+        # 相关文件列表
+        if related_files:
+            files_label = QLabel("发现以下相关文件:")
+            layout.addWidget(files_label)
+            
+            files_text = QTextEdit()
+            files_text.setMaximumHeight(150)
+            files_text.setReadOnly(True)
+            
+            files_content = []
+            total_size = 0
+            for file_info in related_files:
+                size_mb = file_info['size'] / (1024 * 1024)
+                files_content.append(f"• {file_info['type']}: {file_info['path']} ({size_mb:.2f} MB)")
+                total_size += file_info['size']
+            
+            files_content.append(f"\n总大小: {total_size / (1024 * 1024):.2f} MB")
+            files_text.setText('\n'.join(files_content))
+            layout.addWidget(files_text)
+        
+        # 删除选项
+        options_label = QLabel("请选择删除方式:")
+        layout.addWidget(options_label)
+        
+        option1 = QRadioButton("仅删除数据库记录（保留相关文件）")
+        option1.setChecked(True)
+        layout.addWidget(option1)
+        
+        option2 = QRadioButton("删除数据库记录和所有相关文件")
+        if related_files:
+            option2.setText(f"删除数据库记录和所有相关文件 ({len(related_files)} 个文件/目录)")
+        else:
+            option2.setText("删除数据库记录（无相关文件）")
+            option2.setEnabled(False)
+        layout.addWidget(option2)
+        
+        # 警告
+        warning_label = QLabel("⚠️ 注意：此操作不可撤销！")
+        warning_label.setStyleSheet("color: red; font-weight: bold;")
+        layout.addWidget(warning_label)
+        
+        # 按钮
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+        
+        # 执行对话框
+        result = dialog.exec()
+        if result == QDialog.Accepted:
+            if option1.isChecked():
+                return 'database_only'
+            elif option2.isChecked():
+                return 'database_and_files'
+        
+        return 'cancel'
+    
+    def _delete_related_files(self, related_files):
+        """删除相关文件"""
+        deleted_files = []
+        
+        for file_info in related_files:
+            try:
+                file_path = file_info['path']
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    deleted_files.append(file_path)
+                elif os.path.isdir(file_path):
+                    import shutil
+                    shutil.rmtree(file_path)
+                    deleted_files.append(file_path)
+            except Exception as e:
+                # 记录错误但继续删除其他文件
+                print(f"删除文件失败: {file_path}, 错误: {str(e)}")
+        
+        return deleted_files
     
     def cancel_edit(self):
         """取消编辑"""
@@ -492,6 +688,16 @@ class ProductManagementDialog(QDialog):
     
     def render_dxf_file(self):
         """渲染DXF文件"""
+        # 暂时禁用渲染功能以防止崩溃
+        QMessageBox.information(
+            self, 
+            "功能暂时禁用", 
+            "渲染编号功能暂时禁用。\n由于存在稳定性问题，此功能正在修复中。\n您可以继续使用其他功能。"
+        )
+        return
+        
+        # 以下是原始代码（暂时注释）
+        """
         dxf_path = self.dxf_path_edit.text().strip()
         
         if not dxf_path:
@@ -503,10 +709,21 @@ class ProductManagementDialog(QDialog):
             return
         
         try:
+            # 添加调试日志
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"开始渲染DXF文件: {dxf_path}")
+            logger.info(f"文件大小: {os.path.getsize(dxf_path) / 1024:.2f} KB")
+            
             from dxf_render_dialog import DXFRenderDialog
             
+            # 创建对话框前记录
+            logger.info("创建DXFRenderDialog对话框...")
             dialog = DXFRenderDialog(dxf_path, self)
+            
+            logger.info("显示对话框...")
             dialog.exec()
+            logger.info("对话框关闭")
             
         except ImportError as e:
             if "matplotlib" in str(e):
@@ -517,10 +734,37 @@ class ProductManagementDialog(QDialog):
             else:
                 QMessageBox.critical(self, "导入错误", f"模块导入失败: {str(e)}")
         except Exception as e:
+            import traceback
+            logger.error(f"渲染DXF失败: {str(e)}")
+            logger.error(traceback.format_exc())
             QMessageBox.critical(self, "错误", f"打开DXF渲染对话框失败: {str(e)}")
+        """
     
     def import_from_dxf(self):
         """从DXF文件导入产品信息"""
+        # 检查当前是否在编辑状态
+        is_editing = self.save_btn.isEnabled()
+        
+        if is_editing:
+            # 如果正在编辑，提供选择：填充当前表单 或 创建新产品
+            reply = QMessageBox.question(
+                self, "DXF导入模式", 
+                "检测到您正在编辑产品信息。\n\n请选择导入方式：\n"
+                "• 是(Y)：用DXF数据填充当前表单\n"
+                "• 否(N)：创建新产品\n"
+                "• 取消：取消导入",
+                QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
+                QMessageBox.Yes
+            )
+            
+            if reply == QMessageBox.Cancel:
+                return
+            elif reply == QMessageBox.Yes:
+                self._import_and_fill_form()
+                return
+            # 如果选择No，继续执行原有的创建新产品逻辑
+        
+        # 原有的创建新产品逻辑
         file_path, _ = QFileDialog.getOpenFileName(
             self, "选择要导入的DXF文件", "", "DXF文件 (*.dxf);;所有文件 (*)"
         )
@@ -544,6 +788,66 @@ class ProductManagementDialog(QDialog):
                 self.load_products()
                 QMessageBox.information(self, "成功", "DXF文件导入成功!")
                 
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"DXF导入失败: {str(e)}")
+    
+    def _import_and_fill_form(self):
+        """导入DXF并填充当前表单"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "选择要导入的DXF文件", "", "DXF文件 (*.dxf);;所有文件 (*)"
+        )
+        
+        if not file_path:
+            return
+        
+        try:
+            # 检查DXF导入器是否可用
+            if not self.dxf_importer.check_ezdxf_availability():
+                QMessageBox.critical(
+                    self, "错误", 
+                    "DXF导入功能需要安装ezdxf库。\n请运行命令: pip install ezdxf"
+                )
+                return
+            
+            # 获取DXF分析结果
+            analysis_result = self.dxf_importer.import_from_dxf(file_path)
+            if not analysis_result:
+                QMessageBox.critical(self, "错误", "DXF文件分析失败")
+                return
+            
+            # 自动填充表单字段
+            # 如果型号名称为空，使用建议的名称
+            if not self.model_name_edit.text().strip():
+                self.model_name_edit.setText(analysis_result.suggested_model_name)
+            
+            # 设置标准直径
+            self.standard_diameter_spin.setValue(analysis_result.standard_diameter)
+            
+            # 设置公差
+            tolerance = analysis_result.tolerance_estimate
+            self.tolerance_upper_spin.setValue(tolerance)
+            self.tolerance_lower_spin.setValue(-tolerance)
+            
+            # 设置DXF文件路径
+            self.dxf_path_edit.setText(file_path)
+            
+            # 更新描述（如果为空）
+            if not self.description_edit.toPlainText().strip():
+                file_name = os.path.basename(file_path)
+                description = f"从DXF文件'{file_name}'导入，检测到{analysis_result.total_holes}个孔"
+                self.description_edit.setText(description)
+            
+            # 更新DXF渲染按钮状态
+            self.update_dxf_render_button()
+            
+            QMessageBox.information(
+                self, "导入成功", 
+                f"DXF数据已填充到表单！\n"
+                f"• 标准直径: {analysis_result.standard_diameter:.2f}mm\n"
+                f"• 检测孔数: {analysis_result.total_holes}个\n"
+                f"• 建议公差: ±{tolerance:.3f}mm"
+            )
+            
         except Exception as e:
             QMessageBox.critical(self, "错误", f"DXF导入失败: {str(e)}")
 

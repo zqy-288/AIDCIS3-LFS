@@ -143,7 +143,9 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             self.logger.info(f"管孔加载完成，场景大小: {scene_rect}")
             
             # 延迟执行默认适配到窗口宽度
-            QTimer.singleShot(100, self.fit_to_window_width)
+            # 但如果设置了 disable_auto_fit 标志，则不自动适配（用于扇形显示）
+            if not getattr(self, 'disable_auto_fit', False):
+                QTimer.singleShot(100, self.fit_to_window_width)
             
             # 更新叠加层统计
             QTimer.singleShot(200, self._update_overlay_statistics)
@@ -165,6 +167,11 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
 
     def fit_to_window_width(self):
         """适配到窗口宽度 - 默认显示模式"""
+        # 如果设置了 disable_auto_fit，则跳过自动适配
+        if getattr(self, 'disable_auto_fit', False):
+            self.logger.info("跳过自动适配（disable_auto_fit=True）")
+            return
+            
         if not self.hole_collection:
             return
             
@@ -184,8 +191,8 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         width_scale = view_rect.width() / scene_rect.width()
         height_scale = view_rect.height() / scene_rect.height()
         
-        # 使用较小的缩放比例以确保完全适配，但优先考虑宽度
-        scale = min(width_scale, height_scale * 0.9)  # 留10%的高度边距
+        # 使用较小的缩放比例以确保完全适配，尽量填满视图
+        scale = min(width_scale * 0.95, height_scale * 0.95)  # 留5%边距，更好地填满视图
         
         # 防止无效缩放
         if scale <= 0:
@@ -424,7 +431,8 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         self._update_status_legend_position()
         
         # 窗口大小变化时，重新适配到窗口宽度
-        if self.hole_collection:
+        # 但如果设置了 disable_auto_fit 标志，则不自动适配（用于扇形显示）
+        if self.hole_collection and not getattr(self, 'disable_auto_fit', False):
             QTimer.singleShot(50, self.fit_to_window_width)
 
     def _update_status_legend_position(self):
@@ -530,6 +538,11 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
     
     def set_macro_view_scale(self):
         """设置适合宏观视图的缩放比例"""
+        # 如果设置了 disable_auto_fit，则跳过
+        if getattr(self, 'disable_auto_fit', False):
+            self.logger.info("跳过 set_macro_view_scale（disable_auto_fit=True）")
+            return
+            
         # 适应整个管板显示，保持适当边距
         self.fit_in_view_with_margin(margin_factor=0.1)
         
@@ -541,8 +554,13 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         
         self.logger.info(f"宏观视图缩放设置完成，当前缩放比例: {self.transform().m11():.3f}")
             
-    def fit_in_view_with_margin(self, margin_ratio=0.1):
-        """适应视图并留有边距"""
+    def fit_in_view_with_margin(self, margin_ratio=0.02):
+        """适应视图并留有边距，确保内容居中显示"""
+        # 如果设置了 disable_auto_fit，则跳过
+        if getattr(self, 'disable_auto_fit', False):
+            self.logger.info("跳过 fit_in_view_with_margin（disable_auto_fit=True）")
+            return
+            
         if not self.hole_collection:
             return
             
@@ -554,7 +572,7 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             self.logger.warning("场景尺寸无效，无法适应视图")
             return
         
-        # 添加边距
+        # 减少边距比例，使内容更好地填满视图区域
         margin_x = scene_rect.width() * margin_ratio
         margin_y = scene_rect.height() * margin_ratio
         
@@ -565,16 +583,42 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             scene_rect.height() + 2 * margin_y
         )
         
+        # 使用 KeepAspectRatio 确保比例正确，并强制居中
         self.fitInView(view_rect, Qt.KeepAspectRatio)
+        
+        # 多次强制居中，确保扇形内容精确对准显示中心
+        scene_center = scene_rect.center()
+        QTimer.singleShot(50, lambda: self.centerOn(scene_center))
+        QTimer.singleShot(100, lambda: self.centerOn(scene_center))
+        QTimer.singleShot(200, lambda: self._ensure_perfect_centering(scene_center))
+    
+    def _ensure_perfect_centering(self, target_center: QPointF):
+        """确保内容精确居中显示"""
+        try:
+            # 获取当前视图中心
+            view_center = self.mapToScene(self.viewport().rect().center())
+            
+            # 计算偏移量
+            offset_x = target_center.x() - view_center.x()
+            offset_y = target_center.y() - view_center.y()
+            
+            # 如果偏移量超过阈值，进行微调
+            threshold = 5.0  # 像素阈值
+            if abs(offset_x) > threshold or abs(offset_y) > threshold:
+                self.centerOn(target_center)
+                self.logger.info(f"微调居中: 偏移({offset_x:.1f}, {offset_y:.1f})")
+                
+        except Exception as e:
+            self.logger.warning(f"精确居中失败: {e}")
         
     def set_macro_view_scale(self):
         """设置宏观视图的适当缩放比例"""
-        # 确保整个管板可见，但不要太小
+        # 确保整个管板可见，允许适当放大以填满视图
         current_scale = self.transform().m11()
         
-        # 宏观视图的最小缩放比例
-        min_macro_scale = 0.3
-        max_macro_scale = 1.0
+        # 宏观视图的缩放范围 - 回到合理范围
+        min_macro_scale = 0.5
+        max_macro_scale = 2.0
         
         if current_scale < min_macro_scale:
             scale_factor = min_macro_scale / current_scale

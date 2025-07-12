@@ -105,13 +105,15 @@ class DXFRenderDialog(QDialog):
         # 编号策略
         settings_layout.addWidget(QLabel("编号策略:"), 0, 0)
         self.numbering_combo = QComboBox()
+        # 修复：添加默认编号选项
         self.numbering_combo.addItems([
-            ("left_to_right", "从左到右"),
-            ("top_to_bottom", "从上到下"),
-            ("spiral", "螺旋编号"),
-            ("distance_from_center", "距离中心")
+            "默认编号",
+            "从左到右",
+            "从上到下",
+            "螺旋编号",
+            "距离中心"
         ])
-        self.numbering_combo.setCurrentText("从左到右")
+        self.numbering_combo.setCurrentText("默认编号")
         settings_layout.addWidget(self.numbering_combo, 0, 1)
         
         # 输出选项
@@ -220,6 +222,7 @@ class DXFRenderDialog(QDialog):
     def get_numbering_strategy(self) -> str:
         """获取选中的编号策略"""
         strategy_map = {
+            "默认编号": "left_to_right",  # 默认编号使用从左到右策略
             "从左到右": "left_to_right",
             "从上到下": "top_to_bottom", 
             "螺旋编号": "spiral",

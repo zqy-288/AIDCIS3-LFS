@@ -25,7 +25,7 @@ class SectorGraphicsItem(QGraphicsPathItem):
         self.center = center
         self.radius = radius
         self.progress = 0.0
-        self.sector_color = QColor(128, 128, 128)
+        self.sector_color = QColor(255, 182, 193)  # 默认淡粉色
         
         # 设置扇形角度范围
         self.start_angle = self._get_start_angle()
@@ -108,7 +108,7 @@ class SectorGraphicsItem(QGraphicsPathItem):
         self.setBrush(QBrush(progress_color))
         
         pen_color = base_color.darker(150)
-        self.setPen(QPen(pen_color, 2))
+        self.setPen(QPen(pen_color, 0.5))  # 进一步缩小边框宽度
     
     def _position_text_label(self):
         """定位文本标签"""
@@ -120,7 +120,7 @@ class SectorGraphicsItem(QGraphicsPathItem):
         y = self.center.y() + label_radius * math.sin(angle_rad)
 
         # 调整文本位置以居中
-        font = QFont("Arial", 36, QFont.Bold)  # 调整为36大小
+        font = QFont("Arial", 4, QFont.Bold)  # 调整为4大小，保证可读性
         self.text_item.setFont(font)
 
         text_rect = self.text_item.boundingRect()
@@ -184,7 +184,7 @@ class SectorOverviewWidget(QWidget):
         layout.setContentsMargins(5, 5, 5, 5)
         
         # 标题
-        title_label = QLabel("扇形区域进度")
+        title_label = QLabel("区域划分进度")
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("""
             QLabel {
@@ -241,7 +241,7 @@ class SectorOverviewWidget(QWidget):
     def _create_sector_items(self):
         """创建扇形图形项"""
         center = QPointF(0, 0)
-        radius = 10  # 显著减小半径使扇形更紧凑，适应外框大小
+        radius = 6  # 再次减小半径使扇形更紧凑，适应容器大小
 
         for sector in SectorQuadrant:
             item = SectorGraphicsItem(sector, center, radius)

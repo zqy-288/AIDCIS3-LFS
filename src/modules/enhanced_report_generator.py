@@ -8,6 +8,11 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+import matplotlib
+import threading
+# 确保线程安全的matplotlib后端
+if threading.current_thread() != threading.main_thread():
+    matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np

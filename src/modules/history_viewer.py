@@ -6,8 +6,13 @@
 import numpy as np
 import matplotlib
 # 修复后端问题 - 使用PySide6兼容的后端
+import threading
 try:
-    matplotlib.use('Qt5Agg')  # 首选Qt5Agg
+    # 如果不是主线程，强制使用Agg后端
+    if threading.current_thread() != threading.main_thread():
+        matplotlib.use('Agg')
+    else:
+        matplotlib.use('Qt5Agg')  # 首选Qt5Agg
 except ImportError:
     try:
         matplotlib.use('TkAgg')  # 备选TkAgg

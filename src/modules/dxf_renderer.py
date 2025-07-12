@@ -19,6 +19,9 @@ except ImportError:
     DrawingType = object
 
 try:
+    import matplotlib
+    # 设置非GUI后端，避免线程安全问题
+    matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     import matplotlib.patches as patches
     from matplotlib.patches import Circle, Arc
@@ -183,6 +186,10 @@ class DXFRenderer:
                         annotations: List[HoleAnnotation], 
                         output_path: str) -> str:
         """渲染到图像文件"""
+        
+        # 确保使用非GUI后端（线程安全）
+        import matplotlib
+        matplotlib.use('Agg')
         
         fig, ax = plt.subplots(1, 1, figsize=(12, 8))
         

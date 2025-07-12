@@ -26,6 +26,7 @@ class ProductModel(Base):
     description = Column(Text, nullable=True, comment='产品描述')
     is_active = Column(Boolean, default=True, comment='是否启用')
     dxf_file_path = Column(String(500), nullable=True, comment='关联的DXF文件路径')
+    sector_count = Column(Integer, default=4, nullable=False, comment='扇形分区数量(2-12)')
     created_at = Column(DateTime, default=datetime.now, comment='创建时间')
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
     
@@ -44,6 +45,7 @@ class ProductModel(Base):
             'description': self.description,
             'is_active': self.is_active,
             'dxf_file_path': self.dxf_file_path,
+            'sector_count': self.sector_count,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -137,8 +139,14 @@ class ProductModelManager:
         return self.session.query(ProductModel).filter(ProductModel.model_name == model_name).first()
     
     def create_product(self, model_name, standard_diameter, tolerance_upper, tolerance_lower, 
-                      model_code=None, description=None, dxf_file_path=None):
+                      model_code=None, description=None, dxf_file_path=None, sector_count=4):
         """创建新产品型号"""
+        # 验证输入参数
+        if not model_name or not model_name.strip():
+            raise ValueError("产品型号名称不能为空")
+        if standard_diameter <= 0:
+            raise ValueError("标准孔径必须大于0")
+        
         # 检查型号名称是否已存在
         existing = self.get_product_by_name(model_name)
         if existing:
@@ -151,7 +159,8 @@ class ProductModelManager:
             tolerance_upper=tolerance_upper,
             tolerance_lower=tolerance_lower,
             description=description,
-            dxf_file_path=dxf_file_path
+            dxf_file_path=dxf_file_path,
+            sector_count=sector_count
         )
         
         self.session.add(product)

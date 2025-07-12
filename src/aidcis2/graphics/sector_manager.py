@@ -23,7 +23,7 @@ class SectorQuadrant(Enum):
 
 @dataclass
 class SectorProgress:
-    """扇形区域进度数据"""
+    """区域划分进度数据"""
     sector: SectorQuadrant
     total_holes: int
     completed_holes: int
@@ -162,12 +162,12 @@ class SectorManager(QObject):
             return
         
         # 获取该扇形的所有孔位
-        sector_holes = [
-            hole for hole_id, hole_sector in self.sector_assignments.items()
-            if hole_sector == sector
-            for hole in [self.hole_collection.holes.get(hole_id)]
-            if hole is not None
-        ]
+        sector_holes = []
+        for hole_id, hole_sector in self.sector_assignments.items():
+            if hole_sector == sector:
+                hole = self.hole_collection.holes.get(hole_id)
+                if hole is not None:
+                    sector_holes.append(hole)
         
         # 统计各状态数量
         completed = 0
