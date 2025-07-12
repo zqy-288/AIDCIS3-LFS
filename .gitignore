@@ -206,6 +206,16 @@ detection_report_*.json
 # 只忽略cache目录下的临时CSV文件，保留Data目录下的重要数据文件
 cache/measurement_data_*.csv
 
+# Generated reports (ignore generated files but keep structure)
+reports/*.pdf
+reports/*.txt
+reports/*.html
+reports/*.xlsx
+reports/*/*.pdf
+reports/*/*.txt
+reports/*/*.html
+reports/*/*.xlsx
+
 # IDE and editor files
 *.sublime-project
 *.sublime-workspace
