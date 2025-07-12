@@ -1,5 +1,19 @@
 [
   {
+    "instance_id": "70a35f52-8cd9-42a9-b5a0-80a43a15d3bb",
+    "workpiece_id": "WP-2025-001",
+    "template_id": "default",
+    "output_path": "reports\\WP-2025-001\\report_WP-2025-001_20250712_171146.pdf",
+    "status": "completed",
+    "created_at": "2025-07-12T17:11:46.338789",
+    "completed_at": "2025-07-12T17:11:46.443072",
+    "error_message": null,
+    "file_size": 61989,
+    "file_exists": true,
+    "file_extension": ".pdf",
+    "relative_path": "WP-2025-001\\report_WP-2025-001_20250712_171146.pdf"
+  },
+  {
     "instance_id": "db2d73c6-1d97-47b2-8f62-76d47a53b1b1",
     "workpiece_id": "WP-2025-001",
     "template_id": "default",
