@@ -481,6 +481,32 @@ class AnnotationGraphicsView(QGraphicsView):
             self.annotation_selected.emit(self.selected_annotation.get_annotation())
 
     def wheelEvent(self, event: QWheelEvent):
-        """鼠标滚轮事件 - 禁用默认缩放"""
-        # 不调用父类方法，禁用滚轮缩放
-        pass
+        """鼠标滚轮事件 - 实现缩放功能"""
+        if not self.image_item:
+            return
+
+        # 获取滚轮滚动方向
+        delta = event.angleDelta().y()
+
+        # 计算缩放因子
+        zoom_factor = 1.2 if delta > 0 else 0.8
+
+        # 获取当前缩放级别
+        current_scale = self.transform().m11()
+        new_scale = current_scale * zoom_factor
+
+        # 限制缩放范围
+        if new_scale < self.min_zoom or new_scale > self.max_zoom:
+            return
+
+        # 获取鼠标在场景中的位置
+        scene_pos = self.mapToScene(event.position().toPoint())
+
+        # 执行缩放
+        self.scale(zoom_factor, zoom_factor)
+
+        # 调整视图位置，使鼠标位置保持不变
+        view_pos = self.mapFromScene(scene_pos)
+        new_scene_pos = self.mapToScene(view_pos)
+        delta_pos = scene_pos - new_scene_pos
+        self.translate(delta_pos.x(), delta_pos.y())

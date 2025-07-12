@@ -80,18 +80,11 @@ class DefectAnnotationTool(QWidget):
         
         # 创建工具栏
         toolbar_layout = QHBoxLayout()
-        
-        # 缩放按钮
-        self.zoom_in_btn = QPushButton("放大 (+)")
-        self.zoom_out_btn = QPushButton("缩小 (-)")
+
+        # 只保留适应视图按钮，删除放大和缩小按钮
         self.fit_view_btn = QPushButton("适应视图")
-        
-        self.zoom_in_btn.clicked.connect(self.zoom_in)
-        self.zoom_out_btn.clicked.connect(self.zoom_out)
         self.fit_view_btn.clicked.connect(self.fit_in_view)
-        
-        toolbar_layout.addWidget(self.zoom_in_btn)
-        toolbar_layout.addWidget(self.zoom_out_btn)
+
         toolbar_layout.addWidget(self.fit_view_btn)
         toolbar_layout.addStretch()
         
@@ -668,15 +661,7 @@ class DefectAnnotationTool(QWidget):
             # 用户需要点击"加载归档"按钮来实际加载数据
             pass
 
-    # 缩放控制方法
-    def zoom_in(self):
-        """放大"""
-        self.graphics_view.zoom_in()
-
-    def zoom_out(self):
-        """缩小"""
-        self.graphics_view.zoom_out()
-
+    # 缩放控制方法（删除了zoom_in和zoom_out，改为鼠标滚轮缩放）
     def fit_in_view(self):
         """适应视图"""
         self.graphics_view.fit_in_view()

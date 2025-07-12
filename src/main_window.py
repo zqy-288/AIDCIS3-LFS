@@ -20,8 +20,8 @@ from PySide6.QtGui import QAction, QFont, QPalette, QColor
 # 导入所有功能模块
 from modules.realtime_chart import RealtimeChart
 from modules.worker_thread import WorkerThread
-from modules.history_viewer import HistoryViewer
-from modules.defect_annotation_tool import DefectAnnotationTool
+from modules.unified_history_viewer import UnifiedHistoryViewer
+from modules.report_output_interface import ReportOutputInterface
 
 # 导入AIDCIS2核心组件
 from aidcis2.models.hole_data import HoleData, HoleCollection, HoleStatus
@@ -40,6 +40,7 @@ class MainWindow(QMainWindow):
     # 导航信号 - 用于内部组件通信
     navigate_to_realtime = Signal(str)  # 导航到实时监控，传递孔位ID
     navigate_to_history = Signal(str)   # 导航到历史数据，传递孔位ID
+    navigate_to_report = Signal(str)    # 导航到报告输出，传递工件ID
     status_updated = Signal(str, str)   # 孔位ID, 新状态
     
     def __init__(self):
@@ -134,13 +135,13 @@ class MainWindow(QMainWindow):
         self.realtime_tab = RealtimeChart()
         self.tab_widget.addTab(self.realtime_tab, "实时监控")
 
-        # 添加历史数据选项卡（三级页面 3.1）
-        self.history_tab = HistoryViewer()
+        # 添加统一历史数据选项卡（三级页面，合并3.1和3.2）
+        self.history_tab = UnifiedHistoryViewer()
         self.tab_widget.addTab(self.history_tab, "历史数据")
 
-        # 添加标注工具选项卡（三级页面 3.2）
-        self.annotation_tab = DefectAnnotationTool()
-        self.tab_widget.addTab(self.annotation_tab, "缺陷标注")
+        # 添加报告输出选项卡（四级页面）
+        self.report_tab = ReportOutputInterface()
+        self.tab_widget.addTab(self.report_tab, "报告输出")
 
         # 设置默认选项卡为主检测视图
         self.tab_widget.setCurrentIndex(0)
@@ -636,9 +637,16 @@ class MainWindow(QMainWindow):
         self.mark_defective_btn.setFont(button_font)
         self.mark_defective_btn.setEnabled(False)
 
+        self.goto_report_btn = QPushButton("生成报告")
+        self.goto_report_btn.setMinimumHeight(40)
+        self.goto_report_btn.setFont(button_font)
+        self.goto_report_btn.setStyleSheet("QPushButton { background-color: #FF9800; color: white; font-weight: bold; }")
+        self.goto_report_btn.setEnabled(True)  # 报告生成总是可用
+
         hole_ops_layout.addWidget(self.goto_realtime_btn)
         hole_ops_layout.addWidget(self.goto_history_btn)
         hole_ops_layout.addWidget(self.mark_defective_btn)
+        hole_ops_layout.addWidget(self.goto_report_btn)
 
         layout.addWidget(hole_ops_group)
 
@@ -806,10 +814,12 @@ class MainWindow(QMainWindow):
         self.goto_realtime_btn.clicked.connect(self.goto_realtime)
         self.goto_history_btn.clicked.connect(self.goto_history)
         self.mark_defective_btn.clicked.connect(self.mark_defective)
+        self.goto_report_btn.clicked.connect(self.goto_report)
 
         # 内部信号连接
         self.navigate_to_realtime.connect(self.navigate_to_realtime_from_main_view)
         self.navigate_to_history.connect(self.navigate_to_history_from_main_view)
+        self.navigate_to_report.connect(self.navigate_to_report_from_main_view)
 
         # 添加测试DXF加载的快捷键 (Ctrl+T)
         from PySide6.QtGui import QShortcut, QKeySequence
@@ -2093,6 +2103,14 @@ class MainWindow(QMainWindow):
         self.log_message(f"📊 跳转到历史数据: {hole_id}")
         self.navigate_to_history.emit(hole_id)
 
+    def goto_report(self):
+        """跳转到报告输出"""
+        # 获取当前工件ID（假设为固定值，实际应该从项目配置获取）
+        workpiece_id = "H00001"  # 这里应该从当前项目或选中的工件获取
+
+        self.log_message(f"📋 跳转到报告输出: {workpiece_id}")
+        self.navigate_to_report.emit(workpiece_id)
+
     def mark_defective(self):
         """标记为异常"""
         if not self.selected_hole:
@@ -2154,6 +2172,23 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             self.logger.error(f"导航到历史数据失败: {e}")
+            QMessageBox.warning(self, "错误", f"导航失败: {str(e)}")
+
+    def navigate_to_report_from_main_view(self, workpiece_id: str):
+        """从主视图导航到报告输出"""
+        try:
+            # 切换到报告输出选项卡
+            self.tab_widget.setCurrentIndex(3)
+
+            # 加载工件数据到报告输出界面
+            if hasattr(self.report_tab, 'load_data_for_workpiece'):
+                self.report_tab.load_data_for_workpiece(workpiece_id)
+
+            self.log_message(f"导航到报告输出: {workpiece_id}")
+            self.status_label.setText(f"报告输出 - {workpiece_id}")
+
+        except Exception as e:
+            self.logger.error(f"导航到报告输出失败: {e}")
             QMessageBox.warning(self, "错误", f"导航失败: {str(e)}")
 
     # 菜单方法
