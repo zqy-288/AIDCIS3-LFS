@@ -229,7 +229,7 @@ class TestUIResponsiveness(unittest.TestCase):
     
     def test_simulation_update_performance(self):
         """测试模拟更新性能"""
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         
         window = MainWindow()
         

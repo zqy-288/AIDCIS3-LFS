@@ -20,7 +20,7 @@ from PySide6.QtCore import Qt
 from modules.product_import_service import ProductImportService
 from modules.dxf_product_converter import DXFProductConverter
 from models.product_model import ProductModel, get_product_manager
-from main_window import MainWindow
+from main_window.main_window import MainWindow
 
 
 class TestDXFProductWorkflow(unittest.TestCase):

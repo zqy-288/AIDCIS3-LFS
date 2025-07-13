@@ -662,12 +662,18 @@ class CompletePanoramaWidget(QWidget):
         self.sector_highlights: Dict[SectorQuadrant, SectorHighlightItem] = {}
         self.current_highlighted_sector: Optional[SectorQuadrant] = None
         
-        # 延迟批量更新机制
+        # 延迟批量更新机制（保留向后兼容）
         self.pending_status_updates: Dict[str, any] = {}  # hole_id -> status
         self.batch_update_timer = QTimer()
         self.batch_update_timer.timeout.connect(self._apply_batch_updates)
         self.batch_update_timer.setSingleShot(True)
         self.batch_update_interval = 100  # 100毫秒间隔，更快响应
+        self.max_batch_delay = 1000  # 最大1秒延迟，防止无限推迟
+        self.batch_start_time = 0  # 记录批量更新开始时间
+        
+        # 数据库驱动的同步机制
+        self.panorama_sync_manager = None  # 将在主窗口中设置
+        self.db_sync_enabled = True        # 是否启用数据库同步
         
         self.setup_ui()
     
@@ -1120,25 +1126,39 @@ class CompletePanoramaWidget(QWidget):
             return None
     
     def update_hole_status(self, hole_id: str, status):
-        """更新孔位状态（延迟批量更新版本）"""
+        """更新孔位状态（延迟批量更新版本，带最大延迟保护）"""
         print(f"📦 [全景图] 接收到状态更新: {hole_id} -> {status.value if hasattr(status, 'value') else status}")
         
+        # 检查并转换ID格式（兼容DXF的(row,column)格式）
+        normalized_hole_id = self._normalize_hole_id(hole_id)
+        
         # 将状态更新加入缓存
-        self.pending_status_updates[hole_id] = status
+        self.pending_status_updates[normalized_hole_id] = status
         
-        # 重启批量更新定时器
-        if self.batch_update_timer.isActive():
-            print(f"⏹️ [全景图] 停止现有定时器")
-            self.batch_update_timer.stop()
+        import time
+        current_time = time.time() * 1000  # 转换为毫秒
         
-        print(f"⏰ [全景图] 启动批量更新定时器: {self.batch_update_interval}ms")
-        self.batch_update_timer.start(self.batch_update_interval)
+        # 检查是否需要强制立即更新（防止无限延迟）
+        if self.batch_start_time > 0 and (current_time - self.batch_start_time) >= self.max_batch_delay:
+            print(f"⚡ [全景图] 达到最大延迟{self.max_batch_delay}ms，强制立即更新")
+            self._apply_batch_updates()
+            return
         
-        # 验证定时器是否真的启动了
-        if self.batch_update_timer.isActive():
-            print(f"✅ [全景图] 定时器已激活，{self.batch_update_timer.remainingTime()}ms 后执行")
+        # 智能定时器管理：只有在定时器不活跃时才启动
+        if not self.batch_update_timer.isActive():
+            print(f"⏰ [全景图] 启动新的批量更新定时器: {self.batch_update_interval}ms")
+            self.batch_start_time = current_time
+            self.batch_update_timer.start(self.batch_update_interval)
+            
+            # 验证定时器是否真的启动了
+            if self.batch_update_timer.isActive():
+                print(f"✅ [全景图] 定时器已激活，{self.batch_update_timer.remainingTime()}ms 后执行")
+            else:
+                print(f"❌ [全景图] 定时器启动失败!")
         else:
-            print(f"❌ [全景图] 定时器启动失败!")
+            # 定时器已经活跃，只记录剩余时间，不重启
+            remaining = self.batch_update_timer.remainingTime()
+            print(f"⏳ [全景图] 定时器已运行，还有{remaining}ms执行，累积{len(self.pending_status_updates)}个更新")
         
         print(f"🔄 [全景图] 缓存中现有 {len(self.pending_status_updates)} 个待更新")
     
@@ -1239,11 +1259,13 @@ class CompletePanoramaWidget(QWidget):
         except Exception as e:
             print(f"❌ [全景图] 批量更新失败: {e}")
         finally:
-            # 清空缓存
+            # 清空缓存并重置计时器
             self.pending_status_updates.clear()
+            self.batch_start_time = 0  # 重置批量更新开始时间
+            print(f"🧹 [全景图] 批量更新完成，缓存已清空，计时器已重置")
     
     def batch_update_hole_status(self, status_updates: Dict[str, any]):
-        """直接批量更新多个孔位状态"""
+        """直接批量更新多个孔位状态（兼容旧接口）"""
         print(f"🚀 [全景图] 直接批量更新 {len(status_updates)} 个孔位")
         
         # 合并到待更新缓存
@@ -1251,6 +1273,103 @@ class CompletePanoramaWidget(QWidget):
         
         # 立即应用更新
         self._apply_batch_updates()
+    
+    def batch_update_from_db(self, updates_list: list):
+        """从数据库更新列表批量更新孔位状态（新的数据库驱动接口）"""
+        print(f"💾 [全景图] 数据库驱动批量更新 {len(updates_list)} 个孔位")
+        
+        # 转换数据库更新格式为内部格式
+        status_updates = {}
+        for update in updates_list:
+            hole_id = update['hole_id']
+            new_status = update['new_status']
+            
+            # 转换状态字符串为HoleStatus枚举
+            from aidcis2.models.hole_data import HoleStatus
+            status_mapping = {
+                'pending': HoleStatus.PENDING,
+                'qualified': HoleStatus.QUALIFIED,
+                'defective': HoleStatus.DEFECTIVE,
+                'blind': HoleStatus.BLIND,
+                'tie_rod': HoleStatus.TIE_ROD,
+                'processing': HoleStatus.PROCESSING
+            }
+            
+            if new_status in status_mapping:
+                status_updates[hole_id] = status_mapping[new_status]
+                print(f"🔄 [全景图] 转换状态: {hole_id} -> {new_status}")
+            else:
+                print(f"⚠️ [全景图] 未知状态: {hole_id} -> {new_status}")
+        
+        if status_updates:
+            # 直接应用更新，不经过定时器
+            self._apply_status_updates_direct(status_updates)
+    
+    def _apply_status_updates_direct(self, status_updates: Dict[str, any]):
+        """直接应用状态更新，不使用定时器机制"""
+        print(f"⚡ [全景图] 直接应用 {len(status_updates)} 个状态更新")
+        
+        try:
+            # 获取全景视图中的孔位图形项
+            if not hasattr(self.panorama_view, 'hole_items') or not self.panorama_view.hole_items:
+                print("❌ [全景图] panorama_view 没有 hole_items 或为空")
+                return
+            
+            from aidcis2.models.hole_data import HoleStatus
+            from PySide6.QtGui import QColor, QBrush, QPen
+            
+            # 状态颜色映射
+            status_colors = {
+                HoleStatus.PENDING: QColor("#CCCCCC"),       # 灰色
+                HoleStatus.QUALIFIED: QColor("#4CAF50"),     # 绿色
+                HoleStatus.DEFECTIVE: QColor("#F44336"),     # 红色
+                HoleStatus.PROCESSING: QColor("#2196F3"),    # 蓝色
+                HoleStatus.BLIND: QColor("#FF9800"),         # 橙色
+                HoleStatus.TIE_ROD: QColor("#9C27B0"),       # 紫色
+            }
+            
+            updated_count = 0
+            
+            # 批量更新所有状态变化
+            for hole_id, status in status_updates.items():
+                if hole_id in self.panorama_view.hole_items:
+                    hole_item = self.panorama_view.hole_items[hole_id]
+                    
+                    # 优先使用update_status方法
+                    if hasattr(hole_item, 'update_status'):
+                        hole_item.update_status(status)
+                        hole_item.update()
+                        updated_count += 1
+                        print(f"✅ [全景图] 孔位 {hole_id} 使用update_status更新成功")
+                    elif status in status_colors:
+                        color = status_colors[status]
+                        
+                        if hasattr(hole_item, 'setBrush') and hasattr(hole_item, 'setPen'):
+                            hole_item.setBrush(QBrush(color))
+                            hole_item.setPen(QPen(color.darker(120), 1.0))
+                            hole_item.update()
+                            updated_count += 1
+                            print(f"✅ [全景图] 孔位 {hole_id} 颜色更新成功")
+                        else:
+                            print(f"❌ [全景图] 孔位图形项缺少 setBrush/setPen 方法")
+                    else:
+                        print(f"❌ [全景图] 未知状态: {status}")
+                else:
+                    print(f"❌ [全景图] 孔位 {hole_id} 不在 hole_items 中")
+            
+            # 强制刷新视图
+            self.panorama_view.scene.update()
+            self.panorama_view.viewport().update()
+            
+            # 延迟重绘确保显示
+            if updated_count > 0:
+                from PySide6.QtCore import QTimer
+                QTimer.singleShot(10, lambda: self.panorama_view.viewport().repaint())
+            
+            print(f"✅ [全景图] 数据库驱动更新完成: {updated_count}/{len(status_updates)} 个孔位")
+            
+        except Exception as e:
+            print(f"❌ [全景图] 数据库驱动更新失败: {e}")
     
     def set_batch_update_interval(self, interval_ms: int):
         """设置批量更新间隔（毫秒）"""
@@ -1312,3 +1431,88 @@ class CompletePanoramaWidget(QWidget):
             if updated < total and total > 0:
                 not_updated = set(data["holes"]) - set(data["updated"])
                 print(f"    未更新: {list(not_updated)[:5]}...")  # 显示前5个
+    
+    def get_update_status(self):
+        """获取当前更新状态（用于状态监控）"""
+        import time
+        current_time = time.time() * 1000
+        
+        status = {
+            "pending_updates": len(self.pending_status_updates),
+            "timer_active": self.batch_update_timer.isActive(),
+            "timer_remaining": self.batch_update_timer.remainingTime() if self.batch_update_timer.isActive() else 0,
+            "batch_delay": int(current_time - self.batch_start_time) if self.batch_start_time > 0 else 0,
+            "max_delay": self.max_batch_delay,
+            "update_interval": self.batch_update_interval
+        }
+        
+        return status
+    
+    def print_update_status(self):
+        """打印当前更新状态（调试用）"""
+        status = self.get_update_status()
+        print(f"📊 [全景图状态] 待更新: {status['pending_updates']}, "
+              f"定时器: {'活跃' if status['timer_active'] else '非活跃'}, "
+              f"剩余: {status['timer_remaining']}ms, "
+              f"延迟: {status['batch_delay']}ms/{status['max_delay']}ms")
+    
+    def set_panorama_sync_manager(self, sync_manager):
+        """设置全景图同步管理器"""
+        self.panorama_sync_manager = sync_manager
+        print(f"🔗 [全景图] 设置同步管理器: {type(sync_manager)}")
+        
+        # 连接信号
+        if hasattr(sync_manager, 'status_updates_available'):
+            sync_manager.status_updates_available.connect(self.batch_update_from_db)
+        
+    def enable_db_sync(self, enabled: bool = True):
+        """启用/禁用数据库同步模式"""
+        self.db_sync_enabled = enabled
+        print(f"⚙️ [全景图] 数据库同步模式: {'启用' if enabled else '禁用'}")
+        
+        if self.panorama_sync_manager:
+            if enabled:
+                self.panorama_sync_manager.start_sync()
+            else:
+                self.panorama_sync_manager.stop_sync()
+    
+    def _normalize_hole_id(self, hole_id: str) -> str:
+        """
+        归一化孔位ID格式，兼容不同的ID格式
+        
+        支持的格式：
+        - "(row,column)" 格式（DXF解析器生成）-> 保持原样，因为全景图也是用这种格式
+        - "H001" 格式 -> 保持原样
+        - 其他格式 -> 保持原样
+        
+        Args:
+            hole_id: 输入的孔位ID
+            
+        Returns:
+            归一化后的孔位ID
+        """
+        # 直接返回原始ID，因为全景图的hole_items已经使用了相同的ID格式
+        # 日志显示全景图成功找到了(26,27)格式的孔位，说明ID格式是匹配的
+        return hole_id
+    
+    def debug_hole_items_format(self, sample_count=10):
+        """调试方法：检查hole_items中的ID格式"""
+        if not hasattr(self.panorama_view, 'hole_items') or not self.panorama_view.hole_items:
+            print("❌ [调试] panorama_view 没有 hole_items")
+            return
+        
+        print(f"\n🔍 [调试] 全景图 hole_items ID格式示例:")
+        hole_ids = list(self.panorama_view.hole_items.keys())[:sample_count]
+        for hole_id in hole_ids:
+            hole_item = self.panorama_view.hole_items[hole_id]
+            print(f"   ID: {hole_id}, 类型: {type(hole_id)}, 孔位对象: {type(hole_item)}")
+        
+        print(f"   总共有 {len(self.panorama_view.hole_items)} 个孔位")
+        
+        # 检查是否有特定格式的ID
+        tuple_format_count = sum(1 for hid in self.panorama_view.hole_items.keys() if hid.startswith('('))
+        h_format_count = sum(1 for hid in self.panorama_view.hole_items.keys() if hid.startswith('H'))
+        
+        print(f"   元组格式 '(x,y)': {tuple_format_count} 个")
+        print(f"   H格式 'H001': {h_format_count} 个")
+        print(f"   其他格式: {len(self.panorama_view.hole_items) - tuple_format_count - h_format_count} 个")

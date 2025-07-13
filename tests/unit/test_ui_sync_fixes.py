@@ -27,7 +27,7 @@ class TestUISyncFixes(unittest.TestCase):
     
     def setUp(self):
         """设置每个测试"""
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         self.window = MainWindow()
         
         # 创建测试孔位数据

@@ -56,7 +56,7 @@ def test_main_window_integration():
             app = QApplication(sys.argv)
         
         # 测试主窗口导入
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         print("  ✅ MainWindow 导入成功")
         
         # 测试创建主窗口（不显示）

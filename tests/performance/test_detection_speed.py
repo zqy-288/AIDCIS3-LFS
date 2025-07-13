@@ -28,7 +28,7 @@ class TestDetectionSpeed(unittest.TestCase):
     
     def setUp(self):
         """设置每个测试"""
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         self.window = MainWindow()
         
         # 创建模拟孔位数据
@@ -176,7 +176,7 @@ class TestDetectionFrequencyIntegration(unittest.TestCase):
     
     def test_frequency_configuration_consistency(self):
         """测试频率配置一致性"""
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         import inspect
         
         # 检查所有相关方法的频率设置

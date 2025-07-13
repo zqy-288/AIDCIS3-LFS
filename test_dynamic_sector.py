@@ -80,7 +80,7 @@ def test_main_window_integration():
     
     try:
         from PySide6.QtWidgets import QApplication
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         
         # 创建应用（无界面模式）
         app = QApplication([])

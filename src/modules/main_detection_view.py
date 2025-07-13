@@ -6,11 +6,13 @@
 from datetime import datetime
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                                QLabel, QPushButton, QProgressBar, QGroupBox,
-                               QLineEdit, QTextEdit, QFrame, QSplitter, QCompleter)
+                               QLineEdit, QTextEdit, QFrame, QSplitter, QCompleter,
+                               QSizePolicy)
 from PySide6.QtCore import Qt, Signal, QTimer, QStringListModel
 from PySide6.QtGui import QFont
 
-from .workpiece_diagram import WorkpieceDiagram, DetectionStatus
+from aidcis2.graphics.dynamic_sector_view import DynamicSectorDisplayWidget
+from aidcis2.models.hole_data import HoleStatus
 
 
 class MainDetectionView(QWidget):
@@ -108,18 +110,23 @@ class MainDetectionView(QWidget):
         return panel
 
     def _create_middle_panel(self):
-        """创建中间DXF预览面板"""
+        """创建中间DXF预览面板 - 使用动态扇形显示"""
         panel = QWidget()
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 0, 5, 0)
 
-        # 1. 状态图例 (从WorkpieceDiagram中提取)
+        # 1. 状态图例
         self.legend_frame = self._create_status_legend_widget()
         layout.addWidget(self.legend_frame)
 
-        # 2. DXF预览
-        self.workpiece_diagram = WorkpieceDiagram()
-        layout.addWidget(self.workpiece_diagram, 1)
+        # 2. 创建动态扇形显示组件
+        self.dynamic_sector_display = DynamicSectorDisplayWidget()
+        self.dynamic_sector_display.setMinimumSize(600, 500)
+        layout.addWidget(self.dynamic_sector_display, 1)
+        
+        # 为了向后兼容，设置引用
+        self.panorama_view = self.dynamic_sector_display.graphics_view
+        self.workpiece_diagram = self.panorama_view
         
         return panel
 
@@ -194,8 +201,8 @@ class MainDetectionView(QWidget):
 
     def setup_connections(self):
         """设置所有信号和槽的连接"""
-        # 预览图点击
-        self.workpiece_diagram.hole_clicked.connect(self.on_hole_clicked)
+        # 全景视图点击信号
+        self.panorama_view.hole_clicked.connect(self.on_hole_clicked)
         
         # 检测操作按钮
         self.control_panel.start_detection.connect(self.on_start_detection)
@@ -204,9 +211,9 @@ class MainDetectionView(QWidget):
         self.control_panel.reset_detection.connect(self.on_reset_detection)
         
         # 视图控制按钮
-        self.zoom_in_button.clicked.connect(self.workpiece_diagram.zoom_in)
-        self.zoom_out_button.clicked.connect(self.workpiece_diagram.zoom_out)
-        self.reset_zoom_button.clicked.connect(self.workpiece_diagram.reset_zoom)
+        self.zoom_in_button.clicked.connect(self.panorama_view.zoom_in)
+        self.zoom_out_button.clicked.connect(self.panorama_view.zoom_out)
+        self.reset_zoom_button.clicked.connect(self.panorama_view.fit_in_view)
 
         # 孔位搜索功能
         self.search_button.clicked.connect(self.on_search_button_clicked)
@@ -222,19 +229,17 @@ class MainDetectionView(QWidget):
         self.log_message("系统初始化完成。")
         self.update_progress_display()
         
-        # 初始化联想搜索
-        all_holes = self.workpiece_diagram.get_all_holes()
-        completer = QCompleter(all_holes, self)
-        completer.setCaseSensitivity(Qt.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchContains)
-        self.search_input.setCompleter(completer)
-        completer.activated.connect(self.on_search_activated)
+        # 初始化联想搜索 - 暂时禁用，等待数据加载
+        # TODO: 在加载DXF数据后更新搜索列表
+        self.search_input.setPlaceholderText("加载DXF后可搜索孔位...")
 
-    def on_hole_clicked(self, hole_id, status):
+    def on_hole_clicked(self, hole_data):
         """处理孔点击事件，更新信息面板"""
-        self.log_message(f"选中孔位: {hole_id}, 状态: {status.value}")
+        hole_id = hole_data.id
+        status = hole_data.status
+        self.log_message(f"选中孔位: {hole_id}, 状态: {status.name}")
         self.update_hole_info_panel(hole_id)
-        self.workpiece_diagram.highlight_hole(hole_id)
+        # 动态扇形显示会自动处理孔位点击和扇形切换
 
     def on_search_button_clicked(self):
         """处理搜索按钮点击或回车事件"""
@@ -248,42 +253,82 @@ class MainDetectionView(QWidget):
 
     def handle_search(self, hole_id):
         """统一处理搜索逻辑"""
-        if hole_id in self.workpiece_diagram.get_all_holes():
-            self.log_message(f"通过搜索定位到孔: {hole_id}")
-            self.update_hole_info_panel(hole_id)
-            self.workpiece_diagram.highlight_hole(hole_id)
-            self.workpiece_diagram.center_on_hole(hole_id)
+        if hasattr(self.panorama_view, 'hole_collection') and self.panorama_view.hole_collection:
+            hole_data = self.panorama_view.hole_collection.get_hole(hole_id)
+            if hole_data:
+                self.log_message(f"通过搜索定位到孔: {hole_id}")
+                self.update_hole_info_panel(hole_id)
+                # 在视图中高亮并居中显示
+                self.panorama_view.select_hole(hole_id)
+                self.panorama_view.center_on_hole(hole_id)
+                # 动态扇形显示会自动切换到包含该孔位的扇形
+            else:
+                self.log_message(f"警告: 未找到孔位 '{hole_id}'", "orange")
         else:
-            self.log_message(f"警告: 未找到孔位 '{hole_id}'", "orange")
+            self.log_message("警告: 尚未加载DXF数据", "orange")
 
     def update_hole_info_panel(self, hole_id):
         """更新左侧的孔位信息面板"""
-        point = self.workpiece_diagram.detection_points.get(hole_id)
-        if point:
-            self.selected_hole_id_label.setText(hole_id)
-            self.selected_hole_pos_label.setText(f"({point.x():.2f}, {point.y():.2f})")
-            self.selected_hole_status_label.setText(point.status.value)
-            self.current_hole_id = hole_id
+        # 从panorama_view获取孔位数据
+        if hasattr(self.panorama_view, 'hole_collection') and self.panorama_view.hole_collection:
+            hole_data = self.panorama_view.hole_collection.get_hole(hole_id)
+            if hole_data:
+                self.selected_hole_id_label.setText(hole_id)
+                self.selected_hole_pos_label.setText(f"({hole_data.x:.2f}, {hole_data.y:.2f})")
+                self.selected_hole_status_label.setText(hole_data.status.name)
+                self.current_hole_id = hole_id
 
     def update_progress_display(self):
         """更新进度和统计信息"""
-        data = self.workpiece_diagram.get_detection_progress()
-        
-        # 更新统计面板
-        self.total_label.setText(str(data.get("total", 0)))
-        self.qualified_label.setText(str(data.get("qualified", 0)))
-        self.unqualified_label.setText(str(data.get("unqualified", 0)))
-        self.not_detected_label.setText(str(data.get("not_detected", 0) + data.get("real_data", 0)))
-
-        # 更新进度条
-        progress = data.get("progress", 0.0)
-        self.progress_bar.setValue(int(progress))
-        self.progress_label.setText(f"{progress:.1f}%")
+        if hasattr(self.panorama_view, 'hole_collection') and self.panorama_view.hole_collection:
+            stats = self.panorama_view.hole_collection.get_statistics()
+            
+            # 更新统计面板
+            self.total_label.setText(str(stats['total']))
+            self.qualified_label.setText(str(stats['qualified']))
+            self.unqualified_label.setText(str(stats['unqualified']))
+            self.not_detected_label.setText(str(stats['pending']))
+            
+            # 更新进度条
+            progress = stats.get('completion_rate', 0.0)
+            self.progress_bar.setValue(int(progress))
+            self.progress_label.setText(f"{progress:.1f}%")
+        else:
+            # 默认值
+            self.total_label.setText("0")
+            self.qualified_label.setText("0")
+            self.unqualified_label.setText("0")
+            self.not_detected_label.setText("0")
+            self.progress_bar.setValue(0)
+            self.progress_label.setText("0%")
 
     def log_message(self, message, color="black"):
         """向操作日志面板添加一条带时间戳的消息"""
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.log_text_edit.append(f'<font color="{color}">[{timestamp}] {message}</font>')
+    
+    def load_dxf_data(self, hole_collection):
+        """加载DXF数据到视图"""
+        if hole_collection:
+            # 设置动态扇形显示数据
+            self.dynamic_sector_display.load_hole_collection(hole_collection)
+            
+            # 更新文件信息
+            if hasattr(hole_collection, 'source_file'):
+                self.dxf_file_label.setText(hole_collection.source_file)
+            
+            # 更新搜索功能
+            hole_ids = [hole.id for hole in hole_collection.holes.values()]
+            completer = QCompleter(hole_ids, self)
+            completer.setCaseSensitivity(Qt.CaseInsensitive)
+            completer.setFilterMode(Qt.MatchContains)
+            self.search_input.setCompleter(completer)
+            self.search_input.setPlaceholderText("输入孔位ID...")
+            
+            # 更新进度显示
+            self.update_progress_display()
+            
+            self.log_message(f"成功加载DXF数据，共 {hole_collection.count()} 个孔位")
 
     # --- 保留旧的控制逻辑 ---
     def on_start_detection(self):
@@ -299,9 +344,13 @@ class MainDetectionView(QWidget):
         # ... (原有的逻辑)
 
     def on_reset_detection(self):
-        self.workpiece_diagram.reset_all_holes()
+        if hasattr(self.panorama_view, 'hole_collection') and self.panorama_view.hole_collection:
+            # 重置所有孔的状态
+            for hole in self.panorama_view.hole_collection.holes.values():
+                hole.status = HoleStatus.PENDING
+            self.panorama_view.update()
         self.log_message("检测已重置。", "purple")
-        # ... (原有的逻辑)
+        self.update_progress_display()
 
 
 class ControlPanel(QGroupBox):

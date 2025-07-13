@@ -17,7 +17,7 @@ def debug_simulation_colors():
     
     # 1. 检查当前运行的是哪个main_window.py
     try:
-        import main_window
+        import main_window.main_window as main_window
         main_window_file = main_window.__file__
         print(f"✅ 当前使用的main_window.py: {main_window_file}")
         
@@ -34,7 +34,7 @@ def debug_simulation_colors():
     
     # 2. 检查模拟进度方法是否包含最新修复
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         import inspect
         
         # 检查_update_simulation_progress方法

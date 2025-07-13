@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(current_dir, 'modules'))
 sys.path.insert(0, os.path.join(current_dir, 'hardware'))
 sys.path.insert(0, os.path.join(current_dir, 'models'))
 
-from main_window import MainWindow
+from main_window.main_window import MainWindow
 from modules.models import db_manager
 
 

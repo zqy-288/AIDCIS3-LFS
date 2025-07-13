@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer, QEventLoop
 from PySide6.QtTest import QTest
 
-from main_window import MainWindow
+from main_window.main_window import MainWindow
 
 class SectorSimulationTest:
     """扇形顺序模拟测试类"""

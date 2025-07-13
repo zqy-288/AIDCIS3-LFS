@@ -16,7 +16,7 @@ def main():
     
     # 检查修改后的代码
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         import inspect
         
         print("🔍 检查模拟进度V2方法:")

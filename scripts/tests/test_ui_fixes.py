@@ -15,7 +15,7 @@ def main():
     print("=" * 60)
     
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         import inspect
         
         print("📋 **修复验证**")

@@ -16,7 +16,7 @@ def main():
     
     # 检查功能是否正确实现
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         import inspect
         
         print("🔍 检查孔位操作方法:")

@@ -16,7 +16,7 @@ def main():
     
     # 检查V2方法是否存在
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         
         if hasattr(MainWindow, '_start_simulation_progress_v2'):
             print("✅ V2模拟进度方法已添加")

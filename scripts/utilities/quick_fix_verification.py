@@ -16,7 +16,7 @@ def verify_color_fix():
     print("-" * 30)
     
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         import inspect
         
         # 检查V2模拟方法
@@ -46,7 +46,7 @@ def verify_ui_fix():
     print("-" * 30)
     
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         import inspect
         
         # 检查UI更新方法
@@ -76,7 +76,7 @@ def verify_data_check():
     print("-" * 30)
     
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         
         # 创建窗口实例
         window = MainWindow()
@@ -109,7 +109,7 @@ def verify_button_logic():
     print("-" * 30)
     
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         import inspect
         
         # 检查孔位选择方法
@@ -139,7 +139,7 @@ def verify_operation_methods():
     print("-" * 30)
     
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         import inspect
         
         # 检查实时监控方法

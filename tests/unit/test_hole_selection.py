@@ -28,7 +28,7 @@ class TestHoleSelection(unittest.TestCase):
     
     def setUp(self):
         """设置每个测试"""
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         self.window = MainWindow()
         
         # 创建模拟孔位数据

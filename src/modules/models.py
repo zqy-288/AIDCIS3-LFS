@@ -59,6 +59,7 @@ class Hole(Base):
     workpiece = relationship("Workpiece", back_populates="holes")
     measurements = relationship("Measurement", back_populates="hole")
     endoscope_images = relationship("EndoscopeImage", back_populates="hole")
+    status_updates = relationship("HoleStatusUpdate", back_populates="hole")
 
 
 class Measurement(Base):
@@ -120,6 +121,25 @@ class Annotation(Base):
     def get_coordinates(self):
         """获取坐标数据"""
         return json.loads(self.coordinates) if self.coordinates else []
+
+
+class HoleStatusUpdate(Base):
+    """孔位状态更新记录表 - 用于全景图同步"""
+    __tablename__ = 'hole_status_updates'
+    
+    id = Column(Integer, primary_key=True)
+    hole_id = Column(Integer, ForeignKey('holes.id'), nullable=False)
+    old_status = Column(String(20))
+    new_status = Column(String(20), nullable=False)
+    update_timestamp = Column(DateTime, default=datetime.now)
+    sync_to_panorama = Column(Boolean, default=False)  # 是否已同步到全景图
+    sync_timestamp = Column(DateTime)                   # 同步时间
+    update_source = Column(String(50))                  # 更新来源(detection/manual/import等)
+    operator_id = Column(String(50))                    # 操作员
+    batch_id = Column(String(50))                       # 批次ID，用于批量更新
+    
+    # 关联关系
+    hole = relationship("Hole", back_populates="status_updates")
 
 
 class DatabaseManager:
@@ -281,6 +301,115 @@ class DatabaseManager:
         except Exception as e:
             print(f"获取孔数据失败: {e}")
             return []
+        finally:
+            self.close_session(session)
+    
+    def update_hole_status(self, hole_id, new_status, update_source="detection", operator_id=None, batch_id=None):
+        """更新孔位状态并记录到状态更新表"""
+        session = self.get_session()
+        try:
+            # 查找孔
+            hole = session.query(Hole).filter_by(hole_id=hole_id).first()
+            if not hole:
+                print(f"未找到孔 {hole_id}")
+                return False
+            
+            old_status = hole.status
+            
+            # 更新孔位状态
+            hole.status = new_status
+            hole.updated_at = datetime.now()
+            
+            # 记录状态更新历史
+            status_update = HoleStatusUpdate(
+                hole_id=hole.id,
+                old_status=old_status,
+                new_status=new_status,
+                update_source=update_source,
+                operator_id=operator_id,
+                batch_id=batch_id
+            )
+            
+            session.add(status_update)
+            session.commit()
+            
+            print(f"✅ 孔位 {hole_id} 状态更新: {old_status} -> {new_status}")
+            return True
+            
+        except Exception as e:
+            session.rollback()
+            print(f"❌ 更新孔位状态失败: {e}")
+            return False
+        finally:
+            self.close_session(session)
+    
+    def get_pending_status_updates(self, limit=100):
+        """获取待同步到全景图的状态更新"""
+        session = self.get_session()
+        try:
+            updates = session.query(HoleStatusUpdate).filter_by(
+                sync_to_panorama=False
+            ).order_by(HoleStatusUpdate.update_timestamp).limit(limit).all()
+            
+            result = []
+            for update in updates:
+                result.append({
+                    'id': update.id,
+                    'hole_id': update.hole.hole_id,  # 获取hole_id字符串
+                    'workpiece_id': update.hole.workpiece_id,
+                    'new_status': update.new_status,
+                    'update_timestamp': update.update_timestamp,
+                    'update_source': update.update_source,
+                    'batch_id': update.batch_id
+                })
+            return result
+            
+        except Exception as e:
+            print(f"❌ 获取待更新状态失败: {e}")
+            return []
+        finally:
+            self.close_session(session)
+    
+    def mark_status_updates_synced(self, update_ids):
+        """标记状态更新为已同步"""
+        session = self.get_session()
+        try:
+            session.query(HoleStatusUpdate).filter(
+                HoleStatusUpdate.id.in_(update_ids)
+            ).update({
+                'sync_to_panorama': True,
+                'sync_timestamp': datetime.now()
+            }, synchronize_session=False)
+            
+            session.commit()
+            print(f"✅ 标记 {len(update_ids)} 个状态更新为已同步")
+            return True
+            
+        except Exception as e:
+            session.rollback()
+            print(f"❌ 标记同步状态失败: {e}")
+            return False
+        finally:
+            self.close_session(session)
+    
+    def get_status_update_stats(self):
+        """获取状态更新统计信息"""
+        session = self.get_session()
+        try:
+            total_updates = session.query(HoleStatusUpdate).count()
+            pending_updates = session.query(HoleStatusUpdate).filter_by(sync_to_panorama=False).count()
+            synced_updates = total_updates - pending_updates
+            
+            return {
+                'total_updates': total_updates,
+                'pending_updates': pending_updates,
+                'synced_updates': synced_updates,
+                'sync_rate': (synced_updates / total_updates * 100) if total_updates > 0 else 0
+            }
+            
+        except Exception as e:
+            print(f"❌ 获取统计信息失败: {e}")
+            return {}
         finally:
             self.close_session(session)
 

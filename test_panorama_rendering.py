@@ -15,7 +15,7 @@ import logging
 from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 
-from main_window import MainWindow
+from main_window.main_window import MainWindow
 from aidcis2.dxf_parser import DXFParser
 from aidcis2.models.hole_data import HoleCollection
 

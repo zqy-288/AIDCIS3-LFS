@@ -28,7 +28,7 @@ def main():
     all_passed = True
     
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         import inspect
         
         print("\n🔍 **代码验证**")

@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer, QEventLoop
 from PySide6.QtTest import QTest
 
-from main_window import MainWindow
+from main_window.main_window import MainWindow
 
 class SimulationE2ETest:
     """模拟功能端到端测试类"""

@@ -28,7 +28,7 @@ def test_all_functions():
     
     try:
         # 导入主窗口
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         
         # 创建应用程序（如果不存在）
         app = QApplication.instance()

@@ -368,7 +368,7 @@ class TestMainWindowIntegration(unittest.TestCase):
         
         try:
             # 导入并创建主窗口（可能会因为其他依赖而失败，所以用try-catch）
-            from main_window import MainWindow
+            from main_window.main_window import MainWindow
             
             main_window = MainWindow()
             

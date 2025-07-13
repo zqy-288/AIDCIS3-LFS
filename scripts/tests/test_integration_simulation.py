@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtTest import QTest
 
-from main_window import MainWindow
+from main_window.main_window import MainWindow
 from aidcis2.models.hole_data import HoleData, HoleCollection, HoleStatus
 from aidcis2.graphics.sector_manager import SectorManager, SectorQuadrant
 

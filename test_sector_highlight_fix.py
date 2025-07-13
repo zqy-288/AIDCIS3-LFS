@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
 from PySide6.QtWidgets import QApplication
-from main_window import MainWindow
+from main_window.main_window import MainWindow
 from PySide6.QtCore import QTimer
 from aidcis2.graphics.sector_manager import SectorQuadrant
 

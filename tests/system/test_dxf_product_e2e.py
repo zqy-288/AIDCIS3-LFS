@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 from PySide6.QtCore import Qt, QTimer
 
-from main_window import MainWindow
+from main_window.main_window import MainWindow
 from modules.dxf_import_adapter import DXFImportPreviewDialog
 from modules.product_selection import ProductSelectionDialog
 

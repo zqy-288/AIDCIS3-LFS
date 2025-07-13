@@ -16,7 +16,7 @@ def diagnose_ui_components():
     print("=" * 60)
     
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         from PySide6.QtWidgets import QApplication
         
         # 创建应用和窗口

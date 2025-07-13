@@ -15,7 +15,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 from PySide6.QtCore import Qt
 
-from main_window import MainWindow
+from main_window.main_window import MainWindow
 from aidcis2.models.hole_data import HoleData, HoleCollection, HoleStatus
 
 class ImprovedContinuityTest:

@@ -15,7 +15,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 from PySide6.QtCore import Qt
 
-from main_window import MainWindow
+from main_window.main_window import MainWindow
 
 class RealDXFParameterTest:
     """真实DXF文件参数测试"""
@@ -49,7 +49,7 @@ class RealDXFParameterTest:
         try:
             # 使用主窗口的DXF加载功能
             if hasattr(self.window, 'dxf_parser'):
-                hole_collection = self.window.dxf_parser.parse_dxf_file(dxf_path)
+                hole_collection = self.window.dxf_parser.parse_file(dxf_path)
                 
                 if hole_collection and len(hole_collection) > 0:
                     self.window.hole_collection = hole_collection

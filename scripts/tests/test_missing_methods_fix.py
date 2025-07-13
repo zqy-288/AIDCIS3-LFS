@@ -52,7 +52,7 @@ def main():
     
     # 检查主窗口
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         print("✅ MainWindow导入成功")
         
         # 检查是否有可能导致AttributeError的调用

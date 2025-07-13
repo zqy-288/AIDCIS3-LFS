@@ -16,7 +16,7 @@ def main():
     
     # 检查修复后的组件
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         print("✅ 主窗口导入成功")
         
         # 检查模拟进度方法是否包含修复

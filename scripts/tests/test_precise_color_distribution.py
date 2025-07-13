@@ -16,7 +16,7 @@ def main():
     
     # 检查V2方法是否包含新的比例分配
     try:
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         import inspect
         
         # 检查_update_simulation_v2方法

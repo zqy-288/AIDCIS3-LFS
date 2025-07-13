@@ -20,7 +20,7 @@ def main():
         
         # 2. 验证主窗口导入
         print("2. 验证主窗口导入...")
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         print("   ✅ MainWindow 导入成功")
         
         # 3. 验证文件修改

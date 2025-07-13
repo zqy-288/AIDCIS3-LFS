@@ -15,7 +15,7 @@ sys.path.insert(0, str(src_dir / 'models'))
 
 try:
     from PySide6.QtWidgets import QApplication
-    from main_window import MainWindow
+    from main_window.main_window import MainWindow
     import logging
     
     # 设置简化的日志

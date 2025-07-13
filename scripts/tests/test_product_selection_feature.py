@@ -127,7 +127,7 @@ def test_main_window_integration():
         if app is None:
             app = QApplication(sys.argv)
         
-        from main_window import MainWindow
+        from main_window.main_window import MainWindow
         
         window = MainWindow()
         print("✅ 主窗口创建成功")
