@@ -85,7 +85,7 @@ class UnifiedHistoryViewer(QWidget):
         # 状态标签
         self.status_label = QLabel("当前模式：管孔直径历史数据")
         self.status_label.setFont(label_font)
-        self.status_label.setStyleSheet("color: #2E7D32; font-weight: bold;")
+        self.status_label.setObjectName("SuccessLabel")
         control_layout.addWidget(self.status_label)
         
         parent_layout.addWidget(control_group)
