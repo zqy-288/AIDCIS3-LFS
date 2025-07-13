@@ -13,10 +13,10 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QComboBox, QGroupBox, QTextEdit,
     QTableWidget, QTableWidgetItem, QProgressBar, QSplitter,
     QCheckBox, QSpinBox, QLineEdit, QFileDialog, QMessageBox,
-    QTabWidget, QScrollArea, QFrame, QHeaderView, QDialog
+    QTabWidget, QScrollArea, QFrame, QHeaderView, QDialog, QMenu
 )
 from PySide6.QtCore import Qt, Signal, QThread
-from PySide6.QtGui import QFont, QPixmap, QPalette
+from PySide6.QtGui import QFont, QPixmap, QPalette, QAction
 
 from .report_models import (
     ReportType, ReportFormat, ReportConfiguration,
@@ -147,7 +147,11 @@ class ReportGenerationWorker(QThread):
 
 class ReportOutputInterface(QWidget):
     """报告输出界面"""
-    
+
+    # --- 新增代码：定义一个信号，用于向外发送状态消息 ---
+    # 这个信号可以传递一个字符串参数
+    status_updated = Signal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.current_workpiece_id = None
@@ -162,48 +166,14 @@ class ReportOutputInterface(QWidget):
     
     def setup_ui(self):
         """设置用户界面"""
-        # 设置整体字体样式
-        self.setStyleSheet("""
-            QWidget {
-                font-size: 14px;
-                font-family: "Microsoft YaHei", "SimHei", sans-serif;
-            }
-            QLabel {
-                font-size: 14px;
-            }
-            QGroupBox {
-                font-size: 15px;
-                font-weight: bold;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                font-size: 15px;
-                font-weight: bold;
-                color: #2c3e50;
-            }
-            QComboBox, QPushButton, QCheckBox {
-                font-size: 14px;
-                min-height: 28px;
-                padding: 4px;
-            }
-            QPushButton {
-                font-weight: bold;
-                min-width: 100px;
-            }
-            QTableWidget {
-                font-size: 13px;
-            }
-            QTextEdit {
-                font-size: 13px;
-            }
-        """)
+        # 使用主题管理器的样式，不需要内联样式
 
         layout = QVBoxLayout(self)
 
         # 标题
         title_label = QLabel("报告输出 - 质量检测报告生成与管理")
         title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 20px; font-weight: bold; margin: 15px; color: #2c3e50;")
+        title_label.setObjectName("MainTitle")  # 设置对象名用于QSS样式
         layout.addWidget(title_label)
         
         # 主内容区域
@@ -218,29 +188,32 @@ class ReportOutputInterface(QWidget):
         # 设置分割器比例
         splitter.setSizes([400, 600])
         layout.addWidget(splitter)
-        
-        # 底部状态栏
-        self.create_status_bar(layout)
     
     def create_config_panel(self, parent):
         """创建配置面板"""
         config_widget = QWidget()
         config_layout = QVBoxLayout(config_widget)
         
-        # 工件选择
-        workpiece_group = QGroupBox("工件选择")
+        # 步骤1：工件选择
+        step1_header = self.create_step_header("1", "工件选择")
+        config_layout.addWidget(step1_header)
+
+        workpiece_group = QGroupBox()  # 移除标题，使用自定义标题
         workpiece_layout = QVBoxLayout(workpiece_group)
-        
+
         self.workpiece_combo = QComboBox()
         self.workpiece_combo.currentTextChanged.connect(self.on_workpiece_changed)
         self.workpiece_combo.setToolTip("选择要生成报告的工件\n系统会自动扫描Data目录下的可用工件")
         workpiece_layout.addWidget(QLabel("选择工件:"))
         workpiece_layout.addWidget(self.workpiece_combo)
-        
+
         config_layout.addWidget(workpiece_group)
 
-        # 模板选择
-        template_group = QGroupBox("报告模板")
+        # 步骤2：模板选择
+        step2_header = self.create_step_header("2", "报告模板")
+        config_layout.addWidget(step2_header)
+
+        template_group = QGroupBox()  # 移除标题，使用自定义标题
         template_layout = QVBoxLayout(template_group)
 
         self.template_combo = QComboBox()
@@ -257,10 +230,13 @@ class ReportOutputInterface(QWidget):
 
         config_layout.addWidget(template_group)
 
-        # 报告类型配置
-        type_group = QGroupBox("报告类型")
+        # 步骤3：报告类型配置
+        step3_header = self.create_step_header("3", "报告类型")
+        config_layout.addWidget(step3_header)
+
+        type_group = QGroupBox()  # 移除标题，使用自定义标题
         type_layout = QVBoxLayout(type_group)
-        
+
         self.report_type_combo = QComboBox()
         self.report_type_combo.addItems([
             "综合报告", "工件汇总报告", "质量分析报告", "缺陷分析报告"
@@ -273,11 +249,14 @@ class ReportOutputInterface(QWidget):
             "• 缺陷分析报告: 重点分析缺陷数据和异常情况"
         )
         type_layout.addWidget(self.report_type_combo)
-        
+
         config_layout.addWidget(type_group)
         
-        # 报告格式配置
-        format_group = QGroupBox("输出格式")
+        # 步骤4：报告格式配置
+        step4_header = self.create_step_header("4", "输出格式")
+        config_layout.addWidget(step4_header)
+
+        format_group = QGroupBox()  # 移除标题，使用自定义标题
         format_layout = QVBoxLayout(format_group)
 
         self.format_combo = QComboBox()
@@ -295,7 +274,7 @@ class ReportOutputInterface(QWidget):
         # PDF依赖状态提示
         self.pdf_status_label = QLabel()
         self.pdf_status_label.setWordWrap(True)
-        self.pdf_status_label.setStyleSheet("color: #666; font-size: 11px; margin: 5px;")
+        self.pdf_status_label.setObjectName("StatusLabel")  # 设置对象名用于QSS样式
         format_layout.addWidget(self.pdf_status_label)
 
         # 安装PDF依赖按钮
@@ -306,63 +285,81 @@ class ReportOutputInterface(QWidget):
 
         config_layout.addWidget(format_group)
         
-        # 内容选项
-        content_group = QGroupBox("报告内容")
-        content_layout = QVBoxLayout(content_group)
-        
-        self.include_workpiece_info = QCheckBox("包含工件信息")
-        self.include_workpiece_info.setChecked(True)
-        content_layout.addWidget(self.include_workpiece_info)
-        
-        self.include_quality_summary = QCheckBox("包含质量汇总")
-        self.include_quality_summary.setChecked(True)
-        content_layout.addWidget(self.include_quality_summary)
-        
-        self.include_qualified_holes = QCheckBox("包含合格孔位")
-        self.include_qualified_holes.setChecked(True)
-        content_layout.addWidget(self.include_qualified_holes)
-        
-        self.include_unqualified_holes = QCheckBox("包含不合格孔位")
-        self.include_unqualified_holes.setChecked(True)
-        content_layout.addWidget(self.include_unqualified_holes)
-        
-        self.include_defect_analysis = QCheckBox("包含缺陷分析")
-        self.include_defect_analysis.setChecked(True)
-        content_layout.addWidget(self.include_defect_analysis)
-        
-        self.include_manual_reviews = QCheckBox("包含人工复检记录")
-        self.include_manual_reviews.setChecked(True)
-        content_layout.addWidget(self.include_manual_reviews)
-        
-        self.include_charts = QCheckBox("包含图表")
-        self.include_charts.setChecked(True)
-        content_layout.addWidget(self.include_charts)
-        
-        self.include_endoscope_images = QCheckBox("包含内窥镜图像")
-        self.include_endoscope_images.setChecked(True)
-        content_layout.addWidget(self.include_endoscope_images)
+        # 步骤5：内容选项
+        step5_header = self.create_step_header("5", "报告内容")
+        config_layout.addWidget(step5_header)
+
+        content_group = QGroupBox()  # 移除标题，使用自定义标题
+        content_layout = QGridLayout(content_group)  # 使用栅格布局替换垂直布局
+        content_layout.setSpacing(10)
+
+        # 将复选框放入两列的栅格中
+        checkboxes = [
+            QCheckBox("包含工件信息"), QCheckBox("包含质量汇总"),
+            QCheckBox("包含合格孔位"), QCheckBox("包含不合格孔位"),
+            QCheckBox("包含缺陷分析"), QCheckBox("包含人工复检记录"),
+            QCheckBox("包含图表"), QCheckBox("包含内窥镜图像")
+        ]
+
+        # 为了方便，我们将这些复选框的引用保存到self
+        self.include_workpiece_info, self.include_quality_summary, \
+        self.include_qualified_holes, self.include_unqualified_holes, \
+        self.include_defect_analysis, self.include_manual_reviews, \
+        self.include_charts, self.include_endoscope_images = checkboxes
+
+        for i, checkbox in enumerate(checkboxes):
+            checkbox.setChecked(True)
+            row = i // 2  # 计算行号
+            col = i % 2   # 计算列号 (0 或 1)
+            content_layout.addWidget(checkbox, row, col)
         
         config_layout.addWidget(content_group)
         
         # 生成按钮
-        button_layout = QHBoxLayout()
-        
+        button_layout = QGridLayout()  # 确保使用的是 QGridLayout
+        button_layout.setSpacing(15)
+
         self.preview_btn = QPushButton("预览报告")
+        self.preview_btn.setProperty("class", "PrimaryAction")  
         self.preview_btn.clicked.connect(self.preview_report)
         self.preview_btn.setToolTip("预览报告内容结构，无需生成实际文件")
-        button_layout.addWidget(self.preview_btn)
 
         self.generate_btn = QPushButton("生成报告")
+        self.generate_btn.setProperty("class", "PrimaryAction")  
         self.generate_btn.clicked.connect(self.generate_report)
-        self.generate_btn.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; }")
         self.generate_btn.setToolTip("根据当前配置生成完整的报告文件")
-        button_layout.addWidget(self.generate_btn)
-        
+
+        # 将按钮添加到网格的不同列中
+        button_layout.addWidget(self.preview_btn, 0, 0)  # 第0行，第0列
+        button_layout.addWidget(self.generate_btn, 0, 1)  # 第0行，第1列
+
+        # (核心步骤) 设置两列的拉伸因子相同，强制它们等宽
+        button_layout.setColumnStretch(0, 1)
+        button_layout.setColumnStretch(1, 1)
+
         config_layout.addLayout(button_layout)
         config_layout.addStretch()
         
         parent.addWidget(config_widget)
-    
+
+    def create_step_header(self, number_text, title_text):
+        """创建带序号的步骤标题"""
+        header_widget = QWidget()
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+
+        num_label = QLabel(number_text)
+        num_label.setObjectName("StepNumberLabel")
+
+        title_label = QLabel(title_text)
+        title_label.setObjectName("StepTitleLabel")
+
+        header_layout.addWidget(num_label)
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+
+        return header_widget
+
     def create_preview_panel(self, parent):
         """创建预览面板"""
         preview_widget = QWidget()
@@ -388,31 +385,63 @@ class ReportOutputInterface(QWidget):
         # 数据状态指示器
         status_layout = QHBoxLayout()
         self.data_status_label = QLabel("📊 数据状态: 未加载")
-        self.data_status_label.setStyleSheet("color: #666; font-weight: bold;")
+        self.data_status_label.setObjectName("DataStatusLabel")  # 设置对象名用于QSS样式
         status_layout.addWidget(self.data_status_label)
         status_layout.addStretch()
         preview_layout.addLayout(status_layout)
 
-        # 数据汇总显示
+        # 数据汇总显示 - 升级为可视化仪表盘
         summary_group = QGroupBox("数据汇总")
         summary_layout = QVBoxLayout(summary_group)
-        
-        self.summary_text = QTextEdit()
-        self.summary_text.setMaximumHeight(200)
-        self.summary_text.setReadOnly(True)
-        self.summary_text.setPlaceholderText("选择工件后将显示数据汇总信息...")
-        summary_layout.addWidget(self.summary_text)
-        
+
+        # 创建一个专门的仪表盘Widget
+        dashboard_widget = QWidget()
+        dashboard_layout = QGridLayout(dashboard_widget)  # 使用栅格布局，灵活对齐
+        dashboard_layout.setSpacing(15)
+
+        # 1. 工件信息（保持简洁）
+        self.db_workpiece_id_label = QLabel("工件ID: --")
+        self.db_workpiece_type_label = QLabel("类型: --")
+        dashboard_layout.addWidget(self.db_workpiece_id_label, 0, 0, 1, 2)  # 跨2列
+        dashboard_layout.addWidget(self.db_workpiece_type_label, 1, 0, 1, 2)
+
+        # 2. 关键指标 (大号数字)
+        self.db_total_holes_label = QLabel("0")
+        self.db_qualified_holes_label = QLabel("0")
+        self.db_unqualified_holes_label = QLabel("0")
+        self.db_total_holes_label.setObjectName("DashboardNumber")
+        self.db_qualified_holes_label.setObjectName("DashboardNumber")
+        self.db_unqualified_holes_label.setObjectName("DashboardNumber")
+        self.db_qualified_holes_label.setStyleSheet("color: #2ECC71;")  # 合格用绿色
+        self.db_unqualified_holes_label.setStyleSheet("color: #E74C3C;")  # 不合格用红色
+
+        dashboard_layout.addWidget(QLabel("总检测孔数"), 2, 0)
+        dashboard_layout.addWidget(self.db_total_holes_label, 3, 0)
+        dashboard_layout.addWidget(QLabel("合格孔数"), 2, 1)
+        dashboard_layout.addWidget(self.db_qualified_holes_label, 3, 1)
+        dashboard_layout.addWidget(QLabel("不合格孔数"), 2, 2)
+        dashboard_layout.addWidget(self.db_unqualified_holes_label, 3, 2)
+
+        # 3. 合格率 (使用进度条可视化)
+        dashboard_layout.addWidget(QLabel("合格率"), 4, 0)
+        self.db_qualification_rate_bar = QProgressBar()
+        self.db_qualification_rate_bar.setObjectName("DashboardRateBar")
+        self.db_qualification_rate_bar.setFormat("%.1f %%" % 0)  # 设置显示格式
+        dashboard_layout.addWidget(self.db_qualification_rate_bar, 5, 0, 1, 3)  # 跨3列
+
+        summary_layout.addWidget(dashboard_widget)
         preview_layout.addWidget(summary_group)
         
         # 孔位数据表格
         table_group = QGroupBox("孔位数据")
         table_layout = QVBoxLayout(table_group)
-        
+
         self.hole_data_table = QTableWidget()
-        self.hole_data_table.setColumnCount(6)
+        # 隐藏默认的垂直表头，解决左上角空白问题
+        self.hole_data_table.verticalHeader().setVisible(False)
+        self.hole_data_table.setColumnCount(7)  # 增加序号列，从6列改为7列
         self.hole_data_table.setHorizontalHeaderLabels([
-            "孔位ID", "位置(X,Y)", "合格率", "测量次数", "状态", "最后测量时间"
+            "序号", "孔位ID", "位置(X,Y)", "合格率", "测量次数", "状态", "最后测量时间"
         ])
         
         # 设置表格属性
@@ -454,18 +483,29 @@ class ReportOutputInterface(QWidget):
         history_layout = QVBoxLayout(history_group)
 
         self.report_history_table = QTableWidget()
-        self.report_history_table.setColumnCount(6)
+        # 隐藏默认的垂直表头，解决左上角空白问题
+        self.report_history_table.verticalHeader().setVisible(False)
+
+        # --- 修改列数和列标题，移除"操作"列 ---
+        self.report_history_table.setColumnCount(6)  # 修改后：减少一列
         self.report_history_table.setHorizontalHeaderLabels([
-            "生成时间", "工件ID", "状态", "文件大小", "格式", "操作"
+            "序号", "生成时间", "工件ID", "状态", "文件大小", "格式"
         ])
 
+        # --- 新增代码：启用自定义上下文菜单 ---
+        self.report_history_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.report_history_table.customContextMenuRequested.connect(self.show_history_context_menu)
+        # ------------------------------------
+
         header = self.report_history_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # 生成时间
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # 工件ID
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # 状态
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # 文件大小
-        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # 格式
-        header.setSectionResizeMode(5, QHeaderView.Stretch)           # 操作
+        # 重新设置列的拉伸模式
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.Stretch)  # 让工件ID列占据更多空间
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        # 第6列（操作列）已被删除，无需设置
 
         self.report_history_table.setAlternatingRowColors(True)
         self.report_history_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -475,29 +515,7 @@ class ReportOutputInterface(QWidget):
 
         tab_widget.addTab(management_tab, "报告管理")
     
-    def create_status_bar(self, parent_layout):
-        """创建状态栏"""
-        status_frame = QFrame()
-        status_frame.setFrameStyle(QFrame.StyledPanel)
-        status_frame.setStyleSheet("""
-            QFrame {
-                background-color: #f8f9fa;
-                border: 1px solid #dee2e6;
-                padding: 5px;
-            }
-        """)
-        status_layout = QHBoxLayout(status_frame)
 
-        self.status_label = QLabel("就绪")
-        self.status_label.setStyleSheet("font-size: 14px; color: #495057; font-weight: bold;")
-        status_layout.addWidget(self.status_label)
-
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        self.progress_bar.setStyleSheet("font-size: 13px; min-height: 25px;")
-        status_layout.addWidget(self.progress_bar)
-
-        parent_layout.addWidget(status_frame)
     
     def setup_connections(self):
         """设置信号连接"""
@@ -535,7 +553,9 @@ class ReportOutputInterface(QWidget):
         try:
             # 更新状态
             self.data_status_label.setText("📊 数据状态: 正在加载...")
-            self.data_status_label.setStyleSheet("color: #FF9800; font-weight: bold;")
+            self.data_status_label.setProperty("status", "loading")  # 使用属性来控制样式
+            self.data_status_label.style().unpolish(self.data_status_label)
+            self.data_status_label.style().polish(self.data_status_label)
 
             # 收集工件数据
             report_data = self.report_generator.collect_workpiece_data(workpiece_id)
@@ -550,14 +570,20 @@ class ReportOutputInterface(QWidget):
             total_holes = report_data.quality_summary.total_holes
             if total_holes > 0:
                 self.data_status_label.setText(f"✅ 数据状态: 已加载 ({total_holes} 个孔位)")
-                self.data_status_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+                self.data_status_label.setProperty("status", "success")  # 使用属性来控制样式
             else:
                 self.data_status_label.setText("⚠️ 数据状态: 无有效数据")
-                self.data_status_label.setStyleSheet("color: #FF5722; font-weight: bold;")
+                self.data_status_label.setProperty("status", "warning")  # 使用属性来控制样式
+
+            # 刷新样式
+            self.data_status_label.style().unpolish(self.data_status_label)
+            self.data_status_label.style().polish(self.data_status_label)
 
         except Exception as e:
             self.data_status_label.setText("❌ 数据状态: 加载失败")
-            self.data_status_label.setStyleSheet("color: #F44336; font-weight: bold;")
+            self.data_status_label.setProperty("status", "error")  # 使用属性来控制样式
+            self.data_status_label.style().unpolish(self.data_status_label)
+            self.data_status_label.style().polish(self.data_status_label)
             QMessageBox.warning(self, "错误", f"加载工件数据失败: {str(e)}")
     
     def update_summary_display(self, report_data: ReportData):
@@ -565,22 +591,16 @@ class ReportOutputInterface(QWidget):
         summary = report_data.quality_summary
         workpiece = report_data.workpiece_info
         
-        summary_text = f"""工件信息:
-  工件ID: {workpiece.workpiece_id}
-  工件名称: {workpiece.name}
-  工件类型: {workpiece.type}
-  材料: {workpiece.material}
+        # 填充仪表盘数据
+        self.db_workpiece_id_label.setText(f"<b>工件ID:</b> {workpiece.workpiece_id}")
+        self.db_workpiece_type_label.setText(f"<b>类型:</b> {workpiece.type}")
 
-质量汇总:
-  总孔位数: {summary.total_holes}
-  合格孔位: {summary.qualified_holes}
-  不合格孔位: {summary.unqualified_holes}
-  合格率: {summary.qualification_rate:.2f}%
-  有缺陷孔位: {summary.holes_with_defects}
-  人工复检数: {summary.manual_review_count}
-  完成率: {summary.completion_rate:.2f}%"""
-        
-        self.summary_text.setPlainText(summary_text)
+        self.db_total_holes_label.setText(str(summary.total_holes))
+        self.db_qualified_holes_label.setText(str(summary.qualified_holes))
+        self.db_unqualified_holes_label.setText(str(summary.unqualified_holes))
+
+        self.db_qualification_rate_bar.setValue(int(summary.qualification_rate))
+        self.db_qualification_rate_bar.setFormat(f"{summary.qualification_rate:.1f} %")
     
     def update_hole_data_table(self, report_data: ReportData):
         """更新孔位数据表格"""
@@ -589,33 +609,38 @@ class ReportOutputInterface(QWidget):
         self.hole_data_table.setRowCount(len(all_holes))
         
         for row, hole in enumerate(all_holes):
-            # 孔位ID
-            self.hole_data_table.setItem(row, 0, QTableWidgetItem(hole.hole_id))
-            
-            # 位置
+            # 序号列（新增）
+            seq_item = QTableWidgetItem(str(row + 1))
+            seq_item.setTextAlignment(Qt.AlignCenter)
+            self.hole_data_table.setItem(row, 0, seq_item)
+
+            # 孔位ID（原第0列，现在是第1列）
+            self.hole_data_table.setItem(row, 1, QTableWidgetItem(hole.hole_id))
+
+            # 位置（原第1列，现在是第2列）
             position_text = f"({hole.position_x:.1f}, {hole.position_y:.1f})"
-            self.hole_data_table.setItem(row, 1, QTableWidgetItem(position_text))
-            
-            # 合格率
+            self.hole_data_table.setItem(row, 2, QTableWidgetItem(position_text))
+
+            # 合格率（原第2列，现在是第3列）
             rate_text = f"{hole.qualification_rate:.1f}%"
-            self.hole_data_table.setItem(row, 2, QTableWidgetItem(rate_text))
-            
-            # 测量次数
+            self.hole_data_table.setItem(row, 3, QTableWidgetItem(rate_text))
+
+            # 测量次数（原第3列，现在是第4列）
             count_text = f"{hole.qualified_count}/{hole.total_count}"
-            self.hole_data_table.setItem(row, 3, QTableWidgetItem(count_text))
-            
-            # 状态
+            self.hole_data_table.setItem(row, 4, QTableWidgetItem(count_text))
+
+            # 状态（原第4列，现在是第5列）
             status_text = "合格" if hole.is_qualified else "不合格"
             status_item = QTableWidgetItem(status_text)
             if hole.is_qualified:
                 status_item.setBackground(QPalette().color(QPalette.ColorRole.Base))
             else:
                 status_item.setBackground(QPalette().color(QPalette.ColorRole.AlternateBase))
-            self.hole_data_table.setItem(row, 4, status_item)
-            
-            # 最后测量时间
+            self.hole_data_table.setItem(row, 5, status_item)
+
+            # 最后测量时间（原第5列，现在是第6列）
             time_text = hole.measurement_timestamp.strftime("%Y-%m-%d %H:%M") if hole.measurement_timestamp else "未知"
-            self.hole_data_table.setItem(row, 5, QTableWidgetItem(time_text))
+            self.hole_data_table.setItem(row, 6, QTableWidgetItem(time_text))
     
     def preview_report(self):
         """预览报告"""
@@ -650,16 +675,15 @@ class ReportOutputInterface(QWidget):
 
         # 启动报告生成工作线程
         self.generation_worker = ReportGenerationWorker(self.current_workpiece_id, config)
-        self.generation_worker.progress_updated.connect(self.progress_bar.setValue)
-        self.generation_worker.status_updated.connect(self.status_label.setText)
+        # 将子线程的信号直接转发出去
+        self.generation_worker.status_updated.connect(self.status_updated.emit)
         self.generation_worker.report_completed.connect(self.on_report_completed)
         self.generation_worker.error_occurred.connect(self.on_generation_error)
-        
-        # 显示进度条
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setValue(0)
+
+        # 发射状态信号
+        self.status_updated.emit("正在生成报告...")
         self.generate_btn.setEnabled(False)
-        
+
         self.generation_worker.start()
     
     def create_report_configuration(self) -> ReportConfiguration:
@@ -695,14 +719,22 @@ class ReportOutputInterface(QWidget):
     
     def on_report_completed(self, output_path: str):
         """报告生成完成"""
-        self.progress_bar.setVisible(False)
         self.generate_btn.setEnabled(True)
+
+        # 发射状态信号
+        file_name = os.path.basename(output_path)
+        self.status_updated.emit(f"报告生成成功: {file_name}")
 
         # 添加到历史记录
         if hasattr(self, 'current_report_instance'):
+            print(f"DEBUG: 添加报告记录到历史 - {output_path}")
             self.current_report_instance.output_path = output_path
             self.history_manager.add_report_record(self.current_report_instance)
+            print(f"DEBUG: 历史记录数量: {len(self.history_manager.get_history_records())}")
             self.refresh_history()
+            print(f"DEBUG: 刷新历史记录完成")
+        else:
+            print("DEBUG: current_report_instance 不存在")
 
         reply = QMessageBox.question(
             self,
@@ -712,7 +744,6 @@ class ReportOutputInterface(QWidget):
         )
 
         if reply == QMessageBox.Yes:
-            import os
             import platform
             import subprocess
 
@@ -729,9 +760,11 @@ class ReportOutputInterface(QWidget):
     
     def on_generation_error(self, error_message: str):
         """报告生成错误"""
-        self.progress_bar.setVisible(False)
         self.generate_btn.setEnabled(True)
-        
+
+        # 发射状态信号
+        self.status_updated.emit(f"错误: {error_message}")
+
         QMessageBox.critical(self, "错误", error_message)
     
     def load_data_for_hole(self, hole_id: str):
@@ -757,24 +790,32 @@ class ReportOutputInterface(QWidget):
         """检查PDF依赖"""
         if PDF_AVAILABLE:
             self.pdf_status_label.setText("✅ PDF支持已启用")
-            self.pdf_status_label.setStyleSheet("color: #4CAF50; font-size: 11px; margin: 5px;")
+            self.pdf_status_label.setProperty("status", "success")  # 使用属性来控制样式
             self.install_pdf_btn.setVisible(False)
         else:
             self.pdf_status_label.setText("⚠️ PDF支持未安装，将使用文本格式")
-            self.pdf_status_label.setStyleSheet("color: #FF9800; font-size: 11px; margin: 5px;")
+            self.pdf_status_label.setProperty("status", "warning")  # 使用属性来控制样式
             self.install_pdf_btn.setVisible(True)
+
+        # 刷新样式
+        self.pdf_status_label.style().unpolish(self.pdf_status_label)
+        self.pdf_status_label.style().polish(self.pdf_status_label)
 
     def on_format_changed(self, format_text: str):
         """格式选择改变"""
         if format_text == "PDF" and not PDF_AVAILABLE:
             self.pdf_status_label.setText("⚠️ 选择PDF格式但未安装支持库，将回退到文本格式")
-            self.pdf_status_label.setStyleSheet("color: #F44336; font-size: 11px; margin: 5px;")
+            self.pdf_status_label.setProperty("status", "error")  # 使用属性来控制样式
         elif format_text == "PDF" and PDF_AVAILABLE:
             self.pdf_status_label.setText("✅ PDF格式已就绪")
-            self.pdf_status_label.setStyleSheet("color: #4CAF50; font-size: 11px; margin: 5px;")
+            self.pdf_status_label.setProperty("status", "success")  # 使用属性来控制样式
         else:
             self.pdf_status_label.setText(f"📄 将生成{format_text}格式报告")
-            self.pdf_status_label.setStyleSheet("color: #2196F3; font-size: 11px; margin: 5px;")
+            self.pdf_status_label.setProperty("status", "info")  # 使用属性来控制样式
+
+        # 刷新样式
+        self.pdf_status_label.style().unpolish(self.pdf_status_label)
+        self.pdf_status_label.style().polish(self.pdf_status_label)
 
     def show_pdf_install_guide(self):
         """显示PDF安装指南"""
@@ -815,7 +856,12 @@ PDF报告生成需要安装reportlab库。
             self.report_history_table.setRowCount(len(records))
 
             for row, record in enumerate(records):
-                # 生成时间
+                # 序号列（新增）
+                seq_item = QTableWidgetItem(str(row + 1))
+                seq_item.setTextAlignment(Qt.AlignCenter)
+                self.report_history_table.setItem(row, 0, seq_item)
+
+                # 生成时间（原第0列，现在是第1列）
                 created_at = record.get('created_at', '')
                 if created_at:
                     try:
@@ -825,86 +871,101 @@ PDF报告生成需要安装reportlab库。
                         time_str = created_at[:16]
                 else:
                     time_str = '未知'
-                self.report_history_table.setItem(row, 0, QTableWidgetItem(time_str))
+                self.report_history_table.setItem(row, 1, QTableWidgetItem(time_str))
 
-                # 工件ID
+                # 工件ID（原第1列，现在是第2列）
                 workpiece_id = record.get('workpiece_id', '未知')
-                self.report_history_table.setItem(row, 1, QTableWidgetItem(workpiece_id))
+                self.report_history_table.setItem(row, 2, QTableWidgetItem(workpiece_id))
 
-                # 状态
+                # 状态（原第2列，现在是第3列）
                 status = record.get('status', '未知')
                 status_item = QTableWidgetItem(status)
                 if status == 'completed':
                     status_item.setBackground(QPalette().color(QPalette.ColorRole.Base))
                 elif status == 'failed':
                     status_item.setBackground(QPalette().color(QPalette.ColorRole.AlternateBase))
-                self.report_history_table.setItem(row, 2, status_item)
+                self.report_history_table.setItem(row, 3, status_item)
 
-                # 文件大小
+                # 文件大小（原第3列，现在是第4列）
                 file_size = record.get('file_size', 0)
                 if file_size:
                     size_str = self.history_manager.format_file_size(file_size)
                 else:
                     size_str = '-'
-                self.report_history_table.setItem(row, 3, QTableWidgetItem(size_str))
+                self.report_history_table.setItem(row, 4, QTableWidgetItem(size_str))
 
-                # 格式
+                # 格式（原第4列，现在是第5列）
                 file_ext = record.get('file_extension', '').upper()
                 if file_ext.startswith('.'):
                     file_ext = file_ext[1:]
-                self.report_history_table.setItem(row, 4, QTableWidgetItem(file_ext))
-
-                # 操作按钮
-                self._create_action_buttons(row, record)
+                self.report_history_table.setItem(row, 5, QTableWidgetItem(file_ext))
 
         except Exception as e:
             QMessageBox.warning(self, "错误", f"刷新历史记录失败: {str(e)}")
 
-    def _create_action_buttons(self, row: int, record: Dict):
-        """创建操作按钮"""
-        button_widget = QWidget()
-        button_layout = QHBoxLayout(button_widget)
-        button_layout.setContentsMargins(2, 2, 2, 2)
+    def show_history_context_menu(self, position):
+        """显示报告历史表格的右键上下文菜单"""
+        # 获取右键点击位置的行索引
+        item = self.report_history_table.itemAt(position)
+        if not item:
+            return  # 如果没有点在任何条目上，则不显示菜单
 
-        instance_id = record.get('instance_id')
-        file_exists = record.get('file_exists', False)
+        row = item.row()
 
-        # 打开文件按钮
-        open_btn = QPushButton("打开")
-        open_btn.setMaximumWidth(50)
-        open_btn.setEnabled(file_exists)
-        if file_exists:
-            open_btn.clicked.connect(lambda: self.open_report_file(instance_id))
-        button_layout.addWidget(open_btn)
+        # 从历史记录中获取该行的数据
+        try:
+            record = self.history_manager.get_history_records()[row]
+            instance_id = record.get('instance_id')
+            file_exists = record.get('file_exists', False)
+        except IndexError:
+            return  # 如果索引超出范围，则不显示
 
-        # 打开目录按钮
-        dir_btn = QPushButton("目录")
-        dir_btn.setMaximumWidth(50)
-        dir_btn.setEnabled(file_exists)
-        if file_exists:
-            dir_btn.clicked.connect(lambda: self.open_report_directory(instance_id))
-        button_layout.addWidget(dir_btn)
+        # 创建菜单
+        menu = QMenu()
 
-        # 删除按钮
-        delete_btn = QPushButton("删除")
-        delete_btn.setMaximumWidth(50)
-        delete_btn.setStyleSheet("QPushButton { background-color: #F44336; color: white; }")
-        delete_btn.clicked.connect(lambda: self.delete_report_file(instance_id))
-        button_layout.addWidget(delete_btn)
+        # --- 为了最佳视觉效果，建议使用图标库 ---
+        # import qtawesome as qta
+        # icon_color = "#D3D8E0"
+        # open_icon = qta.icon('fa5s.folder-open', color=icon_color)
+        # dir_icon = qta.icon('fa5.folder', color=icon_color)
+        # delete_icon = qta.icon('fa5s.trash-alt', color='#E74C3C')
 
-        self.report_history_table.setCellWidget(row, 5, button_widget)
+        # 创建操作 (Action)
+        open_action = QAction("打开文件", self)
+        # open_action.setIcon(open_icon)  # 设置图标
+        open_action.setEnabled(file_exists)
+        open_action.triggered.connect(lambda: self.open_report_file(instance_id))
+
+        dir_action = QAction("打开所在目录", self)
+        # dir_action.setIcon(dir_icon)  # 设置图标
+        dir_action.setEnabled(file_exists)
+        dir_action.triggered.connect(lambda: self.open_report_directory(instance_id))
+
+        delete_action = QAction("删除记录", self)
+        # delete_action.setIcon(delete_icon)  # 设置图标
+        delete_action.triggered.connect(lambda: self.delete_report_file(instance_id))
+
+        # 将操作添加到菜单
+        menu.addAction(open_action)
+        menu.addAction(dir_action)
+        menu.addSeparator()  # 添加一条分割线
+        menu.addAction(delete_action)
+
+        # 在鼠标光标位置显示菜单
+        # viewport()是表格的可视区域
+        menu.exec(self.report_history_table.viewport().mapToGlobal(position))
 
     def open_report_file(self, instance_id: str):
         """打开报告文件"""
         if self.history_manager.open_report(instance_id):
-            self.status_label.setText("报告文件已打开")
+            self.status_updated.emit("报告文件已打开")
         else:
             QMessageBox.warning(self, "错误", "无法打开报告文件")
 
     def open_report_directory(self, instance_id: str):
         """打开报告目录"""
         if self.history_manager.open_report_directory(instance_id):
-            self.status_label.setText("报告目录已打开")
+            self.status_updated.emit("报告目录已打开")
         else:
             QMessageBox.warning(self, "错误", "无法打开报告目录")
 
@@ -921,7 +982,7 @@ PDF报告生成需要安装reportlab库。
         if reply == QMessageBox.Yes:
             if self.history_manager.delete_report(instance_id):
                 self.refresh_history()
-                self.status_label.setText("报告已删除")
+                self.status_updated.emit("报告已删除")
             else:
                 QMessageBox.warning(self, "错误", "删除报告失败")
 
@@ -986,7 +1047,7 @@ PDF报告生成需要安装reportlab库。
 
         # 显示模板描述
         description = self.template_manager.get_template_description(template_id)
-        self.status_label.setText(f"已应用模板: {description}")
+        self.status_updated.emit(f"已应用模板: {description}")
 
     def load_data_for_workpiece(self, workpiece_id: str):
         """为指定工件加载数据（从其他界面导航时调用）"""
@@ -1003,14 +1064,14 @@ PDF报告生成需要安装reportlab库。
                     self.workpiece_combo.setCurrentIndex(index)
                 else:
                     # 如果仍然找不到，显示警告但继续
-                    self.status_label.setText(f"⚠️ 工件 {workpiece_id} 不在可用列表中")
+                    self.status_updated.emit(f"⚠️ 工件 {workpiece_id} 不在可用列表中")
 
             # 加载数据
             if self.current_workpiece_id:
                 self.load_workpiece_data(self.current_workpiece_id)
 
         except Exception as e:
-            self.status_label.setText(f"❌ 加载工件数据失败: {str(e)}")
+            self.status_updated.emit(f"❌ 加载工件数据失败: {str(e)}")
 
     def load_available_workpieces(self):
         """加载可用的工件列表"""
@@ -1059,7 +1120,7 @@ class ReportPreviewDialog(QDialog):
         # 标题
         title_label = QLabel("报告内容预览")
         title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin: 10px;")
+        title_label.setObjectName("DialogTitle")  # 设置对象名用于QSS样式
         layout.addWidget(title_label)
 
         # 预览内容

@@ -49,21 +49,29 @@ def check_dependencies():
 def setup_application():
     """设置应用程序属性"""
     app = QApplication(sys.argv)
-    
+
     # 设置应用程序信息
     app.setApplicationName("上位机软件")
     app.setApplicationDisplayName("管孔检测系统")
     app.setApplicationVersion("1.0.0")
     app.setOrganizationName("检测系统开发团队")
     app.setOrganizationDomain("detection-system.com")
-    
+
     # 设置应用程序图标（如果有的话）
     # app.setWindowIcon(QIcon("icon.png"))
-    
+
     # 设置高DPI支持
     # 注意：在PySide6中，高DPI缩放默认启用，无需手动设置
     # Qt.AA_EnableHighDpiScaling 和 Qt.AA_UseHighDpiPixmaps 在Qt6中已弃用
-    
+
+    # 应用现代科技蓝主题
+    try:
+        from modules.theme_manager import theme_manager
+        theme_manager.apply_theme(app)
+        print("✅ 现代科技蓝主题已应用")
+    except Exception as e:
+        print(f"⚠️ 主题应用失败: {e}")
+
     return app
 
 

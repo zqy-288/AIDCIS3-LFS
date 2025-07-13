@@ -29,8 +29,17 @@ setup_safe_chinese_font()
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                QPushButton, QSplitter, QGroupBox, QLineEdit, QMessageBox, QComboBox)
 from PySide6.QtCore import Qt, Slot, QTimer
+from PySide6.QtGui import QPixmap, QIcon
 from collections import deque
 from .endoscope_view import EndoscopeView
+
+# 尝试导入qtawesome用于图标支持
+try:
+    import qtawesome as qta
+    HAS_QTAWESOME = True
+except ImportError:
+    HAS_QTAWESOME = False
+    print("⚠️ qtawesome未安装，将使用文本状态指示器")
 
 
 class RealtimeChart(QWidget):
@@ -53,160 +62,129 @@ class RealtimeChart(QWidget):
         """设置用户界面布局 - 双面板设计"""
         layout = QVBoxLayout(self)
 
-        # 状态信息面板 - 优化样式
-        status_group = QGroupBox("检测状态")
-        status_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 12px;
-                border: 2px solid #cccccc;
-                border-radius: 8px;
-                margin-top: 8px;
-                padding-top: 8px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-                color: #333333;
-            }
-        """)
+        # 状态信息面板 - 优化为仪表盘样式，集成控制按钮
+        status_group = QGroupBox("状态监控与主控制区")
+        status_group.setObjectName("StatusDashboard")
         status_layout = QHBoxLayout(status_group)
+
+        # 左侧：核心状态信息
+        status_info_layout = QHBoxLayout()
+        status_info_layout.setSpacing(20)
 
         # 当前孔位显示 - 改为文本显示，增大字体
         self.current_hole_label = QLabel("当前孔位：未选择")
-        self.current_hole_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                font-weight: bold;
-                color: #2196F3;
-                padding: 8px 12px;
-                background-color: #f0f8ff;
-                border: 2px solid #2196F3;
-                border-radius: 6px;
-            }
-        """)
+        self.current_hole_label.setObjectName("InfoLabel")
         self.current_hole_label.setMinimumWidth(140)
 
-        # 标准直径显示
+        # 通信状态显示 - 强化关键状态，准备添加图标
+        self.comm_status_label = QLabel("通信状态: 等待连接")
+        self.comm_status_label.setObjectName("CommStatusLabel")
+        self.comm_status_label.setMinimumWidth(150)
+
+        # 标准直径显示 - 弱化静态信息
         self.standard_diameter_label = QLabel("标准直径：17.6mm")
-        self.standard_diameter_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                font-weight: bold;
-                color: #4CAF50;
-                padding: 8px 12px;
-                background-color: #f8fff8;
-                border: 2px solid #4CAF50;
-                border-radius: 6px;
-            }
-        """)
+        self.standard_diameter_label.setObjectName("StaticInfoLabel")
         self.standard_diameter_label.setMinimumWidth(140)
 
-        # 其他状态标签 - 增大字体
-        self.depth_label = QLabel("探头深度: -- mm")
-        self.comm_status_label = QLabel("通信状态: --")
-        self.max_diameter_label = QLabel("最大圆直径: --")
-        self.min_diameter_label = QLabel("最小圆直径: --")
+        status_info_layout.addWidget(self.current_hole_label)
+        status_info_layout.addWidget(self.comm_status_label)
+        status_info_layout.addWidget(self.standard_diameter_label)
 
-        # 设置状态标签样式 - 增大字体和内边距
-        status_label_style = """
-            QLabel {
-                font-size: 13px;
-                padding: 6px 10px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                background-color: #fafafa;
-            }
-        """
-        self.depth_label.setStyleSheet(status_label_style)
-        self.comm_status_label.setStyleSheet(status_label_style)
-        self.max_diameter_label.setStyleSheet(status_label_style)
-        self.min_diameter_label.setStyleSheet(status_label_style)
+        status_layout.addLayout(status_info_layout)
+        status_layout.addStretch(1)
 
-        status_layout.addWidget(self.current_hole_label)
-        status_layout.addWidget(self.standard_diameter_label)
-        status_layout.addWidget(self.depth_label)
-        status_layout.addWidget(self.comm_status_label)
-        status_layout.addWidget(self.max_diameter_label)
-        status_layout.addWidget(self.min_diameter_label)
-        status_layout.addStretch()
+        # 中间：实时数据显示 - 添加图标
+        realtime_info_layout = QHBoxLayout()
+        realtime_info_layout.setSpacing(15)
+
+        self.depth_label = QLabel("📏 探头深度: -- mm")
+        self.max_diameter_label = QLabel("📈 最大直径: -- mm")
+        self.min_diameter_label = QLabel("📉 最小直径: -- mm")
+
+        # 使用主题管理器的样式，设置objectName
+        self.depth_label.setObjectName("StatusLabel")
+        self.max_diameter_label.setObjectName("StatusLabel")
+        self.min_diameter_label.setObjectName("StatusLabel")
+
+        realtime_info_layout.addWidget(self.depth_label)
+        realtime_info_layout.addWidget(self.max_diameter_label)
+        realtime_info_layout.addWidget(self.min_diameter_label)
+
+        status_layout.addLayout(realtime_info_layout)
+        status_layout.addStretch(1)
+
+        # 右侧：主控制按钮区域
+        control_layout = QHBoxLayout()
+        control_layout.setSpacing(10)
+
+        # 创建主控制按钮 - 添加图标
+        self.start_button = QPushButton("▶️ 开始监测")
+        self.stop_button = QPushButton("⏸️ 停止监测")
+        self.clear_button = QPushButton("🗑️ 清除数据")
+
+        # 设置按钮样式
+        self.start_button.setObjectName("StartButton")
+        self.stop_button.setObjectName("StopButton")
+        self.clear_button.setObjectName("ClearDataButton")  # 使用专门的objectName以便单独控制
+
+        # 移除固定尺寸设置，改用QSS中的min-width来确保文字完整显示
+        # button_size = (100, 35)
+        # for button in [self.start_button, self.stop_button, self.clear_button]:
+        #     button.setFixedSize(*button_size)
+
+        control_layout.addWidget(self.start_button)
+        control_layout.addWidget(self.stop_button)
+        control_layout.addWidget(self.clear_button)
+
+        status_layout.addLayout(control_layout)
 
         layout.addWidget(status_group)
 
-        # 添加分隔线用于清晰区分状态区域和监测区域
-        separator_line = QWidget()
-        separator_line.setFixedHeight(3)
-        separator_line.setStyleSheet("background-color: #ddd; margin: 5px 0px;")
-        layout.addWidget(separator_line)
-
         # 双面板区域 - 改为垂直布局（A在上，B在下）
         splitter = QSplitter(Qt.Vertical)
-        splitter.setHandleWidth(8)  # 设置分隔器手柄宽度
-        splitter.setStyleSheet("""
-            QSplitter::handle {
-                background-color: #cccccc;
-                border: 1px solid #999999;
-                border-radius: 3px;
-                margin: 2px;
-            }
-            QSplitter::handle:hover {
-                background-color: #bbbbbb;
-            }
-        """)
 
-        # 面板A: 孔径监测图区域 - 明确标题和边框
-        panel_a = QGroupBox("孔径监测图")
-        panel_a.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 16px;
-                border: 3px solid #4CAF50;
-                border-radius: 12px;
-                margin-top: 15px;
-                padding-top: 15px;
-                background-color: #f8fff8;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 20px;
-                padding: 5px 15px 5px 15px;
-                color: #2E7D32;
-                background-color: white;
-                font-size: 16px;
-                font-weight: bold;
-                border: 2px solid #4CAF50;
-                border-radius: 8px;
-            }
-        """)
-        panel_a_layout = QHBoxLayout(panel_a)  # 水平布局：图表在左，异常窗口在右
+        # 面板A: 管孔直径数据 - 无边框设计，最大化内容区域
+        panel_a_widget = QWidget()
+        panel_a_widget.setObjectName("PanelAWidget")
+        panel_a_layout = QHBoxLayout(panel_a_widget)  # 水平布局：图表在左，异常窗口在右
+        panel_a_layout.setContentsMargins(8, 8, 8, 8)  # 减少边距
+        panel_a_layout.setSpacing(10)
 
         # 面板A左侧：图表区域（matplotlib）
         chart_widget = QWidget()
+        chart_widget.setObjectName("ChartWidget")
         chart_layout = QVBoxLayout(chart_widget)
-        
-        # 添加孔径监测图的说明信息
-        chart_info_widget = QWidget()
-        chart_info_layout = QHBoxLayout(chart_info_widget)
-        chart_info_layout.setContentsMargins(10, 5, 10, 5)
-        
-        chart_info_label = QLabel("光谱共焦传感器孔径监测数据")
-        chart_info_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                font-weight: bold;
-                color: #2E7D32;
-                background-color: #e8f5e8;
-                padding: 8px 15px;
-                border: 1px solid #4CAF50;
-                border-radius: 6px;
-            }
-        """)
-        
-        chart_info_layout.addWidget(chart_info_label)
-        chart_info_layout.addStretch()
-        
-        chart_layout.addWidget(chart_info_widget)
+        chart_layout.setContentsMargins(0, 0, 0, 0)  # 移除边距，最大化图表区域
+
+        # 创建图表标题栏
+        chart_header = QWidget()
+        chart_header.setObjectName("PanelHeader")
+        chart_header_layout = QHBoxLayout(chart_header)
+        chart_header_layout.setContentsMargins(15, 0, 15, 0)  # 左右留边距
+        chart_header_layout.setSpacing(10)
+
+        chart_title = QLabel("管孔直径实时监测")
+        chart_title.setObjectName("PanelHeaderText")
+
+        # 添加工具按钮
+        from PySide6.QtWidgets import QToolButton
+        export_chart_button = QToolButton()
+        export_chart_button.setObjectName("HeaderToolButton")
+        export_chart_button.setText("📊")  # 使用emoji作为图标
+        export_chart_button.setToolTip("导出图表为图片")
+
+        refresh_chart_button = QToolButton()
+        refresh_chart_button.setObjectName("HeaderToolButton")
+        refresh_chart_button.setText("🔄")  # 使用emoji作为图标
+        refresh_chart_button.setToolTip("刷新图表")
+
+        chart_header_layout.addWidget(chart_title)
+        chart_header_layout.addStretch()
+        chart_header_layout.addWidget(refresh_chart_button)
+        chart_header_layout.addWidget(export_chart_button)
+
+        # 将标题栏添加到布局
+        chart_layout.addWidget(chart_header)
 
         # 创建matplotlib图形，优化尺寸以最大化显示区域
         self.figure = Figure(figsize=(24, 12), dpi=100)
@@ -219,10 +197,11 @@ class RealtimeChart(QWidget):
 
         # 创建子图 - 增大字体
         self.ax = self.figure.add_subplot(111)
-        self.ax.set_xlabel('探头深度 (mm)', fontsize=14, fontweight='bold')
-        self.ax.set_ylabel('孔径直径 (mm)', fontsize=14, fontweight='bold')
-        self.ax.set_title('实时孔径监测数据', fontsize=16, fontweight='bold', pad=20,
-                         bbox=dict(boxstyle="round,pad=0.3", facecolor="#e8f5e8", edgecolor="#4CAF50"))
+        self.apply_matplotlib_dark_theme()  # 应用深色主题
+        self.ax.set_xlabel('深度 (mm)', fontsize=14, fontweight='bold')
+        self.ax.set_ylabel('直径 (mm)', fontsize=14, fontweight='bold')
+        # 移除matplotlib内部标题，使用外部标题栏
+        # self.ax.set_title('管孔直径实时监测', fontsize=16, fontweight='bold', pad=15)
         self.ax.grid(True, alpha=0.3)
 
         # 设置坐标轴刻度字体大小
@@ -233,8 +212,8 @@ class RealtimeChart(QWidget):
         self.ax.set_ylim(16.5, 20.5)
         self.ax.set_xlim(0, 950)
 
-        # 初始化数据线
-        self.data_line, = self.ax.plot([], [], 'b-', linewidth=3, label='直径数据')
+        # 初始化数据线 - 使用主题蓝色
+        self.data_line, = self.ax.plot([], [], color='#4A90E2', linewidth=3, label='直径数据')
 
         # 设置图形样式，确保所有标签都能完整显示
         self.figure.subplots_adjust(left=0.12, bottom=0.15, right=0.95, top=0.85)
@@ -249,6 +228,7 @@ class RealtimeChart(QWidget):
 
         # 面板A右侧：异常数据显示区域和按钮
         right_panel = QWidget()
+        right_panel.setObjectName("RightPanel")
         right_panel.setMinimumWidth(320)  # 设置最小宽度而不是固定宽度
         right_panel.setMaximumWidth(400)  # 设置最大宽度，允许适度调整
         right_layout = QVBoxLayout(right_panel)
@@ -261,28 +241,10 @@ class RealtimeChart(QWidget):
         # 添加固定间距，确保按钮不会紧贴异常面板
         right_layout.addSpacing(15)
 
-        # 添加【查看下一个样品】按钮 - 增大字体和尺寸
+        # 添加【查看下一个样品】按钮 - 使用主题样式
         self.next_sample_button = QPushButton("查看下一个样品")
         self.next_sample_button.clicked.connect(self.view_next_sample)
-        self.next_sample_button.setStyleSheet("""
-            QPushButton {
-                font-size: 14px;
-                font-weight: bold;
-                padding: 10px 16px;
-                border: 2px solid #4CAF50;
-                border-radius: 8px;
-                background-color: #4CAF50;
-                color: white;
-                min-height: 40px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-                border-color: #45a049;
-            }
-            QPushButton:pressed {
-                background-color: #3d8b40;
-            }
-        """)
+        self.next_sample_button.setObjectName("next_sample_button")
         from PySide6.QtWidgets import QSizePolicy
         self.next_sample_button.setSizePolicy(
             QSizePolicy.Expanding,
@@ -294,61 +256,12 @@ class RealtimeChart(QWidget):
         right_layout.addSpacing(10)
 
         panel_a_layout.addWidget(right_panel)
-        splitter.addWidget(panel_a)
+        splitter.addWidget(panel_a_widget)
 
-        # 面板B: 内窥镜展开图区域 - 明确标题和边框
-        panel_b = QGroupBox("内窥镜展开图")
-        panel_b.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 16px;
-                border: 3px solid #2196F3;
-                border-radius: 12px;
-                margin-top: 15px;
-                padding-top: 15px;
-                background-color: #f0f8ff;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 20px;
-                padding: 5px 15px 5px 15px;
-                color: #1976D2;
-                background-color: white;
-                font-size: 16px;
-                font-weight: bold;
-                border: 2px solid #2196F3;
-                border-radius: 8px;
-            }
-        """)
-        panel_b_layout = QVBoxLayout(panel_b)
-        
-        # 添加内窥镜展开图的说明信息
-        endoscope_info_widget = QWidget()
-        endoscope_info_layout = QHBoxLayout(endoscope_info_widget)
-        endoscope_info_layout.setContentsMargins(10, 5, 10, 5)
-        
-        info_label = QLabel("内窥镜实时展开图像显示区域")
-        info_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                font-weight: bold;
-                color: #1976D2;
-                background-color: #e3f2fd;
-                padding: 8px 15px;
-                border: 1px solid #2196F3;
-                border-radius: 6px;
-            }
-        """)
-        
-        endoscope_info_layout.addWidget(info_label)
-        endoscope_info_layout.addStretch()
-        
-        panel_b_layout.addWidget(endoscope_info_widget)
-
+        # 面板B: 内窥镜图像 - 无边框设计，直接添加内窥镜视图
         self.endoscope_view = EndoscopeView()
-        panel_b_layout.addWidget(self.endoscope_view)
-
-        splitter.addWidget(panel_b)
+        self.endoscope_view.setObjectName("EndoscopeWidget")
+        splitter.addWidget(self.endoscope_view)
 
         # 设置分割器比例，使用相对比例而不是固定像素
         # 面板A占65%，面板B占35%
@@ -364,35 +277,10 @@ class RealtimeChart(QWidget):
         # 初始化孔位数据映射
         self.init_hole_data_mapping()
 
-        # 控制按钮 - 增大字体和尺寸
-        button_layout = QHBoxLayout()
-        self.start_button = QPushButton("开始测量")
-        self.stop_button = QPushButton("停止测量")
-        self.clear_button = QPushButton("清除数据")
-
-        # 设置按钮样式 - 增大字体和尺寸
-        button_style = """
-            QPushButton {
-                font-size: 14px;
-                font-weight: bold;
-                padding: 8px 16px;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                background-color: #f8f9fa;
-                min-height: 35px;
-            }
-            QPushButton:hover {
-                background-color: #e9ecef;
-                border-color: #adb5bd;
-            }
-            QPushButton:pressed {
-                background-color: #dee2e6;
-            }
-        """
-
-        self.start_button.setStyleSheet(button_style)
-        self.stop_button.setStyleSheet(button_style)
-        self.clear_button.setStyleSheet(button_style)
+        # 连接按钮信号（按钮已在状态栏中创建）
+        self.start_button.clicked.connect(self.start_csv_data_import)
+        self.stop_button.clicked.connect(self.stop_csv_data_import)
+        self.clear_button.clicked.connect(self.clear_data)
 
         # 初始状态下禁用按钮，等待从主检测界面跳转
         self.start_button.setEnabled(False)
@@ -404,23 +292,45 @@ class RealtimeChart(QWidget):
         self.stop_button.setToolTip("请先从主检测界面选择孔位")
         self.clear_button.setToolTip("请先从主检测界面选择孔位")
 
-        button_layout.addWidget(self.start_button)
-        button_layout.addWidget(self.stop_button)
-        button_layout.addWidget(self.clear_button)
-        button_layout.addStretch()
-
-        layout.addLayout(button_layout)
-
-        # 连接按钮信号
-        self.start_button.clicked.connect(self.start_csv_data_import)
-        self.stop_button.clicked.connect(self.stop_csv_data_import)
-        self.clear_button.clicked.connect(self.clear_data)
-
     def create_panel_a_controls(self, parent_layout):
         """创建面板A专用控制按钮"""
         # 不再创建面板A的启动、停止按钮和状态标签
         # 这些控制功能已被移除
         pass
+
+    def update_comm_status(self, status, message):
+        """更新通信状态显示，支持图标"""
+        if HAS_QTAWESOME:
+            if status == "connected":
+                icon = qta.icon('fa5s.check-circle', color='#2ECC71')
+                self.comm_status_label.setText(f"  {message}")
+            elif status == "error":
+                icon = qta.icon('fa5s.exclamation-circle', color='#E74C3C')
+                self.comm_status_label.setText(f"  {message}")
+            elif status == "warning":
+                icon = qta.icon('fa5s.exclamation-triangle', color='#E67E22')
+                self.comm_status_label.setText(f"  {message}")
+            else:
+                icon = qta.icon('fa5s.circle', color='#AAAAAA')
+                self.comm_status_label.setText(f"  {message}")
+
+            # 设置图标（如果支持的话）
+            try:
+                pixmap = icon.pixmap(16, 16)
+                self.comm_status_label.setPixmap(pixmap)
+            except:
+                # 如果设置图标失败，只显示文本
+                pass
+        else:
+            # 不支持图标时，使用文本指示器
+            if status == "connected":
+                self.comm_status_label.setText(f"✓ {message}")
+            elif status == "error":
+                self.comm_status_label.setText(f"✗ {message}")
+            elif status == "warning":
+                self.comm_status_label.setText(f"⚠ {message}")
+            else:
+                self.comm_status_label.setText(f"○ {message}")
 
     def init_hole_data_mapping(self):
         """初始化孔位数据映射"""
@@ -429,14 +339,17 @@ class RealtimeChart(QWidget):
         # 获取当前工作目录
         base_dir = os.getcwd()
 
+        # 使用绝对路径确保路径解析正确
         self.hole_to_csv_map = {
-            "H00001": "Data/H00001/CCIDM",
-            "H00002": "Data/H00002/CCIDM"
+            "H00001": os.path.join(base_dir, "Data/H00001/CCIDM"),
+            "H00002": os.path.join(base_dir, "Data/H00002/CCIDM"),
+            "H00003": os.path.join(base_dir, "Data/H00003/CCIDM")
         }
 
         self.hole_to_image_map = {
             "H00001": os.path.join(base_dir, "Data/H00001/BISDM/result"),
-            "H00002": os.path.join(base_dir, "Data/H00002/BISDM/result")
+            "H00002": os.path.join(base_dir, "Data/H00002/BISDM/result"),
+            "H00003": os.path.join(base_dir, "Data/H00003/BISDM/result")
         }
 
         # 打印路径信息用于调试
@@ -446,7 +359,15 @@ class RealtimeChart(QWidget):
             print(f"  {hole_id}:")
             print(f"    📄 CSV: {csv_path}")
             print(f"    🖼️ 图像: {image_path}")
+            print(f"    📂 CSV目录存在: {os.path.exists(csv_path)}")
             print(f"    📂 图像目录存在: {os.path.exists(image_path)}")
+
+            # 检查CSV目录中的文件
+            if os.path.exists(csv_path):
+                csv_files = [f for f in os.listdir(csv_path) if f.endswith('.csv')]
+                print(f"    📄 找到CSV文件: {csv_files}")
+            else:
+                print(f"    ❌ CSV目录不存在: {csv_path}")
 
     def set_current_hole_display(self, hole_id):
         """设置当前孔位显示"""
@@ -455,7 +376,7 @@ class RealtimeChart(QWidget):
             self.current_hole_id = hole_id
             print(f"🔄 设置当前孔位显示: {hole_id}")
             # 如果有对应的数据文件，自动加载
-            if hole_id in ["H00001", "H00002"]:
+            if hole_id in ["H00001", "H00002", "H00003"]:
                 self.load_data_for_hole(hole_id)
         else:
             self.current_hole_label.setText("当前孔位：未选择")
@@ -465,10 +386,10 @@ class RealtimeChart(QWidget):
         """设置等待状态 - 等待从主检测界面跳转"""
         # 显示等待提示
         self.current_hole_label.setText("当前孔位：未选择")
-        self.depth_label.setText("探头深度: -- mm")
-        self.comm_status_label.setText("通信状态: 等待选择孔位")
-        self.max_diameter_label.setText("最大直径: -- mm")
-        self.min_diameter_label.setText("最小直径: -- mm")
+        self.depth_label.setText("📏 探头深度: -- mm")
+        self.update_comm_status("waiting", "等待选择孔位")
+        self.max_diameter_label.setText("📈 最大直径: -- mm")
+        self.min_diameter_label.setText("📉 最小直径: -- mm")
 
         # 在图表中显示等待提示
         self.show_waiting_message()
@@ -481,8 +402,8 @@ class RealtimeChart(QWidget):
             # 清除现有数据
             self.ax.clear()
 
-            # 设置图表标题
-            self.ax.set_title("管孔直径实时监测", fontsize=16, fontweight='bold', pad=20)
+            # 移除matplotlib内部标题，使用外部标题栏
+            # self.ax.set_title("管孔直径实时监测", fontsize=16, fontweight='bold', pad=20)
 
             # 设置基本的坐标轴
             self.ax.set_xlabel("深度 (mm)", fontsize=12)
@@ -518,8 +439,8 @@ class RealtimeChart(QWidget):
             # 清除现有内容
             self.ax.clear()
 
-            # 设置图表标题
-            self.ax.set_title("管孔直径实时监测", fontsize=16, fontweight='bold', pad=20)
+            # 移除matplotlib内部标题，使用外部标题栏
+            # self.ax.set_title("管孔直径实时监测", fontsize=16, fontweight='bold', pad=20)
 
             # 设置坐标轴标签
             self.ax.set_xlabel("深度 (mm)", fontsize=12)
@@ -528,8 +449,8 @@ class RealtimeChart(QWidget):
             # 设置网格
             self.ax.grid(True, alpha=0.3)
 
-            # 初始化数据线
-            self.data_line, = self.ax.plot([], [], 'b-', linewidth=2, label='测量数据')
+            # 初始化数据线 - 使用主题蓝色
+            self.data_line, = self.ax.plot([], [], color='#4A90E2', linewidth=2, label='测量数据')
 
             # 重新绘制误差线（如果标准直径已设置）
             if hasattr(self, 'standard_diameter') and self.standard_diameter is not None:
@@ -582,35 +503,18 @@ class RealtimeChart(QWidget):
         print("✅ 图像切换功能已停止")
 
     def create_anomaly_panel(self, parent_layout):
-        """创建异常数据显示面板 - 增大字体"""
+        """创建异常数据显示面板 - 使用主题样式"""
         anomaly_widget = QGroupBox("异常直径监控")
-        anomaly_widget.setStyleSheet("""
-            QGroupBox {
-                font-size: 14px;
-                font-weight: bold;
-                border: 2px solid #FF5722;
-                border-radius: 8px;
-                margin-top: 8px;
-                padding-top: 8px;
-                background-color: #fff5f5;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 8px 0 8px;
-                color: #D32F2F;
-                background-color: white;
-            }
-        """)
+        anomaly_widget.setObjectName("anomaly_widget")
         anomaly_widget.setMinimumWidth(310)  # 设置最小宽度
         anomaly_widget.setMaximumWidth(390)  # 设置最大宽度，允许适度调整
         anomaly_layout = QVBoxLayout(anomaly_widget)
         anomaly_layout.setContentsMargins(8, 8, 8, 8)
         anomaly_layout.setSpacing(5)  # 设置组件间距
 
-        # 标题 - 增大字体
+        # 标题 - 使用主题样式
         title_label = QLabel("超出公差的测量点")
-        title_label.setStyleSheet("font-weight: bold; color: red; margin-bottom: 3px; font-size: 13px;")
+        title_label.setObjectName("AnomalyTitle")
         title_label.setFixedHeight(25)  # 增加标题高度
         anomaly_layout.addWidget(title_label)
 
@@ -618,15 +522,10 @@ class RealtimeChart(QWidget):
         from PySide6.QtWidgets import QScrollArea
         self.anomaly_scroll = QScrollArea()
         self.anomaly_scroll.setWidgetResizable(True)
-        self.anomaly_scroll.setStyleSheet("""
-            QScrollArea {
-                border: 1px solid #ccc;
-                border-radius: 3px;
-                background-color: #fafafa;
-            }
-        """)
+        self.anomaly_scroll.setObjectName("anomaly_scroll")
 
         self.anomaly_content = QWidget()
+        self.anomaly_content.setObjectName("anomaly_content")
         self.anomaly_content_layout = QVBoxLayout(self.anomaly_content)
         self.anomaly_content_layout.setContentsMargins(5, 5, 5, 5)
         self.anomaly_scroll.setWidget(self.anomaly_content)
@@ -634,46 +533,76 @@ class RealtimeChart(QWidget):
         # 滚动区域占据可用空间，但为统计信息预留足够空间
         anomaly_layout.addWidget(self.anomaly_scroll, 1)
 
-        # 统计信息 - 固定在底部，确保始终可见
+        # 统计信息 - 使用栅格布局精确控制异常计数显示
         stats_widget = QWidget()
-        stats_widget.setFixedHeight(50)  # 减少统计区域高度
-        stats_widget.setStyleSheet("""
-            QWidget {
-                background-color: #f8f9fa;
-                border-top: 1px solid #dee2e6;
-                border-radius: 3px;
-            }
-        """)
-        stats_layout = QVBoxLayout(stats_widget)
-        stats_layout.setContentsMargins(5, 3, 5, 3)
-        stats_layout.setSpacing(2)
+        stats_widget.setFixedHeight(60)  # 适当调整高度
+        stats_widget.setObjectName("AnomalyStatsWidget")
 
-        stats_label = QLabel("异常统计")
-        stats_label.setStyleSheet("font-weight: bold; color: #333; font-size: 12px;")
-        stats_label.setFixedHeight(18)
-        stats_layout.addWidget(stats_label)
+        # 使用QGridLayout实现精确的控件对齐
+        from PySide6.QtWidgets import QGridLayout
+        stats_layout = QGridLayout(stats_widget)
+        stats_layout.setContentsMargins(10, 5, 10, 5)
+        stats_layout.setSpacing(5)
 
-        # 统计信息水平布局，节省空间
-        stats_info_layout = QHBoxLayout()
-        stats_info_layout.setContentsMargins(0, 0, 0, 0)
-        stats_info_layout.setSpacing(10)
+        # 大号数字显示异常计数
+        self.anomaly_count_number = QLabel("0")
+        self.anomaly_count_number.setObjectName("AnomalyCountLabel")
 
-        self.anomaly_count_label = QLabel("异常点数: 0")
-        self.anomaly_count_label.setStyleSheet("font-size: 11px; color: #666; font-weight: bold;")
+        # 异常计数说明文字
+        count_text_label = QLabel("个异常点")
+        count_text_label.setObjectName("AnomalyUnitLabel")
+
+        # 异常率显示
         self.anomaly_rate_label = QLabel("异常率: 0.0%")
-        self.anomaly_rate_label.setStyleSheet("font-size: 11px; color: #666; font-weight: bold;")
+        self.anomaly_rate_label.setObjectName("AnomalyRateLabel")
 
-        stats_info_layout.addWidget(self.anomaly_count_label)
-        stats_info_layout.addWidget(self.anomaly_rate_label)
-        stats_info_layout.addStretch()
+        # 将控件放入网格布局
+        # 第0行，第0列：大号数字，右对齐
+        stats_layout.addWidget(self.anomaly_count_number, 0, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        stats_layout.addLayout(stats_info_layout)
+        # 第0行，第1列：单位文字，左对齐并垂直居中
+        stats_layout.addWidget(count_text_label, 0, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+        # 第0行，第2列：异常率，右对齐并垂直居中
+        stats_layout.addWidget(self.anomaly_rate_label, 0, 2, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        # 设置列的伸缩比例，让中间有适当的空间
+        stats_layout.setColumnStretch(0, 0)  # 大号数字列不伸缩
+        stats_layout.setColumnStretch(1, 1)  # 单位文字列可以伸缩，提供间距
+        stats_layout.setColumnStretch(2, 0)  # 异常率列不伸缩
 
         # 添加统计区域，不使用stretch factor，保持固定位置
         anomaly_layout.addWidget(stats_widget, 0)
 
         # 让异常面板占据可用空间，但为按钮预留空间
         parent_layout.addWidget(anomaly_widget, 1)  # 使用stretch factor
+
+    def apply_matplotlib_dark_theme(self):
+        """为内置的Matplotlib图表应用深色主题"""
+        fig = self.figure
+        ax = self.ax
+
+        # 设置图形和坐标轴背景色
+        fig.set_facecolor('#313642')
+        ax.set_facecolor('#313642')
+
+        # 设置坐标轴边框颜色
+        ax.spines['bottom'].set_color('#505869')
+        ax.spines['top'].set_color('#505869')
+        ax.spines['left'].set_color('#505869')
+        ax.spines['right'].set_color('#505869')
+
+        # 设置刻度颜色
+        ax.tick_params(axis='x', colors='#D3D8E0')
+        ax.tick_params(axis='y', colors='#D3D8E0')
+
+        # 设置标签颜色
+        ax.xaxis.label.set_color('#D3D8E0')
+        ax.yaxis.label.set_color('#D3D8E0')
+        ax.title.set_color('#FFFFFF')
+
+        # 设置网格颜色
+        ax.grid(color='#404552', linestyle='--', linewidth=0.7)
 
 
 
@@ -716,28 +645,32 @@ class RealtimeChart(QWidget):
 
         # 使用matplotlib绘制误差线
         try:
-            # 绘制上误差线（红色虚线）
+            # 绘制上误差线（使用柔和的橙色）
             self.max_error_line = self.ax.axhline(
                 y=max_error_line_y,
-                color='red',
+                color='#E67E22',
                 linestyle='--',
-                linewidth=2,
+                linewidth=1.5,
                 alpha=0.8,
                 label=f'上限 {max_error_line_y:.2f}mm'
             )
 
-            # 绘制下误差线（红色虚线）
+            # 绘制下误差线（使用柔和的橙色）
             self.min_error_line = self.ax.axhline(
                 y=min_error_line_y,
-                color='red',
+                color='#E67E22',
                 linestyle='--',
-                linewidth=2,
+                linewidth=1.5,
                 alpha=0.8,
                 label=f'下限 {min_error_line_y:.2f}mm'
             )
 
-            # 更新图例，设置位置确保不被遮挡
-            self.ax.legend(loc='upper right', bbox_to_anchor=(0.95, 0.95), fontsize=10)
+            # 更新图例，设置位置确保不被遮挡，并应用深色主题
+            legend = self.ax.legend(loc='upper right', bbox_to_anchor=(0.98, 0.98), fontsize=12)
+            legend.get_frame().set_facecolor('#3A404E')
+            legend.get_frame().set_edgecolor('#505869')
+            for text in legend.get_texts():
+                text.set_color('#D3D8E0')
 
             # 更新图表并强制刷新布局
             self.figure.canvas.draw_idle()
@@ -1146,14 +1079,14 @@ class RealtimeChart(QWidget):
     def update_diameter_display(self):
         """更新直径显示"""
         if self.max_diameter is not None:
-            self.max_diameter_label.setText(f"最大圆直径: {self.max_diameter:.3f} mm")
+            self.max_diameter_label.setText(f"📈 最大直径: {self.max_diameter:.3f} mm")
         else:
-            self.max_diameter_label.setText("最大圆直径: --")
+            self.max_diameter_label.setText("📈 最大直径: --")
 
         if self.min_diameter is not None:
-            self.min_diameter_label.setText(f"最小圆直径: {self.min_diameter:.3f} mm")
+            self.min_diameter_label.setText(f"📉 最小直径: {self.min_diameter:.3f} mm")
         else:
-            self.min_diameter_label.setText("最小圆直径: --")
+            self.min_diameter_label.setText("📉 最小直径: --")
 
     @Slot(str, float, str)
     def update_status(self, hole_id, probe_depth, comm_status):
@@ -1165,14 +1098,13 @@ class RealtimeChart(QWidget):
             self.current_hole_label.setText(f"当前孔位：{hole_id}")
             self.current_hole_id = hole_id
 
-        self.depth_label.setText(f"探头深度: {probe_depth:.1f} mm")
-        self.comm_status_label.setText(f"通信状态: {comm_status}")
+        self.depth_label.setText(f"📏 探头深度: {probe_depth:.1f} mm")
 
-        # 根据通信状态改变标签颜色
+        # 使用新的通信状态更新方法
         if comm_status == "连接正常":
-            self.comm_status_label.setStyleSheet("color: green;")
+            self.update_comm_status("connected", comm_status)
         else:
-            self.comm_status_label.setStyleSheet("color: red;")
+            self.update_comm_status("error", comm_status)
     
     def clear_data(self):
         """清除所有数据"""
@@ -1189,9 +1121,8 @@ class RealtimeChart(QWidget):
         self.endoscope_view.clear_image()
 
         # 重置状态显示
-        self.depth_label.setText("探头深度: -- mm")
-        self.comm_status_label.setText("通信状态: --")
-        self.comm_status_label.setStyleSheet("")
+        self.depth_label.setText("📏 探头深度: -- mm")
+        self.update_comm_status("disconnected", "未连接")
 
         # 注意：不重置孔位显示，保持当前选中的孔位
         # 只有在完全重置时才清除孔位信息
@@ -1302,7 +1233,8 @@ class RealtimeChart(QWidget):
         anomaly_count = len(self.anomaly_data)
         anomaly_rate = (anomaly_count / total_points * 100) if total_points > 0 else 0
 
-        self.anomaly_count_label.setText(f"异常点数: {anomaly_count}")
+        # 更新大号异常计数显示
+        self.anomaly_count_number.setText(str(anomaly_count))
         self.anomaly_rate_label.setText(f"异常率: {anomaly_rate:.1f}%")
 
     def save_current_sample_data(self, depth, diameter):
@@ -1463,20 +1395,33 @@ class RealtimeChart(QWidget):
 
         csv_dir = self.hole_to_csv_map[hole_id]
         print(f"🔄 为孔 {hole_id} 加载数据目录: {csv_dir}")
+        print(f"🔍 检查目录是否存在: {os.path.exists(csv_dir)}")
 
         # 查找目录中的CSV文件
         csv_file = None
         if os.path.exists(csv_dir):
-            for file in os.listdir(csv_dir):
-                if file.endswith('.csv'):
-                    csv_file = os.path.join(csv_dir, file)
-                    break
+            try:
+                files_in_dir = os.listdir(csv_dir)
+                print(f"📁 目录中的文件: {files_in_dir}")
+
+                for file in files_in_dir:
+                    if file.endswith('.csv'):
+                        csv_file = os.path.join(csv_dir, file)
+                        print(f"✅ 找到CSV文件: {file}")
+                        break
+
+                if not csv_file:
+                    print(f"❌ 目录中没有CSV文件")
+            except Exception as e:
+                print(f"❌ 读取目录失败: {e}")
+        else:
+            print(f"❌ 目录不存在: {csv_dir}")
 
         if not csv_file:
-            QMessageBox.warning(self, "错误", f"在目录 {csv_dir} 中未找到CSV文件")
+            QMessageBox.warning(self, "错误", f"在目录 {csv_dir} 中未找到CSV文件\n请检查路径是否正确")
             return
 
-        print(f"📄 找到CSV文件: {csv_file}")
+        print(f"📄 准备加载CSV文件: {csv_file}")
 
         # 停止当前可能正在播放的任何数据
         if hasattr(self, 'is_csv_playing') and self.is_csv_playing:

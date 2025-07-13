@@ -1,58 +1,30 @@
 [
   {
-    "instance_id": "70a35f52-8cd9-42a9-b5a0-80a43a15d3bb",
+    "instance_id": "e70e0fa0-3327-4c78-b245-67907ff5b17d",
     "workpiece_id": "WP-2025-001",
     "template_id": "default",
-    "output_path": "reports\\WP-2025-001\\report_WP-2025-001_20250712_171146.pdf",
+    "output_path": "reports\\WP-2025-001\\report_WP-2025-001_20250713_163900.pdf",
     "status": "completed",
-    "created_at": "2025-07-12T17:11:46.338789",
-    "completed_at": "2025-07-12T17:11:46.443072",
+    "created_at": "2025-07-13T16:39:00.513634",
+    "completed_at": "2025-07-13T16:39:00.611616",
     "error_message": null,
-    "file_size": 61989,
+    "file_size": 61990,
     "file_exists": true,
     "file_extension": ".pdf",
-    "relative_path": "WP-2025-001\\report_WP-2025-001_20250712_171146.pdf"
+    "relative_path": "WP-2025-001\\report_WP-2025-001_20250713_163900.pdf"
   },
   {
-    "instance_id": "db2d73c6-1d97-47b2-8f62-76d47a53b1b1",
+    "instance_id": "f473662e-9d9d-4b1e-a9f3-baa0230c1336",
     "workpiece_id": "WP-2025-001",
     "template_id": "default",
-    "output_path": "reports\\WP-2025-001\\report_WP-2025-001_20250712_170103.html",
+    "output_path": "reports\\WP-2025-001\\report_WP-2025-001_20250713_162445.pdf",
     "status": "completed",
-    "created_at": "2025-07-12T17:01:03.104217",
-    "completed_at": "2025-07-12T17:01:03.123411",
+    "created_at": "2025-07-13T16:24:45.681039",
+    "completed_at": "2025-07-13T16:24:45.773910",
     "error_message": null,
-    "file_size": 751,
-    "file_exists": true,
-    "file_extension": ".html",
-    "relative_path": "WP-2025-001\\report_WP-2025-001_20250712_170103.html"
-  },
-  {
-    "instance_id": "a025645a-85da-4f44-a38c-27257eaf1d92",
-    "workpiece_id": "WP-2025-001",
-    "template_id": "default",
-    "output_path": "reports\\WP-2025-001\\report_WP-2025-001_20250712_170018.pdf",
-    "status": "completed",
-    "created_at": "2025-07-12T17:00:18.280196",
-    "completed_at": "2025-07-12T17:00:18.389466",
-    "error_message": null,
-    "file_size": 61989,
+    "file_size": 61992,
     "file_exists": true,
     "file_extension": ".pdf",
-    "relative_path": "WP-2025-001\\report_WP-2025-001_20250712_170018.pdf"
-  },
-  {
-    "instance_id": "67d8960d-14fa-4b14-9123-7eee4b0ffeed",
-    "workpiece_id": "WP-2025-001",
-    "template_id": "default",
-    "output_path": "reports\\WP-2025-001\\report_WP-2025-001_20250712_164842.pdf",
-    "status": "completed",
-    "created_at": "2025-07-12T16:48:42.671156",
-    "completed_at": "2025-07-12T16:48:42.711037",
-    "error_message": null,
-    "file_size": 4971,
-    "file_exists": true,
-    "file_extension": ".pdf",
-    "relative_path": "WP-2025-001\\report_WP-2025-001_20250712_164842.pdf"
+    "relative_path": "WP-2025-001\\report_WP-2025-001_20250713_162445.pdf"
   }
 ]

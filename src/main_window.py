@@ -169,6 +169,9 @@ class MainWindow(QMainWindow):
         self.report_tab = ReportOutputInterface()
         self.tab_widget.addTab(self.report_tab, "报告输出")
 
+        # --- 新增代码：将报告界面的状态信号连接到主窗口状态栏 ---
+        self.report_tab.status_updated.connect(self.statusBar().showMessage)
+
         # 设置默认选项卡为主检测视图
         self.tab_widget.setCurrentIndex(0)
         
@@ -858,7 +861,8 @@ class MainWindow(QMainWindow):
         self.goto_report_btn = QPushButton("生成报告")
         self.goto_report_btn.setMinimumHeight(40)
         self.goto_report_btn.setFont(button_font)
-        self.goto_report_btn.setStyleSheet("QPushButton { background-color: #FF9800; color: white; font-weight: bold; }")
+        # 使用主题管理器的警告色样式
+        self.goto_report_btn.setObjectName("WarningButton")
         self.goto_report_btn.setEnabled(True)  # 报告生成总是可用
 
         hole_ops_layout.addWidget(self.goto_realtime_btn)
