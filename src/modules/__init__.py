@@ -4,7 +4,7 @@
 """
 
 # 导出主要组件
-from .history_viewer import HistoryViewer
+from .history_viewer_test import HistoryViewer
 from .main_detection_view import MainDetectionView
 from .endoscope_view import EndoscopeView
 from .annotation_tool import AnnotationTool

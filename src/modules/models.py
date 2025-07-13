@@ -284,6 +284,79 @@ class DatabaseManager:
         finally:
             self.close_session(session)
 
+    def get_workpiece_list(self):
+        """获取工件列表"""
+        session = self.get_session()
+        try:
+            workpieces = session.query(Workpiece).all()
+            return [w.workpiece_id for w in workpieces]
+        except Exception as e:
+            print(f"获取工件列表失败: {e}")
+            return []
+        finally:
+            self.close_session(session)
+
+    def get_hole_list(self, workpiece_id):
+        """获取指定工件的孔位列表"""
+        session = self.get_session()
+        try:
+            workpiece = session.query(Workpiece).filter_by(workpiece_id=workpiece_id).first()
+            if not workpiece:
+                return []
+
+            holes = session.query(Hole).filter_by(workpiece_id=workpiece.id).all()
+            return [h.hole_id for h in holes]
+        except Exception as e:
+            print(f"获取孔位列表失败: {e}")
+            return []
+        finally:
+            self.close_session(session)
+
+    def get_measurement_data(self, workpiece_id, hole_id):
+        """获取测量数据 - 兼容历史查看器接口"""
+        session = self.get_session()
+        try:
+            # 查找孔
+            workpiece = session.query(Workpiece).filter_by(workpiece_id=workpiece_id).first()
+            if not workpiece:
+                return []
+
+            hole = session.query(Hole).filter(
+                Hole.hole_id == hole_id,
+                Hole.workpiece_id == workpiece.id
+            ).first()
+            if not hole:
+                return []
+
+            measurements = session.query(Measurement).filter_by(hole_id=hole.id).order_by(Measurement.depth).all()
+
+            # 转换为历史查看器期望的格式
+            result = []
+            for m in measurements:
+                # 生成模拟的通道数据
+                import random
+                channel1 = random.uniform(1300, 1600)
+                channel2 = random.uniform(1300, 1600)
+                channel3 = random.uniform(1300, 1600)
+
+                result.append({
+                    'position': m.depth,
+                    'diameter': m.diameter,
+                    'channel1': channel1,
+                    'channel2': channel2,
+                    'channel3': channel3,
+                    'qualified': m.is_qualified,
+                    'timestamp': m.timestamp.strftime('%Y-%m-%d %H:%M:%S') if m.timestamp else '',
+                    'operator': m.operator
+                })
+            return result
+
+        except Exception as e:
+            print(f"获取测量数据失败: {e}")
+            return []
+        finally:
+            self.close_session(session)
+
 
 # 全局数据库管理器实例
 db_manager = DatabaseManager()

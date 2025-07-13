@@ -388,20 +388,12 @@ class AnnotationTool(QWidget):
         self.annotation_view.annotation_created.connect(self.add_annotation)
         image_layout.addWidget(self.annotation_view)
         
-        # 缩放控制
+        # 缩放控制（删除放大和缩小按钮，改为鼠标滚轮缩放）
         zoom_layout = QHBoxLayout()
-        self.zoom_in_button = QPushButton("放大")
-        self.zoom_in_button.clicked.connect(lambda: self.annotation_view.scale(1.2, 1.2))
-        zoom_layout.addWidget(self.zoom_in_button)
-        
-        self.zoom_out_button = QPushButton("缩小")
-        self.zoom_out_button.clicked.connect(lambda: self.annotation_view.scale(0.8, 0.8))
-        zoom_layout.addWidget(self.zoom_out_button)
-        
         self.reset_zoom_button = QPushButton("重置缩放")
         self.reset_zoom_button.clicked.connect(self.reset_zoom)
         zoom_layout.addWidget(self.reset_zoom_button)
-        
+
         zoom_layout.addStretch()
         image_layout.addLayout(zoom_layout)
         

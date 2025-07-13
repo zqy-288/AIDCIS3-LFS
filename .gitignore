@@ -179,15 +179,20 @@ ehthumbs_vista.db
 # Linux
 *~
 
-# Project specific
-*.db
-*.sqlite
-*.sqlite3
-detection_system.db
+# Project specific - temporary files only
 cache/
 logs/
 temp/
 tmp/
+temp_removed_files/
+Archive/
+
+# Test files
+test_*.py
+verify_*.py
+debug_*.py
+demo_*.py
+check_*.py
 
 # Backup files
 *.backup
@@ -200,6 +205,16 @@ test_results/
 detection_report_*.json
 # 只忽略cache目录下的临时CSV文件，保留Data目录下的重要数据文件
 cache/measurement_data_*.csv
+
+# Generated reports (ignore generated files but keep structure)
+reports/*.pdf
+reports/*.txt
+reports/*.html
+reports/*.xlsx
+reports/*/*.pdf
+reports/*/*.txt
+reports/*/*.html
+reports/*/*.xlsx
 
 # IDE and editor files
 *.sublime-project
@@ -239,18 +254,8 @@ env/
 *.app/
 *.framework/
 
-# 允许重要的项目文件
-!Data/
-!Data/**/*.csv
-!"DXF Graph"/
-!"DXF Graph"/*.dxf
-
-# Large DXF files (keep small ones, ignore large ones)
-# 注意：东重管板.dxf 文件较大，如果需要可以单独处理
-**/东重管板.dxf
-**/大型*.dxf
-**/*大*.dxf
-**/*large*.dxf
+# Note: Important data files (CSV, DXF, DB) are tracked via Git LFS
+# See .gitattributes for LFS configuration
 
 # Data files that might be large
 *.h5
@@ -299,12 +304,7 @@ env/
 *.bz2
 *.xz
 
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-*.mdb
-*.accdb
+# Note: Database files are tracked via Git LFS
 
 # Cache and temporary files
 cache/

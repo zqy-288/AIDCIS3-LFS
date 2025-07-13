@@ -43,9 +43,11 @@ class RealtimeChart(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.current_hole_id = None
+        self.is_data_loaded = False  # 标记是否已加载数据
         self.setup_ui()
         self.setup_chart()
         self.init_data_buffers()
+        self.setup_waiting_state()  # 设置等待状态
         
     def setup_ui(self):
         """设置用户界面布局 - 双面板设计"""
@@ -392,6 +394,16 @@ class RealtimeChart(QWidget):
         self.stop_button.setStyleSheet(button_style)
         self.clear_button.setStyleSheet(button_style)
 
+        # 初始状态下禁用按钮，等待从主检测界面跳转
+        self.start_button.setEnabled(False)
+        self.stop_button.setEnabled(False)
+        self.clear_button.setEnabled(False)
+
+        # 设置按钮提示
+        self.start_button.setToolTip("请先从主检测界面选择孔位")
+        self.stop_button.setToolTip("请先从主检测界面选择孔位")
+        self.clear_button.setToolTip("请先从主检测界面选择孔位")
+
         button_layout.addWidget(self.start_button)
         button_layout.addWidget(self.stop_button)
         button_layout.addWidget(self.clear_button)
@@ -448,6 +460,92 @@ class RealtimeChart(QWidget):
         else:
             self.current_hole_label.setText("当前孔位：未选择")
             self.current_hole_id = None
+
+    def setup_waiting_state(self):
+        """设置等待状态 - 等待从主检测界面跳转"""
+        # 显示等待提示
+        self.current_hole_label.setText("当前孔位：未选择")
+        self.depth_label.setText("探头深度: -- mm")
+        self.comm_status_label.setText("通信状态: 等待选择孔位")
+        self.max_diameter_label.setText("最大直径: -- mm")
+        self.min_diameter_label.setText("最小直径: -- mm")
+
+        # 在图表中显示等待提示
+        self.show_waiting_message()
+
+        print("⏳ 实时监控界面等待状态 - 请从主检测界面选择孔位后跳转")
+
+    def show_waiting_message(self):
+        """在图表区域显示等待状态（无提示文字）"""
+        try:
+            # 清除现有数据
+            self.ax.clear()
+
+            # 设置图表标题
+            self.ax.set_title("管孔直径实时监测", fontsize=16, fontweight='bold', pad=20)
+
+            # 设置基本的坐标轴
+            self.ax.set_xlabel("深度 (mm)", fontsize=12)
+            self.ax.set_ylabel("直径 (mm)", fontsize=12)
+            self.ax.grid(True, alpha=0.3)
+
+            # 设置默认的坐标轴范围
+            self.ax.set_xlim(0, 100)
+            self.ax.set_ylim(16, 20)
+
+            # 刷新画布
+            self.canvas.draw()
+
+        except Exception as e:
+            print(f"⚠️ 显示等待状态失败: {e}")
+
+    def enable_controls_after_data_load(self):
+        """数据加载后启用控制按钮"""
+        self.start_button.setEnabled(True)
+        self.stop_button.setEnabled(True)
+        self.clear_button.setEnabled(True)
+
+        # 更新按钮提示
+        self.start_button.setToolTip("开始播放测量数据")
+        self.stop_button.setToolTip("停止播放测量数据")
+        self.clear_button.setToolTip("清除当前数据")
+
+        print("✅ 控制按钮已启用")
+
+    def setup_chart_for_data(self):
+        """为数据显示设置图表"""
+        try:
+            # 清除现有内容
+            self.ax.clear()
+
+            # 设置图表标题
+            self.ax.set_title("管孔直径实时监测", fontsize=16, fontweight='bold', pad=20)
+
+            # 设置坐标轴标签
+            self.ax.set_xlabel("深度 (mm)", fontsize=12)
+            self.ax.set_ylabel("直径 (mm)", fontsize=12)
+
+            # 设置网格
+            self.ax.grid(True, alpha=0.3)
+
+            # 初始化数据线
+            self.data_line, = self.ax.plot([], [], 'b-', linewidth=2, label='测量数据')
+
+            # 重新绘制误差线（如果标准直径已设置）
+            if hasattr(self, 'standard_diameter') and self.standard_diameter is not None:
+                self.draw_error_lines_and_adjust_y_axis()
+                print("✅ 误差线已重新绘制")
+            else:
+                # 设置图例（无误差线时）
+                self.ax.legend(loc='upper right')
+
+            # 刷新画布
+            self.canvas.draw()
+
+            print("✅ 图表已准备好显示数据")
+
+        except Exception as e:
+            print(f"⚠️ 设置图表失败: {e}")
 
 
 
@@ -670,8 +768,13 @@ class RealtimeChart(QWidget):
                 pass
             self.min_error_line = None
 
-        # 重置图例
-        self.ax.legend([self.data_line], ['直径数据'], loc='upper right', bbox_to_anchor=(0.95, 0.95), fontsize=10)
+        # 重置图例（只有在data_line存在时）
+        if hasattr(self, 'data_line') and self.data_line:
+            try:
+                self.ax.legend([self.data_line], ['测量数据'], loc='upper right', bbox_to_anchor=(0.95, 0.95), fontsize=10)
+            except:
+                # 如果data_line不可用，创建空图例
+                self.ax.legend(loc='upper right', bbox_to_anchor=(0.95, 0.95), fontsize=10)
 
         # 恢复默认Y轴范围
         self.ax.set_ylim(16.5, 20.5)
@@ -1057,10 +1160,14 @@ class RealtimeChart(QWidget):
         """
         更新状态信息的槽函数
         """
-        # 孔ID信息现在通过下拉选择器显示，不需要单独的标签
+        # 更新当前孔位显示
+        if hole_id and hole_id != "未知样品" and hole_id != "当前样品":
+            self.current_hole_label.setText(f"当前孔位：{hole_id}")
+            self.current_hole_id = hole_id
+
         self.depth_label.setText(f"探头深度: {probe_depth:.1f} mm")
         self.comm_status_label.setText(f"通信状态: {comm_status}")
-        
+
         # 根据通信状态改变标签颜色
         if comm_status == "连接正常":
             self.comm_status_label.setStyleSheet("color: green;")
@@ -1086,14 +1193,31 @@ class RealtimeChart(QWidget):
         self.comm_status_label.setText("通信状态: --")
         self.comm_status_label.setStyleSheet("")
 
-        # 重置孔位显示
-        self.current_hole_label.setText("当前孔位：未选择")
-        self.current_hole_id = None
+        # 注意：不重置孔位显示，保持当前选中的孔位
+        # 只有在完全重置时才清除孔位信息
 
         # 重置最大最小直径
         self.max_diameter = None
         self.min_diameter = None
         self.update_diameter_display()
+
+    def reset_to_waiting_state(self):
+        """完全重置到等待状态"""
+        # 清除数据
+        self.clear_data()
+
+        # 重置孔位显示
+        self.current_hole_label.setText("当前孔位：未选择")
+        self.current_hole_id = None
+        self.is_data_loaded = False
+
+        # 禁用按钮
+        self.start_button.setEnabled(False)
+        self.stop_button.setEnabled(False)
+        self.clear_button.setEnabled(False)
+
+        # 显示等待状态
+        self.setup_waiting_state()
 
     def set_current_hole(self, hole_id):
         """设置当前检测的孔ID"""
@@ -1204,41 +1328,68 @@ class RealtimeChart(QWidget):
             })
 
     def view_next_sample(self):
-        """查看下一个样品 - 加载下一个CSV文件"""
+        """查看下一个样品 - 基于孔位ID切换（H00001 → H00002 → H00001...）"""
         # 停止当前播放
         if self.is_csv_playing:
             self.stop_csv_data_import()
 
-        # 切换到下一个文件
-        if self.current_file_index < len(self.csv_file_list) - 1:
-            self.current_file_index += 1
-            current_file = self.csv_file_list[self.current_file_index]
+        # 定义孔位切换顺序
+        hole_sequence = ["H00001", "H00002"]
 
-            print(f"🔄 切换到下一个样品文件: {current_file}")
+        # 获取当前孔位ID
+        current_hole = self.current_hole_id
 
-            # 清除当前数据
-            self.clear_data()
-
-            # 重置CSV数据
-            self.csv_data = []
-
-            # 加载新的CSV文件
-            if self.load_csv_data_by_index(self.current_file_index):
-                # 更新样品信息
-                sample_name = f"样品{self.current_file_index + 1}"
-                self.set_current_hole(sample_name)
-
-                # 自动开始播放新文件
-                self.start_csv_data_import()
-
-                print(f"✅ 成功切换到样品{self.current_file_index + 1}: {current_file}")
-            else:
-                print(f"❌ 加载文件失败: {current_file}")
+        # 确定下一个孔位
+        next_hole = None
+        if current_hole in hole_sequence:
+            current_index = hole_sequence.index(current_hole)
+            next_index = (current_index + 1) % len(hole_sequence)  # 循环切换
+            next_hole = hole_sequence[next_index]
         else:
-            print("📋 已经是最后一个样品文件")
-            # 可以选择循环回到第一个文件
-            # self.current_file_index = 0
-            # self.view_next_sample()
+            # 如果当前孔位不在序列中，默认切换到第一个
+            next_hole = hole_sequence[0]
+
+        print(f"🔄 切换样品: {current_hole} → {next_hole}")
+
+        # 检查下一个孔位是否有数据
+        if next_hole not in self.hole_to_csv_map:
+            print(f"❌ 孔位 {next_hole} 没有关联的数据文件")
+            QMessageBox.information(self, "信息", f"孔位 {next_hole} 没有可用的数据文件")
+            return
+
+        # 加载下一个孔位的数据
+        try:
+            self.load_data_for_hole(next_hole)
+
+            # 更新主窗口状态栏显示
+            self.update_main_window_status(next_hole)
+
+            print(f"✅ 成功切换到孔位: {next_hole}")
+        except Exception as e:
+            print(f"❌ 切换到孔位 {next_hole} 失败: {e}")
+            QMessageBox.warning(self, "错误", f"切换到孔位 {next_hole} 失败:\n{str(e)}")
+
+    def update_main_window_status(self, hole_id):
+        """更新主窗口状态栏显示"""
+        try:
+            # 查找主窗口
+            main_window = None
+            parent = self.parent()
+            while parent:
+                if hasattr(parent, 'status_label'):
+                    main_window = parent
+                    break
+                parent = parent.parent()
+
+            # 更新状态栏
+            if main_window and hasattr(main_window, 'status_label'):
+                main_window.status_label.setText(f"实时监控 - {hole_id}")
+                print(f"✅ 更新主窗口状态栏: 实时监控 - {hole_id}")
+            else:
+                print("⚠️ 未找到主窗口状态栏，无法更新")
+
+        except Exception as e:
+            print(f"⚠️ 更新主窗口状态栏失败: {e}")
 
     def load_sample_data(self, sample_key):
         """加载指定样品的数据"""
@@ -1340,14 +1491,21 @@ class RealtimeChart(QWidget):
 
             # 设置当前孔位ID，用于状态显示
             self.current_hole_id = hole_id
+            self.is_data_loaded = True  # 标记数据已加载
 
             # 加载对应的内窥镜图片
             self.load_endoscope_images_for_hole(hole_id)
 
+            # 设置图表用于数据显示
+            self.setup_chart_for_data()
+
+            # 启用控制按钮
+            self.enable_controls_after_data_load()
+
             # 自动开始播放
             self.start_csv_data_import(auto_play=True)
 
-            print(f"✅ 成功加载孔位 {hole_id} 的数据")
+            print(f"✅ 成功从主检测界面加载孔位 {hole_id} 的数据")
         else:
             QMessageBox.warning(self, "错误", f"无法加载文件: \n{csv_file}")
 
@@ -1466,7 +1624,7 @@ class RealtimeChart(QWidget):
                                     diameter_value = float(row[diameter_col])
 
                                     # 模拟深度数据（基于测量序号）
-                                    depth_value = measurement_num * 0.1  # 每个测量点0.1mm深度
+                                    depth_value = measurement_num * 1.0  # 每个测量点1.0mm深度
 
                                     self.csv_data.append({
                                         'measurement': measurement_num,
@@ -1531,8 +1689,10 @@ class RealtimeChart(QWidget):
                 for row in reader:
                     try:
                         if len(row) > max(measurement_col, diameter_col):
-                            depth = float(row[measurement_col])
+                            measurement_num = int(row[measurement_col])
                             diameter = float(row[diameter_col])
+                            # 每个测量点对应1.0mm深度
+                            depth = measurement_num * 1.0
                             self.csv_data.append((depth, diameter))
                     except (ValueError, IndexError):
                         continue
