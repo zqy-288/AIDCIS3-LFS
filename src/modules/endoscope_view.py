@@ -4,7 +4,7 @@
 """
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel,
+    QWidget, QVBoxLayout, QLabel, QHBoxLayout, QToolButton,
     QGraphicsView, QGraphicsScene, QGraphicsTextItem
 )
 from PySide6.QtCore import Qt
@@ -23,11 +23,34 @@ class EndoscopeView(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # 标题
-        title_label = QLabel("内窥镜实时图像 - 内表面展开视图")
-        title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 14px; font-weight: bold; margin: 5px;")
-        layout.addWidget(title_label)
+        # 创建内窥镜标题栏
+        endo_header = QWidget()
+        endo_header.setObjectName("PanelHeader")
+        endo_header_layout = QHBoxLayout(endo_header)
+        endo_header_layout.setContentsMargins(15, 0, 15, 0)  # 左右留边距
+        endo_header_layout.setSpacing(10)
+
+        endo_title = QLabel("内窥镜实时图像 - 内表面展开图")
+        endo_title.setObjectName("PanelHeaderText")
+
+        # 添加工具按钮
+        save_snapshot_button = QToolButton()
+        save_snapshot_button.setObjectName("HeaderToolButton")
+        save_snapshot_button.setText("📷")  # 使用emoji作为图标
+        save_snapshot_button.setToolTip("保存当前快照")
+
+        fullscreen_button = QToolButton()
+        fullscreen_button.setObjectName("HeaderToolButton")
+        fullscreen_button.setText("🔍")  # 使用emoji作为图标
+        fullscreen_button.setToolTip("全屏查看")
+
+        endo_header_layout.addWidget(endo_title)
+        endo_header_layout.addStretch()
+        endo_header_layout.addWidget(fullscreen_button)
+        endo_header_layout.addWidget(save_snapshot_button)
+
+        # 将标题栏添加到布局
+        layout.addWidget(endo_header)
         
         # 图像显示区域 - 增大尺寸以获得更好的视觉效果
         self.graphics_view = QGraphicsView()

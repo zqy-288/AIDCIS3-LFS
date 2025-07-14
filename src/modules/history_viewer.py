@@ -47,7 +47,10 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                                QGroupBox, QTableWidget, QTableWidgetItem,
                                QSplitter, QTextEdit, QMessageBox, QFileDialog,
                                QDialog, QFormLayout, QDoubleSpinBox, QDialogButtonBox,
-                               QScrollArea, QFrame, QTabWidget)
+                               QScrollArea, QFrame, QTabWidget, QToolButton, QMenu)
+from PySide6.QtGui import QAction
+from PySide6.QtCore import QPoint
+from .hole_id_mapper import HoleIdMapper
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 import csv
@@ -190,11 +193,11 @@ class HistoryDataPlot(FigureCanvas):
         super().__init__(self.figure)
         self.setParent(parent)
 
-        # 设置图表的默认字体
-        self.figure.patch.set_facecolor('white')
-
         # 创建一个占满整个区域的坐标图
         self.ax = self.figure.add_subplot(111)  # 单个坐标图占满整个区域
+
+        # 应用深色主题
+        self.apply_dark_theme()
 
         # 启用鼠标滚轮缩放
         self.setup_mouse_interaction()
@@ -248,6 +251,30 @@ class HistoryDataPlot(FigureCanvas):
         self.ax.set_ylim(new_ylim)
         self.draw()
 
+    def apply_dark_theme(self):
+        """应用深色主题到图表"""
+        # 设置图形背景色
+        self.figure.patch.set_facecolor('#313642')
+        self.ax.set_facecolor('#313642')
+
+        # 设置坐标轴边框颜色
+        self.ax.spines['bottom'].set_color('#505869')
+        self.ax.spines['top'].set_color('#505869')
+        self.ax.spines['left'].set_color('#505869')
+        self.ax.spines['right'].set_color('#505869')
+
+        # 设置坐标轴刻度颜色
+        self.ax.tick_params(axis='x', colors='#D3D8E0')
+        self.ax.tick_params(axis='y', colors='#D3D8E0')
+
+        # 设置坐标轴标签颜色
+        self.ax.xaxis.label.set_color('#D3D8E0')
+        self.ax.yaxis.label.set_color('#D3D8E0')
+        self.ax.title.set_color('#FFFFFF')
+
+        # 设置网格颜色
+        self.ax.grid(True, color='#505869', alpha=0.3)
+
     def init_empty_plot(self):
         """初始化空的二维公差带包络图"""
         # 设置坐标图为深度-直径关系图
@@ -269,6 +296,8 @@ class HistoryDataPlot(FigureCanvas):
 
         # 清除当前图表
         self.ax.clear()
+        # 清除后重新应用深色主题
+        self.apply_dark_theme()
 
         # 提取深度和直径数据
         depths = []
@@ -415,30 +444,32 @@ class HistoryViewer(QWidget):
         self.load_workpiece_list()
 
     def setup_ui(self):
-        """设置用户界面"""
-        layout = QVBoxLayout(self)
+        """设置用户界面 - 采用新的侧边栏布局"""
+        # 1. 将主布局改为 QHBoxLayout
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)  # 无边距，让内容填满窗口
+        layout.setSpacing(0)
 
-        # 标题
-        title_label = QLabel("光谱共焦历史数据查看器")
-        title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin: 10px;")
-        layout.addWidget(title_label)
+        # 2. 创建并添加可收缩的侧边栏
+        self.create_sidebar(layout)
 
-        # 查询面板
-        self.create_query_panel(layout)
+        # 创建收缩按钮
+        self.toggle_button = QToolButton()
+        self.toggle_button.setObjectName("SidebarToggleButton")
+        self.toggle_button.setCheckable(True)
+        self.toggle_button.setChecked(True)  # 默认展开
+        self.toggle_button.setArrowType(Qt.LeftArrow)
+        self.toggle_button.clicked.connect(self.toggle_sidebar)
+        layout.addWidget(self.toggle_button)  # 添加到主布局
 
-        # 主内容区域
+        # 3. 创建并添加主内容区 (表格和图表)
+        # 这部分逻辑基本不变，只是将其放入主QHBoxLayout中
         splitter = QSplitter(Qt.Horizontal)
-
-        # 左侧：数据表格
         self.create_data_table(splitter)
-
-        # 右侧：标签页显示（二维图表和三维模型）
         self.create_visualization_tabs(splitter)
+        splitter.setSizes([400, 800])  # 调整初始比例
 
-        # 设置分割器比例
-        splitter.setSizes([300, 700])
-        layout.addWidget(splitter)
+        layout.addWidget(splitter, 1)  # 让splitter占据大部分空间
 
     def create_visualization_tabs(self, parent):
         """创建可视化标签页（二维图表和三维模型）"""
@@ -457,84 +488,267 @@ class HistoryViewer(QWidget):
             # 如果三维渲染器不可用，显示提示
             placeholder = QLabel("三维模型渲染器不可用\n请检查相关依赖")
             placeholder.setAlignment(Qt.AlignCenter)
-            placeholder.setStyleSheet("color: #666; font-size: 14px;")
+            # 移除内联样式，使用主题样式
             tab_widget.addTab(placeholder, "三维模型渲染")
 
         parent.addWidget(tab_widget)
 
+    def create_sidebar(self, main_layout):
+        """创建左侧的筛选与操作侧边栏"""
+        # 侧边栏主容器
+        self.sidebar_widget = QWidget()
+        self.sidebar_widget.setObjectName("Sidebar")
+        sidebar_layout = QVBoxLayout(self.sidebar_widget)
+        sidebar_layout.setContentsMargins(15, 15, 15, 15)
+        sidebar_layout.setSpacing(25)  # 从20增大到25，拉开QGroupBox之间的距离
+
+        # 标题
+        title_label = QLabel("光谱共焦历史数据查看器")
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setObjectName("HistoryViewerTitle")
+        sidebar_layout.addWidget(title_label)
+
+        # --- 数据筛选部分 (采用"显示框+按钮"的稳定方案) ---
+        filter_group = QGroupBox("数据筛选")
+        filter_layout = QGridLayout(filter_group)
+        filter_layout.setContentsMargins(10, 15, 10, 15)
+        filter_layout.setSpacing(15)  # 增大行间距
+
+        # 保留原有的QComboBox实例用于数据存储（不显示在界面上）
+        self.workpiece_combo = QComboBox()
+        self.workpiece_combo.currentTextChanged.connect(self.on_workpiece_changed)
+        self.qualified_hole_combo = QComboBox()
+        self.qualified_hole_combo.setPlaceholderText("请选择合格孔ID")
+        self.qualified_hole_combo.currentTextChanged.connect(self.on_qualified_hole_changed)
+        self.unqualified_hole_combo = QComboBox()
+        self.unqualified_hole_combo.setPlaceholderText("请选择不合格孔ID")
+        self.unqualified_hole_combo.currentTextChanged.connect(self.on_unqualified_hole_changed)
+
+        # -- 工件ID --
+        workpiece_label = QLabel("工件ID:")
+        workpiece_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.wp_display = QLineEdit()  # 使用QLineEdit作为显示框
+        self.wp_display.setReadOnly(True)
+        self.wp_display.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)  # 设置文本左对齐
+        self.wp_button = QToolButton()
+        self.wp_button.setText("▼")
+        self.wp_button.setMinimumWidth(30)  # 增大按钮宽度
+        self.wp_button.clicked.connect(self.show_workpiece_menu)
+
+        # 将显示框和按钮放入一个水平布局，让它们看起来像一个整体
+        wp_combo_layout = QHBoxLayout()
+        wp_combo_layout.setSpacing(0)
+        wp_combo_layout.setContentsMargins(0, 0, 0, 0)
+        wp_combo_layout.addWidget(self.wp_display)
+        wp_combo_layout.addWidget(self.wp_button)
+
+        # -- 合格孔ID --
+        qualified_label = QLabel("合格孔ID:")
+        qualified_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.ql_display = QLineEdit()
+        self.ql_display.setReadOnly(True)
+        self.ql_display.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)  # 设置文本左对齐
+        self.ql_display.setPlaceholderText("请选择合格孔ID")
+        self.ql_button = QToolButton()
+        self.ql_button.setText("▼")
+        self.ql_button.setMinimumWidth(30)  # 增大按钮宽度
+        self.ql_button.clicked.connect(self.show_qualified_hole_menu)
+
+        ql_combo_layout = QHBoxLayout()
+        ql_combo_layout.setSpacing(0)
+        ql_combo_layout.setContentsMargins(0, 0, 0, 0)
+        ql_combo_layout.addWidget(self.ql_display)
+        ql_combo_layout.addWidget(self.ql_button)
+
+        # -- 不合格孔ID --
+        unqualified_label = QLabel("不合格孔ID:")
+        unqualified_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.uql_display = QLineEdit()
+        self.uql_display.setReadOnly(True)
+        self.uql_display.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)  # 设置文本左对齐
+        self.uql_display.setPlaceholderText("请选择不合格孔ID")
+        self.uql_button = QToolButton()
+        self.uql_button.setText("▼")
+        self.uql_button.setMinimumWidth(30)  # 增大按钮宽度
+        self.uql_button.clicked.connect(self.show_unqualified_hole_menu)
+
+        uql_combo_layout = QHBoxLayout()
+        uql_combo_layout.setSpacing(0)
+        uql_combo_layout.setContentsMargins(0, 0, 0, 0)
+        uql_combo_layout.addWidget(self.uql_display)
+        uql_combo_layout.addWidget(self.uql_button)
+
+        # --- 将所有组件添加到栅格布局 ---
+        filter_layout.addWidget(workpiece_label, 0, 0)
+        filter_layout.addLayout(wp_combo_layout, 0, 1)
+
+        filter_layout.addWidget(qualified_label, 1, 0)
+        filter_layout.addLayout(ql_combo_layout, 1, 1)
+
+        filter_layout.addWidget(unqualified_label, 2, 0)
+        filter_layout.addLayout(uql_combo_layout, 2, 1)
+
+        filter_layout.setColumnStretch(1, 1)
+        # --- 布局重构结束 ---
+
+        # --- 操作命令部分 ---
+        action_group = QGroupBox("操作命令")
+        action_layout = QVBoxLayout(action_group)
+        action_layout.setSpacing(18)  # 从10增大到18，为按钮之间增加空间
+
+        self.query_button = QPushButton("查询数据")
+        self.query_button.clicked.connect(self.query_data)
+        action_layout.addWidget(self.query_button)
+
+        self.export_button = QPushButton("导出数据")
+        self.export_button.clicked.connect(self.export_data)
+        action_layout.addWidget(self.export_button)
+
+        self.manual_review_button = QPushButton("人工复查")
+        self.manual_review_button.clicked.connect(self.open_manual_review)
+        action_layout.addWidget(self.manual_review_button)
+
+        # --- 当前管孔状态显示 ---
+        status_group = QGroupBox("当前状态")
+        status_layout = QVBoxLayout(status_group)
+        self.current_hole_label = QLabel("当前管孔: --")
+        self.current_hole_label.setObjectName("CurrentHoleLabel")
+        status_layout.addWidget(self.current_hole_label)
+
+        # 将所有部分添加到侧边栏布局中，在功能区之间添加弹簧实现均匀分布
+        sidebar_layout.addWidget(filter_group)
+        sidebar_layout.addStretch(1)  # 在"筛选"和"命令"之间添加弹簧
+        sidebar_layout.addWidget(action_group)
+        sidebar_layout.addStretch(1)  # 在"命令"和"状态"之间添加弹簧
+        sidebar_layout.addWidget(status_group)
+        # 不在最后添加addStretch，让状态组贴底
+
+        # 将侧边栏添加到主布局
+        main_layout.addWidget(self.sidebar_widget)
+
+    def toggle_sidebar(self, checked):
+        """切换侧边栏显示/隐藏"""
+        if checked:
+            self.sidebar_widget.show()
+            self.toggle_button.setArrowType(Qt.LeftArrow)
+        else:
+            self.sidebar_widget.hide()
+            self.toggle_button.setArrowType(Qt.RightArrow)
+
+    def show_workpiece_menu(self):
+        """显示工件选择的右键菜单"""
+        menu = QMenu(self)
+
+        # 从隐藏的QComboBox获取数据
+        items = [self.workpiece_combo.itemText(i) for i in range(self.workpiece_combo.count())]
+
+        for item_text in items:
+            action = QAction(item_text, self)
+            action.triggered.connect(lambda checked=False, text=item_text: (
+                self.wp_display.setText(text),
+                self.on_workpiece_changed(text)
+            ))
+            menu.addAction(action)
+
+        menu.exec(self.wp_button.mapToGlobal(QPoint(0, self.wp_button.height())))
+
+    def show_qualified_hole_menu(self):
+        """显示合格孔选择的右键菜单"""
+        menu = QMenu(self)
+        items = [self.qualified_hole_combo.itemText(i) for i in range(self.qualified_hole_combo.count())]
+
+        for item_text in items:
+            action = QAction(item_text, self)
+            # 点击菜单项后，更新QLineEdit的文本，清空不合格孔选择，并手动触发on_qualified_hole_changed
+            action.triggered.connect(lambda checked=False, text=item_text: (
+                self.ql_display.setText(text),
+                self.uql_display.clear(),  # 清空不合格孔选择，实现互斥
+                self.on_qualified_hole_changed(text)
+            ))
+            menu.addAction(action)
+
+        menu.exec(self.ql_button.mapToGlobal(QPoint(0, self.ql_button.height())))
+
+    def show_unqualified_hole_menu(self):
+        """显示不合格孔选择的右键菜单"""
+        menu = QMenu(self)
+        items = [self.unqualified_hole_combo.itemText(i) for i in range(self.unqualified_hole_combo.count())]
+
+        for item_text in items:
+            action = QAction(item_text, self)
+            # 点击菜单项后，更新QLineEdit的文本，清空合格孔选择，并手动触发on_unqualified_hole_changed
+            action.triggered.connect(lambda checked=False, text=item_text: (
+                self.uql_display.setText(text),
+                self.ql_display.clear(),  # 清空合格孔选择，实现互斥
+                self.on_unqualified_hole_changed(text)
+            ))
+            menu.addAction(action)
+
+        menu.exec(self.uql_button.mapToGlobal(QPoint(0, self.uql_button.height())))
+
+
     def create_query_panel(self, layout):
         """创建查询面板"""
-        query_group = QGroupBox("查询条件")
+        query_group = QGroupBox("数据筛选与操作")
+        # 使用栅格布局，更灵活
         query_layout = QGridLayout(query_group)
+        query_layout.setSpacing(10)
+        query_layout.setContentsMargins(15, 15, 15, 15)
 
-        # 设置列间距为较小值，减少标签和下拉框之间的间隔
-        query_layout.setHorizontalSpacing(8)   # 设置水平间距为8像素
-        query_layout.setVerticalSpacing(10)    # 设置垂直间距为10像素
-        query_layout.setContentsMargins(10, 10, 10, 10)  # 设置内边距
-
-        # 将所有控件排列在一行中，从左到右依次为：
-        # 工件ID → 合格孔ID → 不合格孔ID → 查询数据 → 导出数据
-
-        # 工件ID
+        # --- 左侧：数据筛选区 ---
         query_layout.addWidget(QLabel("工件ID:"), 0, 0)
         self.workpiece_combo = QComboBox()
-        self.workpiece_combo.setFixedSize(120, 30)  # 调整宽度以显示完整文本
         self.workpiece_combo.currentTextChanged.connect(self.on_workpiece_changed)
         query_layout.addWidget(self.workpiece_combo, 0, 1)
 
-        # 合格管孔ID选择
-        query_layout.addWidget(QLabel("合格孔ID:"), 0, 2)
+        query_layout.addWidget(QLabel("合格孔ID:"), 1, 0)
         self.qualified_hole_combo = QComboBox()
-        self.qualified_hole_combo.setFixedSize(140, 30)  # 调整宽度以显示完整默认文本
-        self.qualified_hole_combo.setEditable(False)  # 改为不可编辑，与工件ID样式一致
-        self.qualified_hole_combo.setPlaceholderText("请选择合格孔ID")  # 设置默认文本
+        self.qualified_hole_combo.setPlaceholderText("请选择")
         self.qualified_hole_combo.currentTextChanged.connect(self.on_qualified_hole_changed)
-        query_layout.addWidget(self.qualified_hole_combo, 0, 3)
+        query_layout.addWidget(self.qualified_hole_combo, 1, 1)
 
-        # 不合格管孔ID选择
-        query_layout.addWidget(QLabel("不合格孔ID:"), 0, 4)
+        query_layout.addWidget(QLabel("不合格孔ID:"), 2, 0)
         self.unqualified_hole_combo = QComboBox()
-        self.unqualified_hole_combo.setFixedSize(140, 30)  # 调整宽度以显示完整默认文本
-        self.unqualified_hole_combo.setEditable(False)  # 改为不可编辑，与工件ID样式一致
-        self.unqualified_hole_combo.setPlaceholderText("请选择不合格孔ID")  # 设置默认文本
+        self.unqualified_hole_combo.setPlaceholderText("请选择")
         self.unqualified_hole_combo.currentTextChanged.connect(self.on_unqualified_hole_changed)
-        query_layout.addWidget(self.unqualified_hole_combo, 0, 5)
+        query_layout.addWidget(self.unqualified_hole_combo, 2, 1)
 
-        # 查询按钮
+        # 添加一个垂直分割线，美化布局
+        line = QFrame()
+        line.setFrameShape(QFrame.VLine)
+        line.setFrameShadow(QFrame.Sunken)
+        query_layout.addWidget(line, 0, 2, 3, 1)  # 跨3行1列
+
+        # --- 右侧：操作命令区 ---
         self.query_button = QPushButton("查询数据")
-        self.query_button.setFixedSize(80, 30)  # 设置固定大小
-        self.query_button.clicked.connect(self.query_data)
-        query_layout.addWidget(self.query_button, 0, 6)
-
-        # 导出按钮
         self.export_button = QPushButton("导出数据")
-        self.export_button.setFixedSize(80, 30)  # 设置与查询按钮相同的大小
-        self.export_button.clicked.connect(self.export_data)
-        query_layout.addWidget(self.export_button, 0, 7)
-
-        # 人工复查按钮
         self.manual_review_button = QPushButton("人工复查")
-        self.manual_review_button.setFixedSize(80, 30)  # 设置与其他按钮相同的大小
-        self.manual_review_button.clicked.connect(self.open_manual_review)
-        query_layout.addWidget(self.manual_review_button, 0, 8)
 
-        # 当前管孔ID显示标签
+        # 将按钮垂直排列
+        action_layout = QVBoxLayout()
+        action_layout.addWidget(self.query_button)
+        action_layout.addWidget(self.export_button)
+        action_layout.addWidget(self.manual_review_button)
+        action_layout.addStretch()  # 添加弹性空间
+
+        # 创建一个容器widget来包含按钮布局
+        action_widget = QWidget()
+        action_widget.setLayout(action_layout)
+        query_layout.addWidget(action_widget, 0, 3, 3, 1)  # 跨3行1列
+
+        # --- 最右侧：状态显示区 ---
         self.current_hole_label = QLabel("当前管孔: --")
-        self.current_hole_label.setStyleSheet("font-weight: bold; color: #1976d2; margin-left: 10px;")
-        query_layout.addWidget(self.current_hole_label, 0, 9)
+        self.current_hole_label.setObjectName("CurrentHoleLabel")  # 使用专用样式
+        query_layout.addWidget(self.current_hole_label, 0, 4, Qt.AlignTop)
 
-        # 设置列的拉伸因子，让标签列和按钮列不拉伸
-        query_layout.setColumnStretch(0, 0)  # 工件ID标签列不拉伸
-        query_layout.setColumnStretch(1, 0)  # 工件ID下拉框列不拉伸
-        query_layout.setColumnStretch(2, 0)  # 合格孔ID标签列不拉伸
-        query_layout.setColumnStretch(3, 0)  # 合格孔ID下拉框列不拉伸
-        query_layout.setColumnStretch(4, 0)  # 不合格孔ID标签列不拉伸
-        query_layout.setColumnStretch(5, 0)  # 不合格孔ID下拉框列不拉伸
-        query_layout.setColumnStretch(6, 0)  # 查询按钮列不拉伸
-        query_layout.setColumnStretch(7, 0)  # 导出按钮列不拉伸
-        query_layout.setColumnStretch(8, 0)  # 人工复查按钮列不拉伸
-        query_layout.setColumnStretch(9, 0)  # 当前管孔ID标签列不拉伸
-        query_layout.setColumnStretch(10, 1)  # 添加一个空白拉伸列，让内容左对齐
+        # 连接按钮事件
+        self.query_button.clicked.connect(self.query_data)
+        self.export_button.clicked.connect(self.export_data)
+        self.manual_review_button.clicked.connect(self.open_manual_review)
+
+        # 设置列的拉伸，让中间部分自适应宽度
+        query_layout.setColumnStretch(1, 1)  # 让下拉框列可以拉伸
+        query_layout.setColumnStretch(4, 2)  # 让状态显示区占用更多空间
 
         layout.addWidget(query_group)
 
@@ -544,9 +758,10 @@ class HistoryViewer(QWidget):
         table_layout = QVBoxLayout(table_group)
 
         self.data_table = QTableWidget()
-        self.data_table.setColumnCount(9)
+        self.data_table.verticalHeader().setVisible(False)  # 隐藏左侧的行号表头
+        self.data_table.setColumnCount(10)  # 从9增加到10列
         self.data_table.setHorizontalHeaderLabels([
-            "位置(mm)", "直径(mm)", "通道1值(μm)", "通道2值(μm)", "通道3值(μm)", "合格", "时间", "操作员", "备注"
+            "序号", "位置(mm)", "直径(mm)", "通道1值(μm)", "通道2值(μm)", "通道3值(μm)", "合格", "时间", "操作员", "备注"
         ])
 
         # 设置表格属性
@@ -566,8 +781,10 @@ class HistoryViewer(QWidget):
     def load_workpiece_list(self):
         """加载工件列表"""
         # 这里简化为添加默认工件
-        self.workpiece_combo.addItem("WP-2025-001")
-        self.on_workpiece_changed("WP-2025-001")
+        self.workpiece_combo.addItem("CAP1000")
+        # 同时设置显示框的文本
+        self.wp_display.setText("CAP1000")
+        self.on_workpiece_changed("CAP1000")
 
     def on_workpiece_changed(self, workpiece_id):
         """工件选择改变"""
@@ -581,9 +798,11 @@ class HistoryViewer(QWidget):
         """加载指定工件的孔位列表"""
         print(f"🔍 加载工件 {workpiece_id} 的孔位列表...")
 
-        # 清空当前孔位选项
+        # 清空当前孔位选项（包括隐藏的QComboBox和显示框）
         self.qualified_hole_combo.clear()
         self.unqualified_hole_combo.clear()
+        self.ql_display.clear()
+        self.uql_display.clear()
 
         # 获取可用的孔位列表
         available_holes = self.get_available_holes(workpiece_id)
@@ -634,7 +853,8 @@ class HistoryViewer(QWidget):
         if os.path.exists(data_base_dir):
             for item in os.listdir(data_base_dir):
                 item_path = os.path.join(data_base_dir, item)
-                if os.path.isdir(item_path) and item.startswith('H'):
+                # 扫描新格式的孔位目录（R开头且包含C）
+                if os.path.isdir(item_path) and item.startswith('R') and 'C' in item:
                     # 检查是否有CCIDM目录（测量数据）
                     ccidm_path = os.path.join(item_path, "CCIDM")
                     if os.path.exists(ccidm_path):
@@ -643,12 +863,12 @@ class HistoryViewer(QWidget):
                             if item not in available_holes:
                                 available_holes.append(item)
 
-            print(f"📁 从文件系统扫描到 {len([h for h in available_holes if h.startswith('H')])} 个孔位目录")
+            print(f"📁 从文件系统扫描到 {len([h for h in available_holes if h.startswith('R')])} 个孔位目录")
 
-        # 如果没有找到任何孔位，提供默认选项
+        # 如果没有找到任何孔位，提供默认选项（使用新格式）
         if not available_holes:
-            available_holes = ["H00001", "H00002", "H00003", "H00004", "H00005"]
-            print("🔧 使用默认孔位列表")
+            available_holes = HoleIdMapper.get_all_new_ids()
+            print("🔧 使用默认孔位列表（新格式）")
 
         # 排序孔位列表
         available_holes.sort()
@@ -660,9 +880,9 @@ class HistoryViewer(QWidget):
         qualified_holes = []
         unqualified_holes = []
 
-        # 根据用户要求，H00001和H00002是合格的，H00003是不合格的
-        predefined_qualified = ["H00001", "H00002"]
-        predefined_unqualified = ["H00003"]
+        # 根据用户要求，R001C001和R001C002是合格的，R001C003是不合格的
+        predefined_qualified = ["R001C001", "R001C002"]
+        predefined_unqualified = ["R001C003"]
 
         for hole_id in available_holes:
             if hole_id in predefined_qualified:
@@ -727,13 +947,14 @@ class HistoryViewer(QWidget):
         """查询数据"""
         print("🔍 开始查询数据...")
 
-        workpiece_id = self.workpiece_combo.currentText()
+        # 从新的显示框中获取文本
+        workpiece_id = self.wp_display.text().strip()
 
-        # 从两个下拉框中获取选择的孔位（只有一个会有值）
-        qualified_hole_id = self.qualified_hole_combo.currentText().strip()
-        unqualified_hole_id = self.unqualified_hole_combo.currentText().strip()
+        # 从两个显示框中获取选择的孔位（只有一个会有值）
+        qualified_hole_id = self.ql_display.text().strip()
+        unqualified_hole_id = self.uql_display.text().strip()
 
-        # 确定要查询的孔位ID（排除默认文本）
+        # 确定要查询的孔位ID（排除默认文本和占位符）
         hole_id = ""
         if qualified_hole_id and qualified_hole_id != "" and qualified_hole_id != "请选择合格孔ID":
             hole_id = qualified_hole_id
@@ -752,10 +973,10 @@ class HistoryViewer(QWidget):
             QMessageBox.warning(self, "警告", "请选择合格孔ID或不合格孔ID")
             return
 
-        # 验证孔ID格式（应该以H开头）
-        if not hole_id.upper().startswith('H'):
+        # 验证孔ID格式（应该是新格式：R开头且包含C）
+        if not (hole_id.startswith('R') and 'C' in hole_id):
             print("❌ 孔ID格式错误")
-            QMessageBox.warning(self, "警告", "孔ID格式错误，请输入以H开头的孔ID，如：H001")
+            QMessageBox.warning(self, "警告", "孔ID格式错误，请输入新格式的孔ID，如：R001C001")
             return
 
         print("🔍 开始加载CSV数据...")
@@ -955,27 +1176,32 @@ class HistoryViewer(QWidget):
         self.data_table.setRowCount(len(measurements))
 
         for row, measurement in enumerate(measurements):
-            # 位置(mm) - 对应测量序号
+            # 序号列 (第0列) - 新增
+            seq_item = QTableWidgetItem(str(row + 1))
+            seq_item.setTextAlignment(Qt.AlignCenter)  # 让序号居中显示
+            self.data_table.setItem(row, 0, seq_item)
+
+            # 位置(mm) - 对应测量序号 (现在是第1列)
             position = measurement.get('position', measurement.get('depth', 0))
-            self.data_table.setItem(row, 0, QTableWidgetItem(f"{position:.1f}"))
+            self.data_table.setItem(row, 1, QTableWidgetItem(f"{position:.1f}"))
 
-            # 直径(mm)
+            # 直径(mm) (现在是第2列)
             diameter = measurement.get('diameter', 0)
-            self.data_table.setItem(row, 1, QTableWidgetItem(f"{diameter:.4f}"))
+            self.data_table.setItem(row, 2, QTableWidgetItem(f"{diameter:.4f}"))
 
-            # 通道1值(mm)
+            # 通道1值(mm) (现在是第3列)
             channel1 = measurement.get('channel1', 0)
-            self.data_table.setItem(row, 2, QTableWidgetItem(f"{channel1:.2f}"))
+            self.data_table.setItem(row, 3, QTableWidgetItem(f"{channel1:.2f}"))
 
-            # 通道2值(mm)
+            # 通道2值(mm) (现在是第4列)
             channel2 = measurement.get('channel2', 0)
-            self.data_table.setItem(row, 3, QTableWidgetItem(f"{channel2:.2f}"))
+            self.data_table.setItem(row, 4, QTableWidgetItem(f"{channel2:.2f}"))
 
-            # 通道3值(mm)
+            # 通道3值(mm) (现在是第5列)
             channel3 = measurement.get('channel3', 0)
-            self.data_table.setItem(row, 4, QTableWidgetItem(f"{channel3:.2f}"))
+            self.data_table.setItem(row, 5, QTableWidgetItem(f"{channel3:.2f}"))
 
-            # 合格性
+            # 合格性 (现在是第6列)
             is_qualified = measurement.get('is_qualified', True)
             qualified_text = "✓" if is_qualified else "✗"
             item = QTableWidgetItem(qualified_text)
@@ -983,21 +1209,21 @@ class HistoryViewer(QWidget):
                 item.setBackground(Qt.red)
             else:
                 item.setBackground(Qt.green)
-            self.data_table.setItem(row, 5, item)
+            self.data_table.setItem(row, 6, item)
 
-            # 时间
+            # 时间 (现在是第7列)
             timestamp = measurement.get('timestamp', '')
             if timestamp:
                 time_str = timestamp.strftime("%H:%M:%S")
             else:
                 time_str = "--"
-            self.data_table.setItem(row, 6, QTableWidgetItem(time_str))
+            self.data_table.setItem(row, 7, QTableWidgetItem(time_str))
 
-            # 操作员
+            # 操作员 (现在是第8列)
             operator = measurement.get('operator', '--')
-            self.data_table.setItem(row, 7, QTableWidgetItem(operator))
+            self.data_table.setItem(row, 8, QTableWidgetItem(operator))
 
-            # 备注 - 只有实际进行了人工复查的行才显示复查信息
+            # 备注 - 只有实际进行了人工复查的行才显示复查信息 (现在是第9列)
             notes = ""
             if 'manual_review_value' in measurement:
                 # 只有存在manual_review_value的行才显示复查信息
@@ -1006,7 +1232,7 @@ class HistoryViewer(QWidget):
                 review_time = measurement.get('review_time', '')
                 notes = f"人工复查值: {review_value:.4f}mm, 复查员: {reviewer}, 复查时间: {review_time}"
 
-            self.data_table.setItem(row, 8, QTableWidgetItem(notes))
+            self.data_table.setItem(row, 9, QTableWidgetItem(notes))
 
         # 调整列宽
         self.data_table.resizeColumnsToContents()
@@ -1028,10 +1254,9 @@ class HistoryViewer(QWidget):
         """更新当前管孔ID显示"""
         if hole_id:
             self.current_hole_label.setText(f"当前管孔: {hole_id}")
-            self.current_hole_label.setStyleSheet("font-weight: bold; color: #1976d2; margin-left: 10px;")
         else:
             self.current_hole_label.setText("当前管孔: --")
-            self.current_hole_label.setStyleSheet("font-weight: bold; color: #666; margin-left: 10px;")
+        # 移除内联样式，使用主题样式（已在create_query_panel中设置objectName）
 
     def export_data(self):
         """导出数据"""
@@ -1359,11 +1584,11 @@ class ManualReviewDialog(QDialog):
 
         # 标题和说明
         title_label = QLabel("人工复查")
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #333; margin-bottom: 5px;")
+        # 移除内联样式，使用主题样式
         layout.addWidget(title_label)
 
         info_label = QLabel("以下是检测为不合格的测量点，请输入人工复检的直径值：")
-        info_label.setStyleSheet("color: #666; margin-bottom: 10px;")
+        # 移除内联样式，使用主题样式
         layout.addWidget(info_label)
 
         # 创建滚动区域
@@ -1383,7 +1608,7 @@ class ManualReviewDialog(QDialog):
             # 创建一行的容器
             row_frame = QFrame()
             row_frame.setFrameStyle(QFrame.Box)
-            row_frame.setStyleSheet("QFrame { border: 1px solid #ddd; border-radius: 5px; padding: 5px; background-color: #f9f9f9; margin: 2px; }")
+            # 移除内联样式，使用主题样式
 
             row_layout = QHBoxLayout(row_frame)
             row_layout.setContentsMargins(8, 6, 8, 6)
@@ -1392,18 +1617,18 @@ class ManualReviewDialog(QDialog):
             # 位置信息（删除序号显示）
             position = measurement.get('position', measurement.get('depth', 0))
             position_label = QLabel(f"位置: {position:.1f}mm")
-            position_label.setStyleSheet("font-weight: bold; min-width: 85px; max-width: 85px;")
+            # 移除内联样式，使用主题样式
             row_layout.addWidget(position_label)
 
             # 原直径（显示原始数据，不四舍五入）
             original_diameter = measurement['diameter']
             original_label = QLabel(f"原直径: {original_diameter:.4f}mm")  # 使用4位小数显示原始数据
-            original_label.setStyleSheet("min-width: 120px; max-width: 120px; color: #d32f2f; font-weight: bold;")
+            # 移除内联样式，使用主题样式
             row_layout.addWidget(original_label)
 
             # 复查直径输入
             review_label = QLabel("复查直径:")
-            review_label.setStyleSheet("min-width: 65px; max-width: 65px; font-weight: bold;")
+            # 移除内联样式，使用主题样式
             row_layout.addWidget(review_label)
 
             spin_box = QDoubleSpinBox()
@@ -1413,7 +1638,7 @@ class ManualReviewDialog(QDialog):
             spin_box.setValue(original_diameter)  # 使用原始直径数据
             spin_box.setSuffix(" mm")
             spin_box.setFixedWidth(110)  # 增加输入框宽度以显示完整数值
-            spin_box.setStyleSheet("QDoubleSpinBox { border: 1px solid #ccc; border-radius: 3px; padding: 3px; font-size: 12px; }")
+            # 移除内联样式，使用主题样式
             row_layout.addWidget(spin_box)
 
             # 添加弹性空间，确保布局紧凑
@@ -1427,16 +1652,16 @@ class ManualReviewDialog(QDialog):
 
         # 复查员输入区域
         reviewer_frame = QFrame()
-        reviewer_frame.setStyleSheet("QFrame { border: 1px solid #ddd; border-radius: 5px; padding: 10px; background-color: #f5f5f5; }")
+        # 移除内联样式，使用主题样式
         reviewer_layout = QHBoxLayout(reviewer_frame)
 
         reviewer_label = QLabel("复查员:")
-        reviewer_label.setStyleSheet("font-weight: bold; min-width: 60px;")
+        # 移除内联样式，使用主题样式
         reviewer_layout.addWidget(reviewer_label)
 
         self.reviewer_input = QLineEdit()
         self.reviewer_input.setPlaceholderText("请输入复查员姓名")
-        self.reviewer_input.setStyleSheet("QLineEdit { border: 1px solid #ccc; border-radius: 3px; padding: 5px; }")
+        # 移除内联样式，使用主题样式
         reviewer_layout.addWidget(self.reviewer_input)
 
         layout.addWidget(reviewer_frame)
@@ -1445,8 +1670,7 @@ class ManualReviewDialog(QDialog):
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         button_box.button(QDialogButtonBox.Ok).setText("确定")
         button_box.button(QDialogButtonBox.Cancel).setText("取消")
-        button_box.button(QDialogButtonBox.Ok).setStyleSheet("QPushButton { background-color: #1976d2; color: white; border: none; border-radius: 3px; padding: 8px 16px; font-weight: bold; }")
-        button_box.button(QDialogButtonBox.Cancel).setStyleSheet("QPushButton { background-color: #757575; color: white; border: none; border-radius: 3px; padding: 8px 16px; }")
+        # 移除内联样式，使用主题样式
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)

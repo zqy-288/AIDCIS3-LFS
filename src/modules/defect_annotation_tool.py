@@ -217,11 +217,13 @@ class DefectAnnotationTool(QWidget):
         """创建缺陷列表组"""
         self.defect_list_group = QGroupBox("缺陷列表")
         layout = QVBoxLayout(self.defect_list_group)
-        
+
         # 缺陷列表表格
         self.defect_table = QTableWidget()
-        self.defect_table.setColumnCount(4)
-        self.defect_table.setHorizontalHeaderLabels(["类别", "位置", "大小", "置信度"])
+        # 隐藏默认的垂直表头，解决左上角空白问题
+        self.defect_table.verticalHeader().setVisible(False)
+        self.defect_table.setColumnCount(5)  # 增加序号列，从4列改为5列
+        self.defect_table.setHorizontalHeaderLabels(["序号", "类别", "位置", "大小", "置信度"])
         
         # 设置表格属性
         header = self.defect_table.horizontalHeader()
@@ -429,21 +431,26 @@ class DefectAnnotationTool(QWidget):
         self.defect_table.setRowCount(len(annotations))
 
         for row, annotation in enumerate(annotations):
-            # 类别
+            # 序号列（新增）
+            seq_item = QTableWidgetItem(str(row + 1))
+            seq_item.setTextAlignment(Qt.AlignCenter)
+            self.defect_table.setItem(row, 0, seq_item)
+
+            # 类别（原第0列，现在是第1列）
             category_name = self.category_manager.get_category_name(annotation.defect_class)
-            self.defect_table.setItem(row, 0, QTableWidgetItem(category_name))
+            self.defect_table.setItem(row, 1, QTableWidgetItem(category_name))
 
-            # 位置
+            # 位置（原第1列，现在是第2列）
             position_text = f"({annotation.x_center:.3f}, {annotation.y_center:.3f})"
-            self.defect_table.setItem(row, 1, QTableWidgetItem(position_text))
+            self.defect_table.setItem(row, 2, QTableWidgetItem(position_text))
 
-            # 大小
+            # 大小（原第2列，现在是第3列）
             size_text = f"{annotation.width:.3f} × {annotation.height:.3f}"
-            self.defect_table.setItem(row, 2, QTableWidgetItem(size_text))
+            self.defect_table.setItem(row, 3, QTableWidgetItem(size_text))
 
-            # 置信度
+            # 置信度（原第3列，现在是第4列）
             confidence_text = f"{annotation.confidence:.2f}"
-            self.defect_table.setItem(row, 3, QTableWidgetItem(confidence_text))
+            self.defect_table.setItem(row, 4, QTableWidgetItem(confidence_text))
 
     def highlight_annotation_in_table(self, annotation: DefectAnnotation):
         """在表格中高亮指定标注"""

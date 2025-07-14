@@ -260,7 +260,7 @@ class HistoryViewer(QWidget):
         try:
             # 简化为添加默认工件
             self.workpiece_combo.clear()
-            self.workpiece_combo.addItem("WP-2025-001")
+            self.workpiece_combo.addItem("CAP1000")
 
             # 连接工件选择变化事件
             self.workpiece_combo.currentTextChanged.connect(self.on_workpiece_changed)

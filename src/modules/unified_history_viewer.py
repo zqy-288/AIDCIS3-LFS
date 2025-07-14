@@ -5,11 +5,10 @@
 """
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, 
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
     QStackedWidget, QGroupBox, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
 
 from .history_viewer import HistoryViewer
 from .defect_annotation_tool import DefectAnnotationTool
@@ -54,38 +53,32 @@ class UnifiedHistoryViewer(QWidget):
         """创建顶部控制面板"""
         # 控制面板组框
         control_group = QGroupBox("数据类型选择")
-        control_group.setMaximumHeight(80)
+        # control_group.setMaximumHeight(80)  # 已删除：移除固定高度限制，让布局自适应
         control_layout = QHBoxLayout(control_group)
+        control_layout.setSpacing(15)  # 增加控件间的水平间距
         
-        # 设置字体
-        title_font = QFont()
-        title_font.setPointSize(12)
-        title_font.setBold(True)
-        
-        label_font = QFont()
-        label_font.setPointSize(11)
-        
-        # 选择标签
+        # 选择标签 - 使用CSS样式，移除代码中的字体设置
         select_label = QLabel("查看内容：")
-        select_label.setFont(label_font)
+        select_label.setObjectName("HistoryViewerLabel")  # 使用CSS样式
+        select_label.setMinimumWidth(120)  # 增加文本框长度
         control_layout.addWidget(select_label)
-        
-        # 数据类型下拉框
+
+        # 数据类型下拉框 - 使用CSS样式
         self.data_type_combo = QComboBox()
-        self.data_type_combo.setFont(label_font)
-        self.data_type_combo.setMinimumWidth(150)
+        self.data_type_combo.setObjectName("HistoryViewerCombo")  # 使用CSS样式
+        self.data_type_combo.setMinimumWidth(200)  # 从150增加到200
         self.data_type_combo.addItems(["管孔直径", "缺陷标注"])
         self.data_type_combo.setCurrentText("管孔直径")
         self.data_type_combo.currentTextChanged.connect(self.on_data_type_changed)
         control_layout.addWidget(self.data_type_combo)
-        
+
         # 添加弹性空间
         control_layout.addStretch()
-        
-        # 状态标签
+
+        # 状态标签 - 使用CSS样式
         self.status_label = QLabel("当前模式：管孔直径历史数据")
-        self.status_label.setFont(label_font)
-        self.status_label.setStyleSheet("color: #2E7D32; font-weight: bold;")
+        self.status_label.setObjectName("SuccessLabel")  # 使用CSS样式，字体已改为18px
+        self.status_label.setMinimumWidth(300)  # 增加状态标签的文本框长度
         control_layout.addWidget(self.status_label)
         
         parent_layout.addWidget(control_group)

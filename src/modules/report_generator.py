@@ -17,6 +17,7 @@ from .report_models import (
     WorkpieceInfo, HoleQualityData, DefectData, ManualReviewRecord,
     QualitySummary, ReportInstance, ReportDataCollector
 )
+from .hole_id_mapper import HoleIdMapper
 
 
 class ReportGenerator:
@@ -85,14 +86,14 @@ class ReportGenerator:
     def _collect_workpiece_info(self, workpiece_id: str) -> WorkpieceInfo:
         """收集工件基本信息"""
         # 根据工件ID返回相应的工件信息
-        if workpiece_id == "WP-2025-001":
+        if workpiece_id == "CAP1000":
             return WorkpieceInfo(
                 workpiece_id=workpiece_id,
-                name="工件-WP-2025-001",
+                name="工件-CAP1000",
                 type="管板工件",
-                material="不锈钢",
-                total_holes=20000,  # 该工件包含20000个孔
-                description="管孔检测系统工件，包含20000个孔位，目前已有H00001~H00003孔位的检测数据",
+                material="母材材质：SA508.Gr3. C1.2；堆焊层材质：镍基堆焊层",
+                total_holes=20050,  # 该工件包含20000个孔
+                description="管孔检测系统工件，包含20050个孔位，目前已有R001C001~R001C003孔位的检测数据",
                 created_at=datetime.now()
             )
         elif workpiece_id.startswith('H'):
@@ -101,7 +102,7 @@ class ReportGenerator:
                 workpiece_id=workpiece_id,
                 name=f"孔位-{workpiece_id}",
                 type="单孔检测",
-                material="不锈钢",
+                material="母材材质：SA508.Gr3. C1.2；堆焊层材质：镍基堆焊层",
                 total_holes=1,
                 description=f"单个孔位 {workpiece_id} 的检测数据",
                 created_at=datetime.now()
@@ -112,7 +113,7 @@ class ReportGenerator:
                 workpiece_id=workpiece_id,
                 name=f"工件-{workpiece_id}",
                 type="管板工件",
-                material="不锈钢",
+                material="母材材质：SA508.Gr3. C1.2；堆焊层材质：镍基堆焊层",
                 total_holes=48,  # 默认值
                 description="管孔检测系统测试工件",
                 created_at=datetime.now()
@@ -122,8 +123,8 @@ class ReportGenerator:
         """收集所有孔位的质量数据"""
         hole_data_list = []
 
-        # 对于单个孔位ID（如H00001），直接处理该孔位
-        if workpiece_id.startswith('H'):
+        # 对于单个孔位ID（如R001C001），直接处理该孔位
+        if workpiece_id.startswith('R') and 'C' in workpiece_id:
             hole_id = workpiece_id
             hole_dir = self.data_root_path / hole_id
             if hole_dir.exists():
@@ -133,12 +134,12 @@ class ReportGenerator:
             else:
                 print(f"⚠️ 孔位数据目录不存在: {hole_dir}")
         else:
-            # 对于工件ID（如WP-2025-001），扫描Data目录下所有H开头的孔位目录
+            # 对于工件ID（如CAP1000），扫描Data目录下所有新格式的孔位目录
             print(f"📊 扫描工件 {workpiece_id} 的所有孔位数据...")
 
-            # 直接扫描Data目录下的所有H开头的目录
+            # 直接扫描Data目录下的所有新格式孔位目录（R开头且包含C）
             for hole_dir in self.data_root_path.iterdir():
-                if hole_dir.is_dir() and hole_dir.name.startswith('H'):
+                if hole_dir.is_dir() and hole_dir.name.startswith('R') and 'C' in hole_dir.name:
                     hole_id = hole_dir.name
                     print(f"   处理孔位: {hole_id}")
                     hole_quality_data = self._collect_hole_quality_data(hole_id, hole_dir)
@@ -238,23 +239,30 @@ class ReportGenerator:
     def _estimate_hole_position(self, hole_id: str) -> Tuple[float, float]:
         """根据孔位ID估算坐标位置"""
         try:
-            # 解析孔位ID (如 H00001, H00002 等)
-            hole_number = int(hole_id[1:])  # 去掉'H'前缀
-            
-            # 假设6x8布局，从左上角开始编号
-            cols = 8
-            row = (hole_number - 1) // cols
-            col = (hole_number - 1) % cols
-            
-            # 估算坐标（基于标准间距）
-            start_x, start_y = -140, -100
-            spacing_x, spacing_y = 40, 35
-            
-            x = start_x + col * spacing_x
-            y = start_y + row * spacing_y
-            
-            return x, y
-            
+            # 使用HoleIdMapper来估算新格式ID的位置
+            if HoleIdMapper.is_new_format(hole_id):
+                return HoleIdMapper.estimate_position_from_new_id(hole_id)
+
+            # 兼容旧格式ID的处理
+            if hole_id.startswith('H'):
+                hole_number = int(hole_id[1:])  # 去掉'H'前缀
+
+                # 假设6x8布局，从左上角开始编号
+                cols = 8
+                row = (hole_number - 1) // cols
+                col = (hole_number - 1) % cols
+
+                # 估算坐标（基于标准间距）
+                start_x, start_y = -140, -100
+                spacing_x, spacing_y = 40, 35
+
+                x = start_x + col * spacing_x
+                y = start_y + row * spacing_y
+
+                return x, y
+
+            return 0.0, 0.0
+
         except (ValueError, IndexError):
             return 0.0, 0.0
     

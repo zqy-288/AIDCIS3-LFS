@@ -152,10 +152,10 @@ class DatabaseManager:
                 
             # 创建工件
             workpiece = Workpiece(
-                workpiece_id="WP-2024-001",
+                workpiece_id="CAP1000",
                 name="管板工件",
                 type="tube_plate",
-                material="不锈钢"
+                material="母材材质：SA508.Gr3. C1.2；堆焊层材质：镍基堆焊层 "
             )
             session.add(workpiece)
             session.flush()  # 获取ID
@@ -381,5 +381,5 @@ if __name__ == "__main__":
     measurements = db_manager.get_hole_measurements("H001")
     print(f"H001的测量数据: {len(measurements)}条")
     
-    holes = db_manager.get_workpiece_holes("WP-2024-001")
+    holes = db_manager.get_workpiece_holes("CAP1000")
     print(f"工件孔数: {len(holes)}个")

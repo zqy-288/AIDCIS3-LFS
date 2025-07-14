@@ -24,11 +24,11 @@ class Hole3DRenderer(FigureCanvas):
         super().__init__(self.figure)
         self.setParent(parent)
 
-        # 设置图表背景
-        self.figure.patch.set_facecolor('white')
-
         # 创建单个三维子图，调整位置以充分利用空间
         self.ax = self.figure.add_subplot(111, projection='3d')
+
+        # 应用深色主题
+        self.apply_dark_theme()
 
         # 设置鼠标滚轮缩放
         self.setup_mouse_interaction()
@@ -77,6 +77,38 @@ class Hole3DRenderer(FigureCanvas):
         self.ax.set_zlim(z_center - z_range, z_center + z_range)
         self.draw()
 
+    def apply_dark_theme(self):
+        """应用深色主题到3D图表"""
+        # 设置图形背景色（使用更深的主背景色）
+        self.figure.patch.set_facecolor('#2C313C')
+        self.ax.set_facecolor('#2C313C')
+
+        # 设置坐标轴面板颜色（兼容不同版本的matplotlib）
+        try:
+            # 新版本matplotlib
+            self.ax.xaxis.set_pane_color((0.1, 0.1, 0.1, 0.4))
+            self.ax.yaxis.set_pane_color((0.1, 0.1, 0.1, 0.4))
+            self.ax.zaxis.set_pane_color((0.1, 0.1, 0.1, 0.4))
+        except AttributeError:
+            try:
+                # 旧版本matplotlib
+                self.ax.w_xaxis.set_pane_color((0.1, 0.1, 0.1, 0.4))
+                self.ax.w_yaxis.set_pane_color((0.1, 0.1, 0.1, 0.4))
+                self.ax.w_zaxis.set_pane_color((0.1, 0.1, 0.1, 0.4))
+            except AttributeError:
+                # 如果都不支持，跳过面板颜色设置
+                pass
+
+        # 设置坐标轴刻度和标签颜色
+        self.ax.tick_params(axis='x', colors='#D3D8E0')
+        self.ax.tick_params(axis='y', colors='#D3D8E0')
+        self.ax.tick_params(axis='z', colors='#D3D8E0')
+
+        self.ax.xaxis.label.set_color('#D3D8E0')
+        self.ax.yaxis.label.set_color('#D3D8E0')
+        self.ax.zaxis.label.set_color('#D3D8E0')
+        self.ax.title.set_color('#FFFFFF')
+
     def init_empty_model(self):
         """初始化空的三维模型"""
         self.ax.clear()
@@ -84,7 +116,7 @@ class Hole3DRenderer(FigureCanvas):
         self.ax.set_ylabel('Y (mm)', fontsize=12)
         self.ax.set_zlabel('深度 (mm)', fontsize=12)
 
-        self.ax.set_title('管孔三维模型对比', fontsize=14, fontweight='bold')
+        # self.ax.set_title('管孔三维模型对比', fontsize=14, fontweight='bold')
 
         # 设置坐标轴范围
         self.ax.set_xlim(-10, 10)
@@ -157,6 +189,8 @@ class Hole3DRenderer(FigureCanvas):
                                    max_positive_error, min_negative_error):
         """在单个图中渲染所有三维模型"""
         self.ax.clear()
+        # 清除后重新应用深色主题
+        self.apply_dark_theme()
 
         # 生成圆柱面参数，增加分辨率以提高模型精度
         theta = np.linspace(0, 2*np.pi, 48)  # 增加角度分辨率
@@ -262,13 +296,14 @@ class Hole3DRenderer(FigureCanvas):
         self._legend_text_box = self.ax.text2D(1.02, 0.98, legend_text,
                                              transform=self.ax.transAxes,
                                              bbox=dict(boxstyle='round,pad=1.0',
-                                                     facecolor='white',
-                                                     alpha=0.98,
-                                                     edgecolor='darkgray',
-                                                     linewidth=2),
+                                                     facecolor='#3A404E',  # 深色主题背景
+                                                     alpha=0.9,
+                                                     edgecolor='#505869',  # 深色主题边框
+                                                     linewidth=1),
                                              verticalalignment='top',
                                              horizontalalignment='left',
-                                             fontsize=10, fontweight='bold')
+                                             fontsize=10, fontweight='bold',
+                                             color='#D3D8E0')  # 深色主题文字颜色
 
         # 设置网格，增强可见性
         self.ax.grid(True, alpha=0.4, linewidth=0.8)
@@ -352,7 +387,7 @@ class Hole3DViewer(QWidget):
         
         # 标题
         title_label = QLabel("管孔三维模型渲染")
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #2c3e50;")
+        title_label.setObjectName("Model3DTitle")  # 使用专用样式
         layout.addWidget(title_label)
         
         # 视角选择
