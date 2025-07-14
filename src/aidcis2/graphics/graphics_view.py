@@ -146,6 +146,19 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             # 但如果设置了 disable_auto_fit 标志，则不自动适配（用于扇形显示）
             if not getattr(self, 'disable_auto_fit', False):
                 QTimer.singleShot(100, self.fit_to_window_width)
+                
+            # 验证图形项数量
+            actual_items = len(self.scene.items())
+            print(f"🔢 [OptimizedGraphicsView] 场景中实际图形项数: {actual_items}")
+            print(f"🔢 [OptimizedGraphicsView] hole_items 字典大小: {len(self.hole_items)}")
+            
+            # 强制更新
+            self.scene.update()
+            self.viewport().update()
+            
+            # 强制显示视图
+            self.show()
+            self.raise_()
             
             # 更新叠加层统计
             QTimer.singleShot(200, self._update_overlay_statistics)
@@ -160,6 +173,10 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         self.hole_items.clear()
         self.current_hover_item = None
         self.hole_collection = None
+    
+    def clear(self):
+        """清空视图（clear_holes的别名）"""
+        self.clear_holes()
     
     def fit_in_view(self):
         """适应视图显示所有内容"""
@@ -205,8 +222,11 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         # 应用缩放
         self.scale(scale, scale)
         
-        # 居中显示
-        self.centerOn(scene_rect.center())
+        # 居中显示（但如果禁用了自动居中，则跳过）
+        if not getattr(self, 'disable_auto_center', False):
+            self.centerOn(scene_rect.center())
+        else:
+            self.logger.info("跳过居中显示（disable_auto_center=True）")
         
         self.logger.info(f"适配到窗口宽度完成，缩放比例: {scale:.3f}")
 
@@ -233,6 +253,9 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             self.hole_items[hole_id].update_status(status)
             # 强制刷新图形项
             self.hole_items[hole_id].update()
+            # 强制刷新场景区域
+            item_rect = self.hole_items[hole_id].sceneBoundingRect()
+            self.scene.update(item_rect)
             # 强制刷新视图
             self.viewport().update()
     
@@ -262,17 +285,17 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             status_key = status.value if hasattr(status, 'value') else str(status)
             status_counts[status_key] = status_counts.get(status_key, 0) + 1
         
-        completed = status_counts.get('qualified', 0) + status_counts.get('unqualified', 0)
+        completed = status_counts.get('qualified', 0) + status_counts.get('defective', 0)
         qualified = status_counts.get('qualified', 0)
         
         stats_data = {
             'total': total_holes,
             'completed': completed,
             'qualified': qualified,
-            'not_detected': status_counts.get('not_detected', 0),
-            'detecting': status_counts.get('detecting', 0),
-            'unqualified': status_counts.get('unqualified', 0),
-            'real_data': status_counts.get('real_data', 0)
+            'pending': status_counts.get('pending', 0),
+            'processing': status_counts.get('processing', 0),
+            'defective': status_counts.get('defective', 0),
+            'tie_rod': status_counts.get('tie_rod', 0)
         }
         
         self.overlay_manager.update_macro_statistics(stats_data)
@@ -587,10 +610,14 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         self.fitInView(view_rect, Qt.KeepAspectRatio)
         
         # 多次强制居中，确保扇形内容精确对准显示中心
-        scene_center = scene_rect.center()
-        QTimer.singleShot(50, lambda: self.centerOn(scene_center))
-        QTimer.singleShot(100, lambda: self.centerOn(scene_center))
-        QTimer.singleShot(200, lambda: self._ensure_perfect_centering(scene_center))
+        # TODO: 强制居中会抵消偏移效果，在扇形偏移模式下禁用
+        if not getattr(self, 'disable_auto_center', False):
+            scene_center = scene_rect.center()
+            QTimer.singleShot(50, lambda: self.centerOn(scene_center))
+            QTimer.singleShot(100, lambda: self.centerOn(scene_center))
+            QTimer.singleShot(200, lambda: self._ensure_perfect_centering(scene_center))
+        else:
+            print("🚫 跳过强制居中（disable_auto_center=True）")
     
     def _ensure_perfect_centering(self, target_center: QPointF):
         """确保内容精确居中显示"""
@@ -602,11 +629,14 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             offset_x = target_center.x() - view_center.x()
             offset_y = target_center.y() - view_center.y()
             
-            # 如果偏移量超过阈值，进行微调
+            # 如果偏移量超过阈值，进行微调（但如果禁用了自动居中，则跳过）
             threshold = 5.0  # 像素阈值
             if abs(offset_x) > threshold or abs(offset_y) > threshold:
-                self.centerOn(target_center)
-                self.logger.info(f"微调居中: 偏移({offset_x:.1f}, {offset_y:.1f})")
+                if not getattr(self, 'disable_auto_center', False):
+                    self.centerOn(target_center)
+                    self.logger.info(f"微调居中: 偏移({offset_x:.1f}, {offset_y:.1f})")
+                else:
+                    self.logger.info(f"跳过微调居中（disable_auto_center=True）: 偏移({offset_x:.1f}, {offset_y:.1f})")
                 
         except Exception as e:
             self.logger.warning(f"精确居中失败: {e}")

@@ -5,7 +5,7 @@
 
 import math
 from typing import Dict, List, Optional, Tuple
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGraphicsItem, QGraphicsPathItem, QGraphicsEllipseItem, QGraphicsView
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGraphicsItem, QGraphicsPathItem
 from PySide6.QtCore import Qt, QPointF, QRectF, Signal, QTimer, QEvent
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QBrush, QPainterPath, QTransform
 
@@ -120,6 +120,8 @@ class SectorHighlightItem(QGraphicsPathItem):
             self.highlight_mode = mode
             self.setup_highlight()
             print(f"🎨 [高亮] 扇形 {self.sector.value} 切换到 {mode} 模式")
+
+
 class SectorGraphicsManager:
     """扇形图形管理器 - 负责将DXF图形划分为4个扇形区域"""
     
@@ -256,9 +258,6 @@ class DynamicSectorDisplayWidget(QWidget):
         self.sector_offset_ratio = self.DEFAULT_SECTOR_OFFSET_RATIO
         self.sector_offset_enabled = True
         
-        # 小型全景图相关
-        self.mini_panorama_items = {}  # 存储小型全景图中的图形项
-        
         self.setup_ui()
     
     def set_sector_offset_config(self, ratio: float = None, enabled: bool = None):
@@ -298,39 +297,27 @@ class DynamicSectorDisplayWidget(QWidget):
         
         # 主图形显示区域（占据全部空间）
         self.graphics_view = OptimizedGraphicsView()
-        # 设置大小策略为扩展
-        from PySide6.QtWidgets import QSizePolicy
-        self.graphics_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        # 确保主视图可见
-        self.graphics_view.show()
-        self.graphics_view.setEnabled(True)
-        
-        # 设置背景以便调试
-        from PySide6.QtGui import QPalette, QColor
-        palette = self.graphics_view.palette()
-        palette.setColor(QPalette.Base, QColor(250, 250, 250))  # 浅灰色背景
-        self.graphics_view.setPalette(palette)
         self.graphics_view.setFrameStyle(QFrame.StyledPanel)
         # 设置最小尺寸确保有足够空间
-        # self.graphics_view.setMinimumSize(600, 600)  # 使用自适应
+        self.graphics_view.setMinimumSize(500, 400)
         
         main_layout.addWidget(self.graphics_view)
         
         # 添加状态标签用于显示提示信息（扩展高度）
-        # 状态标签（用于无数据时显示）
         self.status_label = QLabel("请选择产品型号或加载DXF文件")
-        self.status_label.setParent(None)  # 不设置父组件，避免遮挡
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("""
             QLabel {
                 color: #666;
-                font-size: 16px;
-                background-color: transparent;
+                font-size: 14px;
+                background-color: rgba(240, 240, 240, 180);
+                border: 1px dashed #ccc;
+                border-radius: 8px;
+                padding: 40px;
+                margin: 20px;
+                min-height: 200px;
             }
         """)
-        
-        # 将状态标签放在底层，不要遮挡主视图
-        self.status_label.lower()
         
         main_layout.addWidget(self.status_label)
         
@@ -431,19 +418,9 @@ class DynamicSectorDisplayWidget(QWidget):
             diff_x = abs(view_center.x() - expected_center_x)
             diff_y = abs(view_center.y() - expected_center_y)
             
-            # 考虑偏移的验证
-            expected_offset = 0
-            if hasattr(self, 'sector_offset_enabled') and self.sector_offset_enabled:
-                viewport_width = self.graphics_view.viewport().width()
-                expected_offset = viewport_width * self.sector_offset_ratio
-            
-            # 允许一定的误差范围
-            tolerance = 5.0
-            
-            if diff_x > tolerance or diff_y > tolerance:
-                print(f"⚠️ [变换验证] 偏差较大: X偏差={diff_x:.1f}, Y偏差={diff_y:.1f}")
-                if expected_offset > 0:
-                    print(f"   (期望偏移: {expected_offset:.1f}px)")
+            if diff_x > 10 or diff_y > 10:
+                print(f"⚠️ [变换验证] 偏差较大: X偏差={diff_x}, Y偏差={diff_y}")
+                # 如果偏差大，返回False表示需要重新应用
                 return False
             else:
                 print(f"✅ [变换验证] 变换成功应用")
@@ -452,45 +429,48 @@ class DynamicSectorDisplayWidget(QWidget):
             print(f"❌ [变换验证] 验证失败: {e}")
             return False
     
-    def _reapply_transform_if_needed(self, expected_center_x: float, expected_center_y: float):
+    def _reapply_transform_if_needed(self, transform: QTransform, expected_center_x: float, expected_center_y: float):
         """如果变换被覆盖，重新应用"""
         if not self._verify_transform_applied(expected_center_x, expected_center_y):
             print(f"🔄 [变换修复] 检测到变换被覆盖，重新应用")
-            # 重新应用视图设置
-            if hasattr(self, '_sector_view_settings'):
-                settings = self._sector_view_settings
-                self.graphics_view.resetTransform()
-                self.graphics_view.scale(settings['scale'], settings['scale'])
-                self.graphics_view.centerOn(settings['visual_center'])
+            self.graphics_view.setTransform(transform)
             self.graphics_view.viewport().update()
     
     def _create_mini_panorama(self):
-        """创建小型全景预览图"""
-        from PySide6.QtGui import QPainter, QBrush, QColor
-        from PySide6.QtCore import Qt
+        """创建小型全景图组件"""
+        from PySide6.QtWidgets import QGraphicsView
+        from PySide6.QtGui import QPainter
         
         mini_view = OptimizedGraphicsView()
-        mini_view.setFixedSize(300, 200)
+        mini_view.setFrameStyle(QFrame.NoFrame)
+        mini_view.setFixedSize(180, 180)  # 小型尺寸
+        
+        # 启用抗锯齿和平滑变换
         mini_view.setRenderHint(QPainter.Antialiasing, True)
         mini_view.setRenderHint(QPainter.SmoothPixmapTransform, True)
         mini_view.setRenderHint(QPainter.TextAntialiasing, True)
         
-        # 强制使用高质量渲染
-        # mini_view.setRenderHint(QPainter.HighQualityAntialiasing, True)  # 在 PySide6 中已弃用
-        
-        # 设置优化标志
-        mini_view.setOptimizationFlag(QGraphicsView.DontSavePainterState, False)
-        mini_view.setOptimizationFlag(QGraphicsView.DontAdjustForAntialiasing, False)
-        
-        # 确保背景透明或半透明，不遮挡内容
-        mini_view.setBackgroundBrush(QBrush(QColor(248, 249, 250, 100)))  # 半透明背景
-        
-        # 确保视口更新模式正确
+        # 使用完整视口更新确保正确渲染
         mini_view.setViewportUpdateMode(QGraphicsView.FullViewportUpdate)
         
-        # 禁用滚动条
+        # 禁用缓存模式以确保实时更新
+        mini_view.setCacheMode(QGraphicsView.CacheNone)
+        
+        # 隐藏滚动条
+        from PySide6.QtCore import Qt
         mini_view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         mini_view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        # 禁用拖拽和缩放
+        mini_view.setDragMode(QGraphicsView.NoDrag)
+        mini_view.setInteractive(False)
+        
+        # 设置背景颜色
+        from PySide6.QtGui import QBrush, QColor
+        mini_view.setBackgroundBrush(QBrush(QColor(245, 245, 245)))
+        
+        # 添加点击检测（虽然设置为非交互，但我们可以重写鼠标事件）
+        mini_view.mousePressEvent = self._mini_panorama_mouse_press
         
         return mini_view
     
@@ -511,6 +491,7 @@ class DynamicSectorDisplayWidget(QWidget):
         """检测小型全景图中点击的扇形区域"""
         if not hasattr(self, 'center_point') or not self.center_point:
             return None
+        
         # 计算相对于中心点的位置
         dx = scene_pos.x() - self.center_point.x()
         dy = scene_pos.y() - self.center_point.y()
@@ -527,6 +508,7 @@ class DynamicSectorDisplayWidget(QWidget):
         
         if distance > max_valid_distance:
             return None
+        
         # 计算角度
         angle_rad = math.atan2(dy, dx)
         angle_deg = math.degrees(angle_rad)
@@ -544,251 +526,13 @@ class DynamicSectorDisplayWidget(QWidget):
             return SectorQuadrant.SECTOR_3
         elif 225 <= angle_deg < 315:
             return SectorQuadrant.SECTOR_4
-            return None
-    def set_hole_collection(self, hole_collection: HoleCollection):
-        """设置孔位集合并创建扇形图形管理器"""
-        print(f"🚀 [DynamicSectorDisplayWidget] set_hole_collection 被调用")
-        print(f"  - hole_collection: {hole_collection}")
-        print(f"  - 数据量: {len(hole_collection) if hole_collection else 0}")
         
-        try:
-            if hole_collection and len(hole_collection) > 0:
-                # 保存完整的孔位集合以供扇形切换使用
-                self.complete_hole_collection = hole_collection
-                
-                # 确保小型全景图使用完整数据
-                self.mini_panorama_complete_data = hole_collection  # 专门为小型全景图保存的完整数据
-                
-                # 创建扇形管理器
-                self.sector_graphics_manager = SectorGraphicsManager(hole_collection)
-                
-                # 设置小型全景图数据
-                self._setup_mini_panorama(hole_collection)
-                
-                # 隐藏状态标签，显示图形内容
-                if hasattr(self, 'status_label'):
-                    self.status_label.hide()
-                
-                # 显示初始扇形
-                if hasattr(self, 'graphics_view'):
-                    # 获取第一个扇形的数据
-                    sector_collection = self.sector_graphics_manager.get_sector_collection(self.current_sector)
-                    if sector_collection:
-                        self.graphics_view.load_holes(sector_collection)
-                    # 确保视图适配内容
-                    from PySide6.QtCore import QTimer
-                    QTimer.singleShot(100, lambda: self.graphics_view.fit_to_window_width())
-                # 强制显示和刷新所有视图
-                
-                    # 延迟自适应以确保布局完成
-                    from PySide6.QtCore import QTimer
-                    def auto_fit():
-                        if hasattr(self.graphics_view, 'fit_to_window_width'):
-                            self.graphics_view.fit_to_window_width()
-                            print("✅ [扇形视图] 自适应完成")
-                    QTimer.singleShot(200, auto_fit)
-                    
-                if hasattr(self, 'graphics_view') and self.graphics_view:
-                    self.graphics_view.show()
-                    self.graphics_view.update()
-                    
-                if hasattr(self, 'mini_panorama') and self.mini_panorama:
-                    self.mini_panorama.show()
-                    self.mini_panorama.update()
-                
-                if hasattr(self, 'floating_panorama') and self.floating_panorama:
-                    self.floating_panorama.show()
-                    self.floating_panorama.raise_()
-            else:
-                # 清空数据
-                self.complete_hole_collection = None
-                self.mini_panorama_complete_data = None
-                self.sector_graphics_manager = None
-                
-                # 清空视图
-                if hasattr(self, 'graphics_view'):
-                    self.graphics_view.clear()
-                
-                # 清空小型全景图
-                if hasattr(self, 'mini_panorama') and self.mini_panorama and hasattr(self.mini_panorama, 'scene'):
-                    self.mini_panorama.scene.clear()
-        except Exception as e:
-            print(f"❌ [DynamicSectorDisplayWidget] set_hole_collection 出错: {e}")
-            import traceback
-            traceback.print_exc()
+        return None
     
     def _setup_mini_panorama(self, hole_collection: HoleCollection):
         """设置小型全景图数据"""
-        print(f"🚀 [小型全景图] 开始设置，数据量: {len(hole_collection)}")
-        
         if not hasattr(self, 'mini_panorama') or not self.mini_panorama:
-            print(f"❌ [小型全景图] mini_panorama 不存在")
             return
-        
-        # 首先尝试从JSON文件加载孔数据
-        hole_data = self._load_hole_data_from_json()
-        if hole_data:
-            self._setup_mini_panorama_from_json(hole_data)
-        else:
-            # 如果JSON加载失败，使用原有的hole_collection方式
-            self._setup_mini_panorama_from_collection(hole_collection)
-    
-    def _load_hole_data_from_json(self):
-        """从JSON文件加载孔数据"""
-        import json
-        import os
-        
-        # 定义可能的JSON文件路径
-        json_paths = [
-            "/Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/assets/dxf/DXF Graph/dongzhong_hole_grid.json",
-            "/Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/src/data/batch_0001_1752418706.json",  # 批处理数据示例
-        ]
-        
-        for json_path in json_paths:
-            try:
-                if os.path.exists(json_path):
-                    with open(json_path, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                    print(f"✅ [小型全景图] 成功加载JSON文件: {json_path}")
-                    return data
-            except Exception as e:
-                print(f"⚠️ [小型全景图] 加载JSON文件失败 {json_path}: {e}")
-        
-        print(f"❌ [小型全景图] 未找到可用的JSON孔数据文件")
-        return None
-    
-    def _setup_mini_panorama_from_json(self, json_data):
-        """从JSON数据设置小型全景图"""
-        from PySide6.QtWidgets import QGraphicsScene, QGraphicsEllipseItem
-        from PySide6.QtGui import QBrush, QColor, QPen
-        from PySide6.QtCore import QPointF
-        
-        # 清空现有的字典
-        self.mini_panorama_items.clear()
-        
-        # 创建场景
-        scene = QGraphicsScene()
-        self.mini_panorama.setScene(scene)
-        
-        # 设置背景刷
-        self.mini_panorama.setBackgroundBrush(QBrush(QColor(45, 45, 48)))  # 深色背景
-        
-        # 解析JSON数据格式
-        holes_data = []
-        if 'holes' in json_data:  # DXF格式
-            holes_data = json_data['holes']
-            total_holes = json_data.get('total_holes', len(holes_data))
-            print(f"📊 [小型全景图] 从DXF JSON加载 {total_holes} 个孔")
-        elif isinstance(json_data, dict) and 'holes' in json_data:  # 批处理格式
-            holes_data = json_data['holes']
-            print(f"📊 [小型全景图] 从批处理JSON加载 {len(holes_data)} 个孔")
-        
-        if not holes_data:
-            print(f"❌ [小型全景图] JSON数据中没有找到孔信息")
-            return
-        
-        # 计算边界
-        x_coords = []
-        y_coords = []
-        
-        for hole in holes_data:
-            if 'coordinates' in hole:  # DXF格式
-                x_coords.append(hole['coordinates']['x_mm'])
-                y_coords.append(hole['coordinates']['y_mm'])
-            elif 'center_x' in hole:  # 批处理格式
-                x_coords.append(hole['center_x'])
-                y_coords.append(hole['center_y'])
-        
-        if not x_coords or not y_coords:
-            print(f"❌ [小型全景图] 无法提取坐标信息")
-            return
-        
-        # 计算中心点和边界
-        min_x, max_x = min(x_coords), max(x_coords)
-        min_y, max_y = min(y_coords), max(y_coords)
-        center_x = (min_x + max_x) / 2
-        center_y = (min_y + max_y) / 2
-        
-        self.center_point = QPointF(center_x, center_y)
-        print(f"🎯 [小型全景图] JSON数据中心: ({center_x:.1f}, {center_y:.1f})")
-        
-        # 计算缩放比例以适应mini panorama视图
-        width = max_x - min_x
-        height = max_y - min_y
-        view_width = 280  # mini panorama 宽度 - 边距
-        view_height = 180  # mini panorama 高度 - 边距
-        
-        scale_x = view_width / width if width > 0 else 1
-        scale_y = view_height / height if height > 0 else 1
-        scale = min(scale_x, scale_y) * 0.8  # 留出边距
-        
-        print(f"📏 [小型全景图] 缩放比例: {scale:.6f}")
-        
-        # 添加孔到场景
-        hole_count = 0
-        for hole in holes_data:
-            # 提取坐标
-            if 'coordinates' in hole:  # DXF格式
-                x = hole['coordinates']['x_mm']
-                y = hole['coordinates']['y_mm']
-                radius = hole.get('radius_mm', 8.865) / 2  # 默认直径转半径
-            elif 'center_x' in hole:  # 批处理格式
-                x = hole['center_x']
-                y = hole['center_y']
-                radius = hole.get('radius', 8.865)
-            else:
-                continue
-            
-            # 转换到视图坐标系（以中心为原点）
-            view_x = (x - center_x) * scale
-            view_y = (y - center_y) * scale
-            view_radius = max(radius * scale, 1.5)  # 最小显示半径
-            
-            # 创建孔的图形项
-            hole_item = QGraphicsEllipseItem(
-                view_x - view_radius,
-                view_y - view_radius,
-                view_radius * 2,
-                view_radius * 2
-            )
-            
-            # 根据孔状态设置颜色
-            hole_status = hole.get('status', 'unknown')
-            if hole_status == 'qualified':
-                color = QColor(85, 170, 85)  # 绿色
-            elif hole_status == 'unqualified':
-                color = QColor(255, 85, 85)  # 红色
-            else:
-                color = QColor(170, 170, 170)  # 灰色
-            
-            hole_item.setBrush(QBrush(color))
-            hole_item.setPen(QPen(QColor(255, 255, 255), 0.3))
-            hole_item.setVisible(True)
-            hole_item.setZValue(1)
-            
-            # 添加到场景
-            scene.addItem(hole_item)
-            
-            # 存储到字典中，使用hole_id作为键
-            hole_id = hole.get('hole_id', f"hole_{hole_count}")
-            self.mini_panorama_items[hole_id] = hole_item
-            
-            hole_count += 1
-        
-        print(f"✅ [小型全景图] 成功渲染 {hole_count} 个孔")
-        
-        # 设置场景矩形以确保所有内容可见
-        scene.setSceneRect(-view_width/2, -view_height/2, view_width, view_height)
-        
-        # 调整视图以显示所有内容
-        from PySide6.QtCore import Qt
-        self.mini_panorama.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
-        self.mini_panorama.viewport().update()
-    
-    def _setup_mini_panorama_from_collection(self, hole_collection: HoleCollection):
-        """从HoleCollection设置小型全景图（回退方案）"""
-        # 清空现有的字典
-        self.mini_panorama_items.clear()
         
         # 创建场景
         from PySide6.QtWidgets import QGraphicsScene
@@ -797,10 +541,6 @@ class DynamicSectorDisplayWidget(QWidget):
         
         scene = QGraphicsScene()
         self.mini_panorama.setScene(scene)
-        
-        # 设置背景刷以确保视图可见
-        from PySide6.QtGui import QBrush, QColor
-        self.mini_panorama.setBackgroundBrush(QBrush(QColor(245, 245, 245)))
         
         # 计算中心点和边界，向右下偏移
         bounds = hole_collection.get_bounds()
@@ -819,15 +559,7 @@ class DynamicSectorDisplayWidget(QWidget):
         
         # 添加所有孔位到小型全景图
         hole_count = 0
-        # 确保正确遍历hole_collection
-        if hasattr(hole_collection, 'holes') and isinstance(hole_collection.holes, dict):
-            holes_to_add = hole_collection.holes.values()
-        else:
-            # 如果是可迭代对象，直接使用
-            holes_to_add = hole_collection
-            
-        for hole in holes_to_add:
-            # 创建简单的圆形表示
+        for hole in hole_collection.holes.values():
             hole_item = QGraphicsEllipseItem(
                 hole.center_x - hole.radius,
                 hole.center_y - hole.radius,
@@ -839,545 +571,246 @@ class DynamicSectorDisplayWidget(QWidget):
             hole_item.setBrush(QBrush(QColor(200, 200, 200)))
             hole_item.setPen(QPen(QColor(150, 150, 150), 0.5))
             
-            # 确保项是可见的
-            hole_item.setVisible(True)
-            
-            # 设置 Z 值确保在上层
-            hole_item.setZValue(1)
-            
-            # 确保大小合适（如果孔太小，放大显示）
-            min_display_radius = 2.0  # 最小显示半径
-            if hole.radius < min_display_radius:
-                scale_factor = min_display_radius / hole.radius
-                hole_item.setScale(scale_factor)
-                print(f"  🔍 [小型全景图] 孔位 {hole.hole_id} 太小，放大 {scale_factor:.1f} 倍")
-            
             # 设置hole_id作为data以便更新时查找
             hole_item.setData(0, hole.hole_id)
-            
-            # 保存到字典中便于快速查找
-            self.mini_panorama_items[hole.hole_id] = hole_item
             
             scene.addItem(hole_item)
             hole_count += 1
         
         print(f"🎨 [小型全景图] 已创建 {hole_count} 个孔位图形项")
-        print(f"📦 [小型全景图] 保存了 {len(self.mini_panorama_items)} 个项到查找字典")
         
-        # 设置场景边界
-        from PySide6.QtCore import QRectF
-        margin = 50
-        scene_rect = QRectF(
-            bounds[0] - margin, bounds[1] - margin,
-            bounds[2] - bounds[0] + 2 * margin,
-            bounds[3] - bounds[1] + 2 * margin
-        )
+        # 添加扇形分割线
+        self._add_sector_lines_to_mini_panorama(scene)
+        
+        # 适配视图
+        scene_rect = scene.itemsBoundingRect()
+        margin = max(scene_rect.width(), scene_rect.height()) * 0.1
+        scene_rect.adjust(-margin, -margin, margin, margin)
         scene.setSceneRect(scene_rect)
-        
-        # 适应视图
-        # 计算适合的缩放
-        view_rect = self.mini_panorama.viewport().rect()
-        scale_x = view_rect.width() / scene_rect.width()
-        scale_y = view_rect.height() / scene_rect.height()
-        scale = min(scale_x, scale_y) * 0.9  # 留10%边距
-        
-        # 重置变换并应用缩放
-        self.mini_panorama.resetTransform()
-        self.mini_panorama.scale(scale, scale)
-        
-        # 居中显示
-        self.mini_panorama.centerOn(scene_rect.center())
-        
-        # 强制刷新场景
-        scene.update()
-        self.mini_panorama.viewport().update()
-        self.mini_panorama.repaint()
-        
-        # 验证孔位数量
-        item_count = len(scene.items())
-        print(f"🔢 [小型全景图] 场景中的图形项数: {item_count}")
-        
-        print(f"✅ [小型全景图] 回退方案渲染完成")
-        self.mini_panorama.show()
-        
-        print(f"📐 [小型全景图] 场景矩形: ({scene_rect.x():.1f}, {scene_rect.y():.1f}, {scene_rect.width():.1f}, {scene_rect.height():.1f})")
-        print(f"📐 [小型全景图] 视图已适配")
+        self.mini_panorama.fitInView(scene_rect, Qt.KeepAspectRatio)
     
-    def _initialize_mini_panorama_data(self, hole_collection):
-        """初始化小型全景图的数据"""
-        print(f"🔄 [小型全景图] 初始化数据，共 {len(hole_collection)} 个孔位")
+    def _add_sector_lines_to_mini_panorama(self, scene):
+        """添加扇形分割线到小型全景图"""
+        from PySide6.QtWidgets import QGraphicsLineItem
+        from PySide6.QtGui import QPen, QColor
+        from PySide6.QtCore import Qt
+        import math
         
+        if not self.center_point or self.panorama_radius <= 0:
+            return
+        
+        # 创建分割线的画笔 - 进一步增强可见性
+        pen = QPen(QColor(40, 40, 40), 3.0, Qt.SolidLine)
+        
+        # 十字分割线（水平线和垂直线）
+        
+        # 水平线（分隔上下扇形）
+        h_line = QGraphicsLineItem(
+            self.center_point.x() - self.panorama_radius,
+            self.center_point.y(),
+            self.center_point.x() + self.panorama_radius,
+            self.center_point.y()
+        )
+        h_line.setPen(pen)
+        scene.addItem(h_line)
+        
+        # 垂直线（分隔左右扇形）
+        v_line = QGraphicsLineItem(
+            self.center_point.x(),
+            self.center_point.y() - self.panorama_radius,
+            self.center_point.x(),
+            self.center_point.y() + self.panorama_radius
+        )
+        v_line.setPen(pen)
+        scene.addItem(v_line)
+    
+    def update_mini_panorama_hole_status(self, hole_id: str, status):
+        """更新小型全景图中的孔位状态（智能更新版本）"""
+        print(f"🎨 [小型全景图] 尝试更新孔位状态: {hole_id} -> {status}")
+        
+        # 检查mini_panorama属性
+        if not hasattr(self, 'mini_panorama'):
+            print(f"❌ [小型全景图] 没有 mini_panorama 属性")
+            return
+            
         if not self.mini_panorama:
-            print(f"❌ [小型全景图] mini_panorama 不存在")
+            print(f"❌ [小型全景图] mini_panorama 为 None")
             return
             
-        # 确保有场景
-        if not hasattr(self.mini_panorama, 'scene') or not self.mini_panorama.scene:
-            from PySide6.QtWidgets import QGraphicsScene
-            scene = QGraphicsScene()
-            self.mini_panorama.setScene(scene)
+        # 检查场景
+        scene = getattr(self.mini_panorama, 'scene', None)
+        if not scene:
+            print(f"❌ [小型全景图] 没有场景")
+            return
+            
+        print(f"✅ [小型全景图] 场景存在，类型: {type(scene)}")
         
-        # 设置背景刷以确保视图可见
-        from PySide6.QtGui import QBrush, QColor
-        self.mini_panorama.setBackgroundBrush(QBrush(QColor(245, 245, 245)))
-        print(f"✅ [小型全景图] 创建新场景")
+        # 检查是否在模拟期间
+        is_simulation_running = self._check_simulation_status_for_mini()
         
-        scene = self.mini_panorama.scene
-        
-        # 清空现有内容
-        scene.clear()
-        
-        # 创建字典存储所有孔位项，便于后续快速查找
-        self.mini_panorama_items = {}
-        
-        # 创建所有孔位的图形项
-        from PySide6.QtWidgets import QGraphicsEllipseItem
-        from PySide6.QtGui import QBrush, QPen, QColor
-        
-        hole_count = 0
-        # 确保正确遍历hole_collection
-        if hasattr(hole_collection, 'holes') and isinstance(hole_collection.holes, dict):
-            holes_to_add = hole_collection.holes.values()
+        if is_simulation_running:
+            # 模拟期间：直接实时更新
+            print(f"🔥 [小型全景图] 模拟期间，使用实时更新")
+            self._apply_mini_immediate_update(hole_id, status)
         else:
-            holes_to_add = hole_collection
-            
-        for hole in holes_to_add:
-            # 创建简单的圆形表示
-            hole_item = QGraphicsEllipseItem(
-                hole.center_x - hole.radius,
-                hole.center_y - hole.radius,
-                hole.radius * 2,
-                hole.radius * 2
-            )
-            
-            # 设置初始颜色（灰色）
-            hole_item.setBrush(QBrush(QColor(200, 200, 200)))
-            hole_item.setPen(QPen(QColor(150, 150, 150), 0.5))
-            
-            # 确保项是可见的
-            hole_item.setVisible(True)
-            
-            # 设置 Z 值确保在上层
-            hole_item.setZValue(1)
-            
-            # 确保大小合适（如果孔太小，放大显示）
-            min_display_radius = 2.0  # 最小显示半径
-            if hole.radius < min_display_radius:
-                scale_factor = min_display_radius / hole.radius
-                hole_item.setScale(scale_factor)
-                print(f"  🔍 [小型全景图] 孔位 {hole.hole_id} 太小，放大 {scale_factor:.1f} 倍")
-            
-            # 设置hole_id作为data以便更新时查找
-            hole_item.setData(0, hole.hole_id)
-            
-            # 保存到字典中便于快速查找
-            self.mini_panorama_items[hole.hole_id] = hole_item
-            
-            scene.addItem(hole_item)
-            hole_count += 1
-        
-        print(f"🎨 [小型全景图] 已创建 {hole_count} 个孔位图形项")
-        print(f"📦 [小型全景图] 保存了 {len(self.mini_panorama_items)} 个项到查找字典")
-        
-        # 设置场景边界
-        bounds = hole_collection.get_bounds()
-        margin = 50
-        scene_rect = QRectF(
-            bounds[0] - margin, bounds[1] - margin,
-            bounds[2] - bounds[0] + 2 * margin,
-            bounds[3] - bounds[1] + 2 * margin
-        )
-        scene.setSceneRect(scene_rect)
-        
-        
-        # 适应视图
-        # 计算适合的缩放
-        view_rect = self.mini_panorama.viewport().rect()
-        scale_x = view_rect.width() / scene_rect.width()
-        scale_y = view_rect.height() / scene_rect.height()
-        scale = min(scale_x, scale_y) * 0.9  # 留10%边距
-        
-        # 重置变换并应用缩放
-        self.mini_panorama.resetTransform()
-        self.mini_panorama.scale(scale, scale)
-        
-        # 居中显示
-        self.mini_panorama.centerOn(scene_rect.center())
-        
-        # 强制刷新场景
-        scene.update()
-        self.mini_panorama.viewport().update()
-        self.mini_panorama.repaint()
-        
-        # 验证孔位数量
-        item_count = len(scene.items())
-        print(f"🔢 [小型全景图] 场景中的图形项数: {item_count}")
-        
-        # 确保场景内容可见
-        self.mini_panorama.show()
-        
-        print(f"📐 [小型全景图] 场景矩形: ({scene_rect.x():.1f}, {scene_rect.y():.1f}, {scene_rect.width():.1f}, {scene_rect.height():.1f})")
-        print(f"📐 [小型全景图] 视图已适配")
+            # 正常期间：可以适当延迟更新
+            print(f"📦 [小型全景图] 正常期间，使用快速更新")
+            self._apply_mini_immediate_update(hole_id, status)  # 小型图始终使用快速更新
     
-    def _force_apply_offset(self):
-        """强制应用偏移效果"""
-        if not hasattr(self, '_sector_view_settings'):
-            return
-            
-        settings = self._sector_view_settings
-        if 'offset_pixels' in settings and settings['offset_pixels'] > 0:
-            # 获取当前视口中心
-            viewport_rect = self.graphics_view.viewport().rect()
-            current_center = self.graphics_view.mapToScene(viewport_rect.center())
-            
-            # 计算目标中心（考虑偏移）
-            target_center = settings['visual_center']
-            offset_scene = settings['offset_pixels'] / settings['scale']
-            adjusted_center = QPointF(target_center.x() - offset_scene, target_center.y())
-            
-            # 如果当前中心与目标相差太大，强制调整
-            diff = abs(current_center.x() - adjusted_center.x())
-            if diff > 5:
-                print(f"🔨 [强制偏移] 检测到偏移未生效，强制调整 {diff:.1f}px")
-                
-                # 使用平移而不是 centerOn
-                dx = adjusted_center.x() - current_center.x()
-                dy = adjusted_center.y() - current_center.y()
-                
-                # 获取当前变换并添加平移
-                transform = self.graphics_view.transform()
-                transform.translate(dx, dy)
-                self.graphics_view.setTransform(transform)
-    def test_offset_effect(self):
-        """测试偏移效果（开发调试用）"""
-        if not hasattr(self, 'graphics_view'):
-            return
-            
-        print("=" * 60)
-        print("🧪 偏移效果测试")
-        
-        # 获取当前状态
-        viewport_rect = self.graphics_view.viewport().rect()
-        scene_rect = self.graphics_view.sceneRect()
-        current_center = self.graphics_view.mapToScene(viewport_rect.center())
-        
-        print(f"视口: {viewport_rect.width()}x{viewport_rect.height()}")
-        print(f"场景矩形: ({scene_rect.x():.1f}, {scene_rect.y():.1f}, {scene_rect.width():.1f}, {scene_rect.height():.1f})")
-        print(f"当前中心: ({current_center.x():.1f}, {current_center.y():.1f})")
-        
-        # 手动应用偏移
-        if self.sector_offset_enabled:
-            offset_pixels = viewport_rect.width() * self.sector_offset_ratio
-            print(f"\n应用 {self.sector_offset_ratio:.1%} 偏移 = {offset_pixels:.1f}px")
-            
-            # 方法1：使用滚动条
-            h_bar = self.graphics_view.horizontalScrollBar()
-            if h_bar:
-                current_value = h_bar.value()
-                new_value = current_value + int(offset_pixels)
-                h_bar.setValue(new_value)
-                print(f"滚动条: {current_value} -> {new_value}")
-            
-            # 验证效果
-            new_center = self.graphics_view.mapToScene(viewport_rect.center())
-            actual_offset = new_center.x() - current_center.x()
-            print(f"实际偏移: {actual_offset:.1f}px")
-            
-        print("=" * 60)
-    def _apply_offset_via_scrollbar(self, offset_pixels: float):
-        """通过滚动条应用偏移"""
+    def _check_simulation_status_for_mini(self) -> bool:
+        """检查模拟状态（专门用于小型全景图）"""
         try:
-            h_bar = self.graphics_view.horizontalScrollBar()
-            if h_bar and h_bar.isVisible():
-                # 计算滚动条位置
-                current = h_bar.value()
-                # 正值向右滚动（内容向左移）
-                target = current + int(offset_pixels)
-                
-                # 确保在有效范围内
-                target = max(h_bar.minimum(), min(h_bar.maximum(), target))
-                
-                h_bar.setValue(target)
-                print(f"🎚️ [滚动条偏移] {current} -> {target} (偏移 {offset_pixels:.1f}px)")
-                return True
+            # 通过parent找到主窗口
+            main_window = self.parent()
+            while main_window and not hasattr(main_window, 'simulation_running'):
+                main_window = main_window.parent()
+            
+            if main_window:
+                simulation_v1 = getattr(main_window, 'simulation_running', False)
+                simulation_v2 = getattr(main_window, 'simulation_running_v2', False)
+                is_running = simulation_v1 or simulation_v2
+                if is_running:
+                    print(f"🎯 [小型全景图] 检测到模拟运行中: V1={simulation_v1}, V2={simulation_v2}")
+                return is_running
             return False
         except Exception as e:
-            print(f"❌ [滚动条偏移] 失败: {e}")
+            print(f"❌ [小型全景图] 模拟状态检查失败: {e}")
             return False
-    def debug_mini_panorama_state(self):
-        """调试小型全景图状态"""
-        if not hasattr(self, 'mini_panorama'):
-            print("❌ [调试] 没有 mini_panorama 属性")
-            return
-            
-        print("=" * 60)
-        print("🔍 小型全景图状态调试:")
-        print(f"  类型: {type(self.mini_panorama)}")
-        print(f"  是否可见: {self.mini_panorama.isVisible()}")
+    
+    def _apply_mini_immediate_update(self, hole_id: str, status):
+        """使用与CompletePanoramaWidget相同的实时更新逻辑"""
+        print(f"⚡ [小型全景图] 实时更新孔位: {hole_id} -> {status.value if hasattr(status, 'value') else status}")
         
-        if hasattr(self.mini_panorama, 'scene'):
-            scene = self.mini_panorama.scene
-            if scene:
-                items = scene.items()
-                print(f"  场景项数量: {len(items)}")
-                
-                # 统计不同颜色的项
-                color_stats = {}
-                for item in items[:100]:  # 只检查前100个避免太慢
-                    if hasattr(item, 'brush'):
-                        brush = item.brush()
-                        color = brush.color()
-                        color_key = f"({color.red()}, {color.green()}, {color.blue()})"
-                        color_stats[color_key] = color_stats.get(color_key, 0) + 1
-                
-                print(f"  颜色统计 (前100项):")
-                for color, count in color_stats.items():
-                    print(f"    {color}: {count} 个")
+        try:
+            # 获取状态颜色映射（与CompletePanoramaWidget保持一致）
+            from aidcis2.models.hole_data import HoleStatus
+            from PySide6.QtGui import QColor, QBrush, QPen
+            
+            color_map = {
+                HoleStatus.PENDING: QColor(200, 200, 200),      # 灰色
+                HoleStatus.QUALIFIED: QColor(76, 175, 80),      # 绿色
+                HoleStatus.DEFECTIVE: QColor(244, 67, 54),      # 红色
+                HoleStatus.PROCESSING: QColor(33, 150, 243),    # 蓝色
+                HoleStatus.BLIND: QColor(255, 193, 7),          # 黄色
+                HoleStatus.TIE_ROD: QColor(156, 39, 176)        # 紫色
+            }
+            
+            # 转换状态
+            if isinstance(status, str):
+                try:
+                    status = HoleStatus(status)
+                except ValueError:
+                    status = HoleStatus.PENDING
+            
+            color = color_map.get(status, QColor(200, 200, 200))
+            print(f"🎨 [小型全景图] 状态 {status} 对应颜色: RGB({color.red()}, {color.green()}, {color.blue()})")
+            
+            # mini_panorama 是 OptimizedGraphicsView，需要通过场景查找图形项
+            if hasattr(self.mini_panorama, 'scene'):
+                scene = self.mini_panorama.scene
+                if scene:
+                    items = scene.items()
+                    print(f"  📊 [小型全景图] 场景中有 {len(items)} 个图形项")
                     
-                # 检查视口设置
-                if hasattr(self.mini_panorama, 'viewport'):
-                    viewport = self.mini_panorama.viewport()
-                    print(f"  视口大小: {viewport.width()}x{viewport.height()}")
-                    print(f"  视口更新模式: {self.mini_panorama.viewportUpdateMode()}")
+                    # 查找对应的孔位图形项
+                    found = False
+                    for item in items:
+                        # 检查是否通过 setData 存储了 hole_id
+                        item_hole_id = item.data(0)
+                        if item_hole_id and item_hole_id == hole_id:
+                            print(f"  🎯 [小型全景图] 找到目标孔位: {hole_id}")
+                            # 更新颜色
+                            from PySide6.QtGui import QBrush, QPen
+                            item.setBrush(QBrush(color))
+                            item.setPen(QPen(color.darker(120), 0.5))
+                            found = True
+                            print(f"  ✅ [小型全景图] 状态已更新")
+                            # 强制刷新该项
+                            item.update()
+                            break
                     
-        print("=" * 60)
-    def force_mini_panorama_refresh(self):
-        """强制刷新小型全景图"""
-        if hasattr(self, 'mini_panorama') and self.mini_panorama:
-            # 方法1：重置视口
-            if hasattr(self.mini_panorama, 'viewport'):
-                self.mini_panorama.viewport().update()
-                
-            # 方法2：触发重绘事件
-            from PySide6.QtCore import QEvent
-            from PySide6.QtGui import QPaintEvent
-            event = QPaintEvent(self.mini_panorama.rect())
-            self.mini_panorama.event(event)
-            
-            # 方法3：重置变换
-            transform = self.mini_panorama.transform()
-            self.mini_panorama.resetTransform()
-            self.mini_panorama.setTransform(transform)
-            
-            print("🔄 [小型全景图] 已执行强制刷新")
-    def test_mini_panorama_update(self):
-        """测试小型全景图更新（手动调用）"""
-        if not hasattr(self, 'mini_panorama') or not self.mini_panorama:
-            print("❌ [测试] 小型全景图不存在")
-            return
-            
-        print("🧪 [测试] 开始测试小型全景图更新...")
-        
-        # 获取场景
-        scene = self.mini_panorama.scene
-        if not scene:
-            print("❌ [测试] 场景不存在")
-            return
-            
-        items = scene.items()
-        print(f"📊 [测试] 场景中有 {len(items)} 个项")
-        
-        # 测试更新前10个项为绿色
-        from PySide6.QtGui import QBrush, QPen, QColor
-        green_color = QColor(76, 175, 80)
-        
-        updated_count = 0
-        for i, item in enumerate(items[:10]):
-            if hasattr(item, 'setBrush'):
-                item.setBrush(QBrush(green_color))
-                item.setPen(QPen(green_color.darker(120), 0.5))
-                item.update()
-                updated_count += 1
-                
-                # 获取位置信息
-                pos = item.pos()
-                print(f"  ✅ [测试] 更新了项 {i}: 位置 ({pos.x():.1f}, {pos.y():.1f})")
-        
-        # 强制刷新
-        scene.update()
-        self.mini_panorama.update()
-        self.mini_panorama.viewport().update()
-        self.mini_panorama.viewport().repaint()
-        
-        print(f"🎨 [测试] 已将 {updated_count} 个项设置为绿色")
-        print("🔄 [测试] 已执行所有刷新命令")
-        print("👀 [测试] 请检查小型全景图是否显示绿色点")
-    def test_mini_panorama_update(self):
-        """测试小型全景图更新（手动调用）"""
-        if not hasattr(self, 'mini_panorama') or not self.mini_panorama:
-            print("❌ [测试] 小型全景图不存在")
-            return
-            
-        print("🧪 [测试] 开始测试小型全景图更新...")
-        
-        # 获取场景
-        scene = self.mini_panorama.scene
-        if not scene:
-            print("❌ [测试] 场景不存在")
-            return
-            
-        items = scene.items()
-        print(f"📊 [测试] 场景中有 {len(items)} 个项")
-        
-        # 测试更新前10个项为绿色
-        from PySide6.QtGui import QBrush, QPen, QColor
-        green_color = QColor(76, 175, 80)
-        
-        updated_count = 0
-        for i, item in enumerate(items[:10]):
-            if hasattr(item, 'setBrush'):
-                item.setBrush(QBrush(green_color))
-                item.setPen(QPen(green_color.darker(120), 0.5))
-                item.update()
-                updated_count += 1
-                
-                # 获取位置信息
-                pos = item.pos()
-                print(f"  ✅ [测试] 更新了项 {i}: 位置 ({pos.x():.1f}, {pos.y():.1f})")
-        
-        # 强制刷新
-        scene.update()
-        self.mini_panorama.update()
-        self.mini_panorama.viewport().update()
-        self.mini_panorama.viewport().repaint()
-        
-        print(f"🎨 [测试] 已将 {updated_count} 个项设置为绿色")
-        print("🔄 [测试] 已执行所有刷新命令")
-        print("👀 [测试] 请检查小型全景图是否显示绿色点")
-    def debug_mini_panorama_state(self):
-        """调试小型全景图状态"""
-        if not hasattr(self, 'mini_panorama'):
-            print("❌ [调试] 没有 mini_panorama 属性")
-            return
-            
-        print("=" * 60)
-        print("🔍 小型全景图状态调试:")
-        print(f"  类型: {type(self.mini_panorama)}")
-        print(f"  是否可见: {self.mini_panorama.isVisible()}")
-        
-        if hasattr(self.mini_panorama, 'scene'):
-            scene = self.mini_panorama.scene
-            if scene:
-                items = scene.items()
-                print(f"  场景项数量: {len(items)}")
-                
-                # 统计不同颜色的项
-                color_stats = {}
-                for item in items[:100]:  # 只检查前100个避免太慢
-                    if hasattr(item, 'brush'):
-                        brush = item.brush()
-                        color = brush.color()
-                        color_key = f"({color.red()}, {color.green()}, {color.blue()})"
-                        color_stats[color_key] = color_stats.get(color_key, 0) + 1
-                
-                print(f"  颜色统计 (前100项):")
-                for color, count in color_stats.items():
-                    print(f"    {color}: {count} 个")
-                    
-                # 检查视口设置
-                if hasattr(self.mini_panorama, 'viewport'):
-                    viewport = self.mini_panorama.viewport()
-                    print(f"  视口大小: {viewport.width()}x{viewport.height()}")
-                    print(f"  视口更新模式: {self.mini_panorama.viewportUpdateMode()}")
-                    
-        print("=" * 60)
-    def force_mini_panorama_refresh(self):
-        """强制刷新小型全景图"""
-        if hasattr(self, 'mini_panorama') and self.mini_panorama:
-            # 方法1：重置视口
-            if hasattr(self.mini_panorama, 'viewport'):
-                self.mini_panorama.viewport().update()
-                
-            # 方法2：触发重绘事件
-            from PySide6.QtCore import QEvent
-            from PySide6.QtGui import QPaintEvent
-            event = QPaintEvent(self.mini_panorama.rect())
-            self.mini_panorama.event(event)
-            
-            # 方法3：重置变换
-            transform = self.mini_panorama.transform()
-            self.mini_panorama.resetTransform()
-            self.mini_panorama.setTransform(transform)
-            
-            print("🔄 [小型全景图] 已执行强制刷新")
-    def verify_mini_panorama_items_visibility(self):
-        """验证小型全景图中项的可见性"""
-        if not hasattr(self, 'mini_panorama') or not self.mini_panorama:
-            print("❌ [验证] 小型全景图不存在")
-            return
-            
-        scene = self.mini_panorama.scene
-        if not scene:
-            print("❌ [验证] 场景不存在")
-            return
-            
-        items = scene.items()
-        print(f"🔍 [验证] 检查 {len(items)} 个项的可见性...")
-        
-        visible_count = 0
-        invisible_count = 0
-        out_of_bounds_count = 0
-        
-        scene_rect = scene.sceneRect()
-        
-        for item in items[:100]:  # 检查前100个
-            if hasattr(item, 'isVisible'):
-                if item.isVisible():
-                    visible_count += 1
-                    
-                    # 检查是否在场景范围内
-                    item_rect = item.sceneBoundingRect()
-                    if not scene_rect.contains(item_rect):
-                        out_of_bounds_count += 1
-                        print(f"  ⚠️ 项在场景范围外: {item_rect}")
+                    if not found:
+                        print(f"  ⚠️ [小型全景图] 未找到孔位 {hole_id}")
                 else:
-                    invisible_count += 1
-        
-        print(f"  ✅ 可见项: {visible_count}")
-        print(f"  ❌ 不可见项: {invisible_count}")
-        print(f"  ⚠️ 超出范围项: {out_of_bounds_count}")
-        
-        # 检查视口变换
-        transform = self.mini_panorama.transform()
-        print(f"  🔄 视口变换: 缩放({transform.m11():.2f}, {transform.m22():.2f})")
-        
-        # 检查视口大小
-        viewport_rect = self.mini_panorama.viewport().rect()
-        print(f"  📐 视口大小: {viewport_rect.width()}x{viewport_rect.height()}")
-    
-    def trigger_mini_panorama_paint(self):
-        """触发小型全景图的绘制事件"""
-        if not hasattr(self, 'mini_panorama') or not self.mini_panorama:
-            return
+                    print(f"  ❌ [小型全景图] 场景为空")
             
-        try:
-            # 方法1：使用 QApplication 处理事件
-            from PySide6.QtWidgets import QApplication
-            QApplication.processEvents()
+            # 如果mini_panorama有hole_items属性（兼容性检查）
+            elif hasattr(self.mini_panorama, 'hole_items') and hole_id in self.mini_panorama.hole_items:
+                hole_item = self.mini_panorama.hole_items[hole_id]
+                hole_item.setBrush(QBrush(color))
+                hole_item.setPen(QPen(color.darker(120), 1))
+                
+                # 强制立即重绘
+                hole_item.update()
+                self.mini_panorama.update()
+                print(f"✅ [小型全景图] 通过hole_items实时更新完成: {hole_id}")
+            else:
+                # 备用方法：通过场景项目搜索（原有方法）
+                print(f"🔍 [小型全景图] hole_items中未找到，尝试场景搜索")
+                
+                # 修复scene调用错误：scene是属性，不是方法
+                scene = getattr(self.mini_panorama, 'scene', None)
+                if scene and hasattr(scene, 'items'):
+                    scene_items = scene.items()
+                    item_found = False
+                    
+                    for item in scene_items:
+                        if hasattr(item, 'data') and item.data(0) == hole_id:
+                            item.setBrush(QBrush(color))
+                            item.setPen(QPen(color.darker(120), 1))
+                            # 强制立即重绘
+                            item.update()
+                            print(f"✅ [小型全景图] 通过场景搜索实时更新完成: {hole_id}")
+                            item_found = True
+                            break
+                    
+                    if not item_found:
+                        print(f"❌ [小型全景图] 未找到孔位图形项: {hole_id}")
+                        # 输出调试信息
+                        total_items = len(scene_items) if scene_items else 0
+                        has_hole_items = hasattr(self.mini_panorama, 'hole_items')
+                        hole_items_count = len(self.mini_panorama.hole_items) if has_hole_items and self.mini_panorama.hole_items else 0
+                        print(f"🔍 [小型全景图] 场景中共有 {total_items} 个图形项，hole_items: {hole_items_count} 个")
+                else:
+                    print(f"❌ [小型全景图] 场景对象无效或没有items方法")
             
-            # 方法2：触发 paintEvent
+            # 强制刷新小型全景图视图（与CompletePanoramaWidget保持一致）
             self.mini_panorama.update()
-            self.mini_panorama.repaint()
-            
-            # 方法3：如果有场景，更新场景
-            if hasattr(self.mini_panorama, 'scene') and self.mini_panorama.scene:
-                self.mini_panorama.scene.update()
-                
-                # 获取所有项并强制更新
-                items = self.mini_panorama.scene.items()
-                update_count = 0
-                for item in items[:50]:  # 更新前50个作为测试
-                    if hasattr(item, 'update'):
-                        item.update()
-                        update_count += 1
-                
-                print(f"🎨 [小型全景图] 触发了 {update_count} 个项的更新")
-            
-            print("🔄 [小型全景图] 已触发绘制事件")
+            if hasattr(self.mini_panorama, 'viewport'):
+                self.mini_panorama.viewport().update()
             
         except Exception as e:
-            print(f"❌ [小型全景图] 触发绘制事件失败: {e}")
-
+            print(f"❌ [小型全景图] 实时更新失败: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def set_hole_collection(self, hole_collection: HoleCollection):
+        """设置孔位集合并创建扇形图形管理器"""
+        if hole_collection and len(hole_collection) > 0:
+            # 保存完整的孔位集合以供扇形切换使用
+            self.complete_hole_collection = hole_collection
+            
+            self.sector_graphics_manager = SectorGraphicsManager(hole_collection)
+            
+            # 预创建所有扇形视图
+            self._create_sector_views()
+            
+            # 隐藏状态标签，显示图形内容
+            if hasattr(self, 'status_label'):
+                self.status_label.hide()
+            
+            # 设置小型全景图数据
+            self._setup_mini_panorama(hole_collection)
+            
+            # 延迟显示初始扇形，等待视图完全初始化
+            # 这样可以确保视图大小正确，避免前后缩放不一致
+            self._wait_for_stable_size_and_switch()
+        else:
+            # 没有数据时显示状态标签
+            if hasattr(self, 'status_label'):
+                self.status_label.setText("没有可显示的孔位数据")
+                self.status_label.show()
+    
     def _create_sector_views(self):
         """预创建所有扇形区域的图形视图"""
         if not self.sector_graphics_manager:
@@ -1396,6 +829,44 @@ class DynamicSectorDisplayWidget(QWidget):
                     'collection': sector_collection,
                     'hole_count': len(sector_collection)
                 }
+    
+    def _wait_for_stable_size_and_switch(self):
+        """等待视图大小稳定后再切换扇形"""
+        self._size_check_count = 0
+        self._last_size = None
+        
+        def check_and_switch():
+            # 获取当前视图大小
+            view_size = self.graphics_view.viewport().size()
+            width = view_size.width()
+            height = view_size.height()
+            current_size = (width, height)
+            
+            # 增加检查计数
+            self._size_check_count += 1
+            
+            # 如果视图太小（可能还在初始化），继续等待
+            # 但是不要等待太久，最多检查10次（0.5秒）
+            # 降低阈值，因为我们的缩放算法已经能处理小视图
+            if (width < 300 or height < 200) and self._size_check_count < 10:
+                print(f"⏳ 视图尺寸过小 ({width}x{height})，继续等待... (检查 {self._size_check_count}/10)")
+                QTimer.singleShot(50, check_and_switch)
+            else:
+                # 如果大小已经稳定（连续两次相同）或超过最大等待次数
+                if current_size == self._last_size or self._size_check_count >= 20:
+                    print(f"✅ 视图尺寸稳定 ({width}x{height})，切换到初始扇形")
+                    self.switch_to_sector(self.current_sector)
+                else:
+                    # 大小还在变化，再等一次
+                    self._last_size = current_size
+                    if self._size_check_count < 30:  # 最多等待1.5秒
+                        QTimer.singleShot(50, check_and_switch)
+                    else:
+                        print(f"⚠️ 达到最大等待次数，使用当前尺寸 ({width}x{height})")
+                        self.switch_to_sector(self.current_sector)
+        
+        # 开始检查
+        QTimer.singleShot(50, check_and_switch)
     
     def switch_to_sector(self, sector: SectorQuadrant):
         """切换到指定扇形区域显示"""
@@ -1448,20 +919,65 @@ class DynamicSectorDisplayWidget(QWidget):
                 total_hidden += 1
         
         # 适应视图到当前可见的孔位 - 使用填满策略
+        # 注释掉 switch_to_macro_view，它会覆盖我们的设置
+        # self.graphics_view.switch_to_macro_view()
+        
+        # 只更新视图模式，不调用任何自动调整方法
+        self.graphics_view.current_view_mode = "macro"
+        self.graphics_view.view_mode_changed.emit("macro")
+        
+        # 直接调用填满策略，不使用延迟
         self._apply_fill_view_strategy()
         
-        # 更新小型全景图的当前扇形高亮
-        if hasattr(self, 'mini_panorama') and self.mini_panorama:
-            self.mini_panorama.highlight_sector(sector)
-            
-        elapsed_time = (time.perf_counter() - start_time) * 1000
-        print(f"✅ [扇形切换] 完成切换到 {sector.value}, 显示: {total_shown}, 隐藏: {total_hidden}, 耗时: {elapsed_time:.1f}ms")
+        # 添加调试日志
+        print(f"🔄 切换到扇形 {sector.value}: 显示 {total_shown} 个孔位，隐藏 {total_hidden} 个孔位")
+        if len(sector_collection) > 0:
+            bounds = sector_collection.get_bounds()
+            print(f"📏 扇形边界: X=[{bounds[0]:.1f}, {bounds[2]:.1f}], Y=[{bounds[1]:.1f}, {bounds[3]:.1f}]")
+        
+        # 更新标题和状态（移除，因为已删除标题栏）
+        # sector_names = {
+        #     SectorQuadrant.SECTOR_1: "区域1 (右上)",
+        #     SectorQuadrant.SECTOR_2: "区域2 (左上)", 
+        #     SectorQuadrant.SECTOR_3: "区域3 (左下)",
+        #     SectorQuadrant.SECTOR_4: "区域4 (右下)"
+        # }
+        
+        # self.title_label.setText(f"当前显示: {sector_names[sector]}")
+        # self.status_label.setText(f"显示 {sector_info['hole_count']} 个孔位")
+        
+        # 发射切换信号
+        self.sector_changed.emit(sector)
+        
+        # 统计切换用时
+        end_time = time.perf_counter()
+        switch_duration = (end_time - start_time) * 1000  # 转换为毫秒
+        print(f"⏱️ 扇形 {sector.value} 切换用时: {switch_duration:.2f}ms")
+    
+    def update_sector_progress(self, sector: SectorQuadrant, progress: SectorProgress):
+        """更新扇形进度（禁用自动切换，由模拟系统控制）"""
+        # 注释掉自动切换逻辑，改为由扇形顺序模拟系统控制
+        # if progress.completed_holes > 0:
+        #     self.switch_to_sector(sector)
+        
+        # 只更新进度数据，不进行视图切换
+        # 使用参数避免未使用变量警告
+        _ = sector
+        _ = progress
+    
+    def get_current_sector(self) -> SectorQuadrant:
+        """获取当前显示的扇形区域"""
+        return self.current_sector
+    
+    def get_sector_info(self, sector: SectorQuadrant) -> Optional[Dict]:
+        """获取指定扇形的信息"""
+        return self.sector_views.get(sector)
     
     def _apply_fill_view_strategy(self):
         """应用填满视图策略 - 让扇形的视觉中心与视图中心对齐"""
         if not self.sector_graphics_manager or not self.sector_graphics_manager.center_point:
-            # 如果没有扇形管理器或中心点，直接返回
-            print("⚠️ [动态扇形] 缺少扇形管理器或中心点，跳过视图策略")
+            # 备用方案：使用边界框方法
+            self._apply_bbox_strategy()
             return
             
         # 获取完整数据的几何中心点
@@ -1538,37 +1054,199 @@ class DynamicSectorDisplayWidget(QWidget):
         base_scale = min(scale_x, scale_y)
         
         # 根据视图大小动态调整缩放
-        # 大视图使用更温和的缩放，小视图使用更激进的缩放
-        if view_width >= 1000 and view_height >= 700:
-            # 大视图：适度缩放
-            scale_factor = 0.70
-        elif view_width >= 800 and view_height >= 600:
-            # 中等视图：平衡缩放
-            scale_factor = 0.75
-        else:
-            # 小视图：充分利用空间
-            scale_factor = 0.80
+        # 使用sigmoid函数实现平滑过渡
+        view_size = min(view_width, view_height)
         
-        # 应用缩放系数
-        final_scale = base_scale * scale_factor
+        # 归一化视图大小（假设常见范围是300-1000像素）
+        normalized_size = (view_size - 300) / 700
+        normalized_size = max(0, min(1, normalized_size))  # 限制在0-1范围
         
-        # 设置缩放
+        # 使用sigmoid函数计算自适应因子
+        # 小视图时边距更大（0.65），大视图时边距更小（0.85）
+        import math
+        adaptive_margin = 0.65 + 0.2 / (1 + math.exp(-6 * (normalized_size - 0.5)))
+        
+        # 根据内容密度调整
+        # 计算内容填充率（内容面积与视图面积的比例）
+        content_area = content_width * content_height
+        view_area = view_width * view_height
+        fill_ratio = content_area / view_area if view_area > 0 else 1.0
+        
+        # 内容密度越高，需要的边距越小
+        density_factor = 1.0 + 0.25 * (1 - math.exp(-2 * fill_ratio))
+        
+        # 最终缩放
+        scale = base_scale * adaptive_margin * density_factor
+        
+        # 限制缩放范围
+        scale = max(0.1, min(5.0, scale))
+        
+        print(f"📊 自适应缩放: 视图{view_size:.0f}px, 边距系数{adaptive_margin:.2f}, 密度系数{density_factor:.2f}")
+        
+        # 重置变换
+        self.graphics_view.resetTransform()
+        
+        # 应用缩放
+        self.graphics_view.scale(scale, scale)
+        
+        # 使用更直接的方法：计算视图应该显示的区域
+        view_width = self.graphics_view.viewport().width() / scale
+        view_height = self.graphics_view.viewport().height() / scale
+        
+        # 计算以visual_center为中心的视图矩形
+        view_rect = QRectF(
+            visual_center_x - view_width / 2,
+            visual_center_y - view_height / 2,
+            view_width,
+            view_height
+        )
+        
+        # 设置场景矩形，这会强制视图显示这个区域
+        self.graphics_view.setSceneRect(view_rect)
+        
+        # 禁用自动居中和自动适配，防止变换被覆盖
+        self.graphics_view.disable_auto_center = True
+        self.graphics_view.disable_auto_fit = True
+        
+        # 应用偏移效果而不使用fitInView（避免强制居中）
+        # 设置变换以显示偏移后的视图区域
         transform = QTransform()
-        transform.scale(final_scale, final_scale)
+        transform.scale(scale, scale)
+        transform.translate(-visual_center_x, -visual_center_y)
         self.graphics_view.setTransform(transform)
         
-        # 将数据中心（带偏移）作为锚点，将扇形的视觉中心对齐到视图中心
-        # 这样可以保持扇形与中心的相对位置关系
-        offset_from_data_center = visual_center - data_center
+        # 强制刷新确保变换生效
+        self.graphics_view.resetCachedContent()
+        self.graphics_view.viewport().update()
         
-        # 将偏移后的视觉中心居中到视图
-        self.graphics_view.centerOn(visual_center)
+        print(f"✅ 扇形已应用偏移显示，缩放: {scale:.2f}x, 偏移中心: ({visual_center_x:.1f}, {visual_center_y:.1f})")
         
-        print(f"📊 [动态扇形] 边界: ({min_x:.1f}, {min_y:.1f}) - ({max_x:.1f}, {max_y:.1f})")
-        print(f"📏 [动态扇形] 内容尺寸: {content_width:.1f} x {content_height:.1f}")
-        print(f"🎯 [动态扇形] 视觉中心: ({visual_center_x:.1f}, {visual_center_y:.1f})")
-        print(f"📐 [动态扇形] 视觉中心与数据中心偏移: ({offset_from_data_center.x():.1f}, {offset_from_data_center.y():.1f})")
-        print(f"🔍 [动态扇形] 最终缩放: {final_scale:.3f} (基础: {base_scale:.3f}, 系数: {scale_factor:.2f})")
+        # 延迟验证和重新应用，防止被其他操作覆盖
+        QTimer.singleShot(100, lambda: self._verify_transform_applied(visual_center_x, visual_center_y))
+        QTimer.singleShot(200, lambda: self._reapply_transform_if_needed(transform, visual_center_x, visual_center_y))
+        QTimer.singleShot(500, lambda: self._reapply_transform_if_needed(transform, visual_center_x, visual_center_y))
+        
+        # 保护我们的设置不被后续操作覆盖
+        # 保存当前设置
+        self._sector_view_settings = {
+            'scale': scale,
+            'scene_rect': view_rect,
+            'visual_center': visual_center
+        }
+        
+        # 多次延迟保护，确保设置不被覆盖
+        for delay in [10, 50, 100, 200, 500]:
+            QTimer.singleShot(delay, self._enforce_sector_settings)
+    
+    def _enforce_sector_settings(self):
+        """强制应用扇形视图设置"""
+        if not hasattr(self, '_sector_view_settings'):
+            return
+            
+        settings = self._sector_view_settings
+        current_scale = self.graphics_view.transform().m11()
+        
+        # 如果缩放被改变，恢复设置
+        if abs(current_scale - settings['scale']) > 0.01:
+            print(f"⚠️ 检测到缩放被改变: {current_scale:.3f} -> {settings['scale']:.3f}，强制恢复")
+            
+            # 重置并应用保存的设置
+            self.graphics_view.resetTransform()
+            self.graphics_view.scale(settings['scale'], settings['scale'])
+            self.graphics_view.setSceneRect(settings['scene_rect'])
+            self.graphics_view.fitInView(settings['scene_rect'], Qt.KeepAspectRatio)
+    
+    def _apply_bbox_strategy(self):
+        """备用策略：使用边界框方法"""
+        visible_items = [item for item in self.graphics_view.hole_items.values() if item.isVisible()]
+        
+        if not visible_items:
+            return
+            
+        # 计算可见孔位的边界
+        min_x = min_y = float('inf')
+        max_x = max_y = float('-inf')
+        
+        for item in visible_items:
+            pos = item.pos()
+            rect = item.boundingRect()
+            min_x = min(min_x, pos.x() + rect.left())
+            min_y = min(min_y, pos.y() + rect.top())
+            max_x = max(max_x, pos.x() + rect.right())
+            max_y = max(max_y, pos.y() + rect.bottom())
+        
+        # 创建可见内容的边界矩形
+        visible_rect = QRectF(min_x, min_y, max_x - min_x, max_y - min_y)
+        
+        # 添加适当边距
+        margin = 20
+        target_rect = visible_rect.adjusted(-margin, -margin, margin, margin)
+        
+        # 使用fitInView让扇形内容填满视图
+        self.graphics_view.fitInView(target_rect, Qt.KeepAspectRatio)
+        
+        print(f"🔍 [备用] 边界框视图调整: ({min_x:.1f}, {min_y:.1f}) - ({max_x:.1f}, {max_y:.1f})")
+
+
+    def _initialize_mini_panorama_data(self, hole_collection):
+        """初始化小型全景图的数据"""
+        print(f"🔄 [小型全景图] 初始化数据，共 {len(hole_collection)} 个孔位")
+        
+        if not self.mini_panorama:
+            print(f"❌ [小型全景图] mini_panorama 不存在")
+            return
+            
+        # 确保有场景
+        if not hasattr(self.mini_panorama, 'scene') or not self.mini_panorama.scene:
+            from PySide6.QtWidgets import QGraphicsScene
+            scene = QGraphicsScene()
+            self.mini_panorama.setScene(scene)
+            print(f"✅ [小型全景图] 创建新场景")
+        
+        scene = self.mini_panorama.scene
+        
+        # 清空现有内容
+        scene.clear()
+        
+        # 创建所有孔位的图形项
+        from PySide6.QtWidgets import QGraphicsEllipseItem
+        from PySide6.QtGui import QBrush, QPen, QColor
+        
+        hole_count = 0
+        for hole in hole_collection:
+            # 创建简单的圆形表示
+            hole_item = QGraphicsEllipseItem(
+                hole.center_x - hole.radius,
+                hole.center_y - hole.radius,
+                hole.radius * 2,
+                hole.radius * 2
+            )
+            
+            # 设置初始颜色（灰色）
+            hole_item.setBrush(QBrush(QColor(200, 200, 200)))
+            hole_item.setPen(QPen(QColor(150, 150, 150), 0.5))
+            
+            # 设置hole_id作为data以便更新时查找
+            hole_item.setData(0, hole.hole_id)
+            
+            scene.addItem(hole_item)
+            hole_count += 1
+        
+        print(f"🎨 [小型全景图] 已创建 {hole_count} 个孔位图形项")
+        
+        # 设置场景边界
+        bounds = hole_collection.get_bounds()
+        margin = 50
+        scene_rect = QRectF(
+            bounds[0] - margin, bounds[1] - margin,
+            bounds[2] - bounds[0] + 2 * margin,
+            bounds[3] - bounds[1] + 2 * margin
+        )
+        scene.setSceneRect(scene_rect)
+        
+        # 适应视图
+        self.mini_panorama.fitInView(scene_rect, Qt.KeepAspectRatio)
+        print(f"📐 [小型全景图] 视图已适配")
 
 
 class CompletePanoramaWidget(QWidget):
@@ -1644,31 +1322,22 @@ class CompletePanoramaWidget(QWidget):
         self.panorama_view.viewport().installEventFilter(self)
         
         
-        # 创建全景图容器以实现完美居中（水平+垂直）
+        # 创建全景图容器以实现完全居中（水平+垂直）
         panorama_container = QWidget()
         panorama_layout = QVBoxLayout(panorama_container)
         panorama_layout.setContentsMargins(0, 0, 0, 0)
-        panorama_layout.setAlignment(Qt.AlignCenter)  # 设置布局居中对齐
+        panorama_layout.addStretch()  # 上方弹性空间
         
-        # 在全景图视图上下左右添加相等的弹性空间，确保完美居中
-        # 上方弹性空间
-        panorama_layout.addStretch(1)
-        
-        # 水平居中容器
+        # 水平居中布局
         h_container = QWidget()
         h_layout = QHBoxLayout(h_container)
         h_layout.setContentsMargins(0, 0, 0, 0)
-        h_layout.setAlignment(Qt.AlignCenter)  # 水平居中对齐
-        
-        # 左右对称的弹性空间
-        h_layout.addStretch(1)
+        h_layout.addStretch()  # 左侧弹性空间
         h_layout.addWidget(self.panorama_view)
-        h_layout.addStretch(1)
+        h_layout.addStretch()  # 右侧弹性空间
         
         panorama_layout.addWidget(h_container)
-        
-        # 下方弹性空间（与上方相等）
-        panorama_layout.addStretch(1)
+        panorama_layout.addStretch()  # 下方弹性空间
         
         layout.addWidget(panorama_container)
         
@@ -1732,8 +1401,28 @@ class CompletePanoramaWidget(QWidget):
                 print(f"❌ [全景图] 加载失败: {e}")
                 import traceback
                 traceback.print_exc()
-        
-        # 加载完成
+                self.info_label.setText(f"加载失败: {str(e)}")
+        else:
+            self.info_label.setText("暂无数据")
+            print("📭 [全景图] 没有数据可加载")
+    
+    def _setup_panorama_fitting(self):
+        """设置全景图适应前的准备工作"""
+        try:
+            # 确保场景项目可见性设置正确
+            scene = self.panorama_view.scene
+            if scene:
+                for item in scene.items():
+                    item.setVisible(True)
+                    item.update()
+                
+                # 更新场景边界
+                scene.setSceneRect(scene.itemsBoundingRect())
+                
+                print(f"🔧 [全景图] 场景设置完成，项目数: {len(scene.items())}")
+            
+        except Exception as e:
+            print(f"⚠️ [全景图] 场景设置失败: {e}")
     
     def _fit_panorama_view(self):
         """延迟适应全景视图 - 确保内容完美居中显示"""
@@ -1749,10 +1438,9 @@ class CompletePanoramaWidget(QWidget):
                 # 使用Qt的fitInView来确保完美居中和适应
                 view_rect = self.panorama_view.viewport().rect()
                 
-                # 计算更大的边距，让内容更小，从而更好地居中
-                margin_factor = 0.15  # 增加边距比例，让内容在容器中显示得更小
-                margin_x = scene_rect.width() * margin_factor
-                margin_y = scene_rect.height() * margin_factor
+                # 计算适当的边距
+                margin_x = scene_rect.width() * 0.05
+                margin_y = scene_rect.height() * 0.05
                 
                 # 创建带边距的目标区域
                 target_rect = QRectF(
@@ -1767,9 +1455,6 @@ class CompletePanoramaWidget(QWidget):
                 
                 # 获取内容的实际中心点
                 content_center = scene_rect.center()
-                
-                # 确保视图中心对准内容中心
-                self.panorama_view.centerOn(content_center)
                 
                 # 多次强制居中以确保精确对齐
                 from PySide6.QtCore import QTimer
@@ -1916,19 +1601,15 @@ class CompletePanoramaWidget(QWidget):
         if not self.center_point:
             print("⚠️ [全景图] 无法创建扇形高亮：中心点信息不完整")
             return
-
-        if not self.hole_collection:
-            print("⚠️ [全景图] 无法创建扇形高亮：孔位数据不存在")
-            return
-
+        
         try:
             scene = self.panorama_view.scene
             if not scene:
                 print("⚠️ [全景图] 无法创建扇形高亮：场景不存在")
                 return
-
+            
             print(f"🎯 [全景图] 使用数据中心作为扇形中心: ({self.center_point.x():.1f}, {self.center_point.y():.1f})")
-
+            
             # 安全清除现有的高亮项
             for highlight in list(self.sector_highlights.values()):
                 try:
@@ -1972,75 +1653,11 @@ class CompletePanoramaWidget(QWidget):
             self._create_sector_dividers()
             
             print(f"✅ [全景图] 扇形高亮创建完成，共 {len(self.sector_highlights)} 个扇形")
-
+            
         except Exception as e:
             print(f"❌ [全景图] 扇形高亮创建失败: {e}")
             import traceback
             traceback.print_exc()
-
-    def _recreate_all_highlights(self):
-        """强制重新创建所有扇形高亮（恢复机制）"""
-        try:
-            print("🔄 [全景图] 强制重新创建扇形高亮系统...")
-            # 清理现有高亮
-            scene = self.panorama_view.scene
-            if scene:
-                for highlight in list(self.sector_highlights.values()):
-                    try:
-                        if highlight.scene():
-                            scene.removeItem(highlight)
-                    except RuntimeError:
-                        pass
-            self.sector_highlights.clear()
-            
-            # 重新创建
-            self._create_sector_highlights()
-            print("✅ [全景图] 扇形高亮系统重新创建完成")
-        except Exception as e:
-            print(f"❌ [全景图] 重新创建扇形高亮失败: {e}")
-
-    def _ensure_sector_highlight_exists(self, sector: SectorQuadrant) -> bool:
-        """确保指定扇形的高亮项存在，如果不存在则创建"""
-        if sector in self.sector_highlights:
-            return True
-
-        if not self.hole_collection or not self.center_point:
-            print(f"⚠️ [全景图] 无法创建扇形 {sector.value} 高亮：缺少必要数据")
-            return False
-
-        try:
-            scene = self.panorama_view.scene
-            if not scene:
-                print(f"⚠️ [全景图] 无法创建扇形 {sector.value} 高亮：场景不存在")
-                return False
-
-            # 计算真正的数据中心点用于扇形高亮（不偏移）
-            bounds = self.hole_collection.get_bounds()
-            true_center_x = (bounds[0] + bounds[2]) / 2
-            true_center_y = (bounds[1] + bounds[3]) / 2
-            true_center_point = QPointF(true_center_x, true_center_y)
-
-            # 使用当前的半径，如果没有则使用默认值
-            radius = getattr(self, 'panorama_radius', 100.0)
-
-            highlight = SectorHighlightItem(
-                sector=sector,
-                center=true_center_point,
-                radius=radius,
-                sector_bounds=None
-            )
-            highlight.set_highlight_mode("sector")
-
-            # 添加到场景
-            scene.addItem(highlight)
-            self.sector_highlights[sector] = highlight
-
-            print(f"✅ [全景图] 即时创建扇形 {sector.value} 高亮项")
-            return True
-
-        except Exception as e:
-            print(f"❌ [全景图] 即时创建扇形 {sector.value} 高亮失败: {e}")
-            return False
     
     def _create_sector_dividers(self):
         """创建扇形分隔线，使扇形边界更清晰"""
@@ -2098,47 +1715,48 @@ class CompletePanoramaWidget(QWidget):
         """高亮显示指定的扇形区域"""
         try:
             # 清除所有高亮
-            for s, highlight in list(self.sector_highlights.items()):
-                try:
-                    highlight.hide_highlight()
-                except (RuntimeError, AttributeError):
-                    # 高亮项可能已被删除，从字典中移除
-                    self.sector_highlights.pop(s, None)
-
-            # 确保高亮项存在 - 多次尝试确保成功
-            max_attempts = 3
-            for attempt in range(max_attempts):
-                if self._ensure_sector_highlight_exists(sector):
-                    break
-                if attempt < max_attempts - 1:
-                    print(f"⚠️ [全景图] 第{attempt+1}次创建扇形 {sector.value} 高亮失败，重试...")
-                    # 强制重新创建高亮系统
-                    QTimer.singleShot(10, self._recreate_all_highlights)
-                else:
-                    print(f"❌ [全景图] 无法为扇形 {sector.value} 创建高亮项，已重试{max_attempts}次")
-                    return
-
-            # 验证高亮项确实存在且有效
-            if sector not in self.sector_highlights:
-                print(f"❌ [全景图] 扇形 {sector.value} 高亮项创建后仍不存在")
-                return
-
-            highlight_item = self.sector_highlights[sector]
-            if not highlight_item or not hasattr(highlight_item, 'show_highlight'):
-                print(f"❌ [全景图] 扇形 {sector.value} 高亮项无效")
-                return
-
+            for s, highlight in self.sector_highlights.items():
+                highlight.hide_highlight()
+            
+            # 调试信息（简化）
+            # print(f"🔍 [全景图] 当前高亮字典包含: {list(self.sector_highlights.keys())}")
+            # print(f"🔍 [全景图] 要高亮的扇形: {sector} (类型: {type(sector)})")
+            
             # 高亮指定扇形
-            highlight_item.show_highlight()
-            self.current_highlighted_sector = sector
-            print(f"🎯 [全景图] 高亮扇形: {sector.value}")
-
+            if sector in self.sector_highlights:
+                self.sector_highlights[sector].show_highlight()
+                self.current_highlighted_sector = sector
+                print(f"🎯 [全景图] 高亮扇形: {sector.value}")
+            else:
+                print(f"⚠️ [全景图] 扇形 {sector.value} 的高亮项不存在")
+                # 尝试重新创建高亮项
+                if hasattr(self, 'center_point') and self.center_point and hasattr(self, 'panorama_radius'):
+                    print(f"🔧 [全景图] 尝试重新创建扇形 {sector.value} 的高亮项")
+                    
+                    # 计算真正的数据中心点用于扇形高亮（不偏移）
+                    bounds = self.hole_collection.get_bounds()
+                    true_center_x = (bounds[0] + bounds[2]) / 2
+                    true_center_y = (bounds[1] + bounds[3]) / 2
+                    true_center_point = QPointF(true_center_x, true_center_y)
+                    
+                    highlight = SectorHighlightItem(
+                        sector=sector,
+                        center=true_center_point,  # 使用真正的中心点
+                        radius=self.panorama_radius,
+                        sector_bounds=None
+                    )
+                    highlight.set_highlight_mode("sector")
+                    if hasattr(self, 'panorama_view') and self.panorama_view.scene():
+                        self.panorama_view.scene().addItem(highlight)
+                        self.sector_highlights[sector] = highlight
+                        highlight.show_highlight()
+                        self.current_highlighted_sector = sector
+                        print(f"✅ [全景图] 重新创建并高亮扇形: {sector.value}")
+                    else:
+                        print(f"❌ [全景图] 无法重新创建，场景不存在")
+                
         except Exception as e:
             print(f"❌ [全景图] 扇形高亮失败: {e}")
-            import traceback
-            traceback.print_exc()
-            # 强制重新创建高亮系统作为恢复机制
-            QTimer.singleShot(100, self._recreate_all_highlights)
     
     def clear_highlight(self):
         """清除所有扇形高亮"""
@@ -2183,9 +1801,11 @@ class CompletePanoramaWidget(QWidget):
         if not self.center_point:
             print(f"⚠️ [全景图] 中心点未设置")
             return None
+        
         if not self.hole_collection:
             print(f"⚠️ [全景图] 孔位集合未设置")
             return None
+        
         try:
             # 计算点击位置相对于中心的向量
             dx = scene_pos.x() - self.center_point.x()
@@ -2199,7 +1819,8 @@ class CompletePanoramaWidget(QWidget):
             max_valid_distance = self.panorama_radius * 1.5 if self.panorama_radius > 0 else 1000
             if distance > max_valid_distance:
                 print(f"❌ [全景图] 点击距离过远: {distance:.1f} > {max_valid_distance:.1f}")
-            return None
+                return None
+            
             # 计算角度
             angle_rad = math.atan2(dy, dx)
             angle_deg = math.degrees(angle_rad)
@@ -2231,8 +1852,7 @@ class CompletePanoramaWidget(QWidget):
             print(f"❌ [全景图] 扇形检测失败: {e}")
             import traceback
             traceback.print_exc()
-        
-        # 加载完成
+            return None
     
     def update_hole_status(self, hole_id: str, status):
         """更新孔位状态（智能批量/实时更新版本）"""
@@ -2503,107 +2123,3 @@ class CompletePanoramaWidget(QWidget):
             if updated < total and total > 0:
                 not_updated = set(data["holes"]) - set(data["updated"])
                 print(f"    未更新: {list(not_updated)[:5]}...")  # 显示前5个
-    
-    def _verify_rendering(self):
-        """验证渲染结果"""
-        print("🔍 [验证] 开始验证渲染结果...")
-        
-        # 检查主视图
-        if hasattr(self, 'graphics_view') and self.graphics_view:
-            scene_items = len(self.graphics_view.scene.items())
-            hole_items = len(self.graphics_view.hole_items)
-            print(f"🔍 [主视图] 场景项: {scene_items}, 孔位项: {hole_items}")
-            
-            if hole_items == 0:
-                print("❌ [主视图] 没有孔位被渲染!")
-            else:
-                print(f"✅ [主视图] {hole_items} 个孔位已渲染")
-        
-        # 检查小型全景图
-        if hasattr(self, 'mini_panorama') and self.mini_panorama:
-            if hasattr(self.mini_panorama, 'scene'):
-                mini_items = len(self.mini_panorama.scene.items())
-                print(f"🔍 [小型全景图] 场景项: {mini_items}")
-                
-                if mini_items == 0:
-                    print("❌ [小型全景图] 没有内容被渲染!")
-                else:
-                    print(f"✅ [小型全景图] {mini_items} 个项已渲染")
-        
-        # 检查状态标签
-        if hasattr(self, 'status_label') and self.status_label:
-            is_visible = self.status_label.isVisible()
-            print(f"🔍 [状态标签] 可见: {is_visible}")
-            
-            if is_visible:
-                print("⚠️ [状态标签] 仍然可见，尝试再次隐藏")
-                self.status_label.hide()
-                self.status_label.setVisible(False)
-
-    def update_mini_panorama_hole_status(self, hole_id: str, status, color=None):
-        """更新小型全景图中的孔位状态"""
-        try:
-            if not hasattr(self, 'mini_panorama_items'):
-                print(f"⚠️ [小型全景图] mini_panorama_items 不存在")
-                return
-                
-            # 检查孔位是否存在于字典中
-            if hole_id not in self.mini_panorama_items:
-                # 尝试不同的孔位ID格式匹配
-                found_item = None
-                found_key = None
-                
-                # 尝试匹配格式变化 (如 "H001" vs "(1,1)" vs "hole_1")
-                for key, item in self.mini_panorama_items.items():
-                    if (key == hole_id or 
-                        key.endswith(hole_id) or 
-                        hole_id.endswith(key) or
-                        key.replace('H', '').replace('(', '').replace(')', '').replace(',', '_') == hole_id.replace('H', '').replace('(', '').replace(')', '').replace(',', '_')):
-                        found_item = item
-                        found_key = key
-                        break
-                
-                if not found_item:
-                    print(f"⚠️ [小型全景图] 孔位 {hole_id} 不在mini_panorama_items中 (共{len(self.mini_panorama_items)}个)")
-                    return
-                    
-                # 更新找到的项
-                item = found_item
-                actual_hole_id = found_key
-            else:
-                item = self.mini_panorama_items[hole_id]
-                actual_hole_id = hole_id
-            
-            # 根据状态设置颜色
-            from PySide6.QtGui import QBrush, QColor
-            
-            if color:
-                item.setBrush(QBrush(color))
-            else:
-                # 根据状态自动选择颜色
-                if status in ['qualified', 'good', 'pass']:
-                    color = QColor(85, 170, 85)  # 绿色
-                elif status in ['unqualified', 'bad', 'fail', 'defect']:
-                    color = QColor(255, 85, 85)  # 红色
-                elif status in ['checking', 'processing', 'in_progress']:
-                    color = QColor(85, 170, 255)  # 蓝色
-                else:
-                    color = QColor(170, 170, 170)  # 灰色
-                
-                item.setBrush(QBrush(color))
-            
-            # 更新图形项
-            item.update()
-            
-            # 更新场景和视图
-            if hasattr(self, 'mini_panorama') and self.mini_panorama:
-                if hasattr(self.mini_panorama, 'scene') and self.mini_panorama.scene():
-                    self.mini_panorama.scene().update()
-                self.mini_panorama.viewport().update()
-                
-            print(f"✅ [小型全景图] 更新孔位 {actual_hole_id} 状态为 {status}")
-            
-        except Exception as e:
-            print(f"❌ [小型全景图] 更新孔位状态失败: {e}")
-            import traceback
-            traceback.print_exc()

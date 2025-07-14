@@ -230,7 +230,13 @@ class SectorOverviewWidget(QWidget):
         
         for label in [self.overall_progress_label, self.overall_qualified_label]:
             label.setFont(QFont("Arial", 11, QFont.Bold))
-            label.setStyleSheet("background: transparent; border: none; color: #555;")
+            # 使用主题管理器的颜色
+            try:
+                from modules.theme_manager import theme_manager
+                colors = theme_manager.COLORS
+                label.setStyleSheet(f"background: transparent; border: none; color: {colors['text_disabled']};")
+            except ImportError:
+                label.setStyleSheet("background: transparent; border: none; color: #555;")
             stats_layout.addWidget(label)
         
         layout.addWidget(stats_frame)
@@ -368,7 +374,13 @@ class SectorDetailView(QWidget):
         self.hole_list_widget = QLabel("点击扇形区域查看详情")
         self.hole_list_widget.setAlignment(Qt.AlignCenter)
         self.hole_list_widget.setFont(QFont("Arial", 9))  # 稍微增大字体
-        self.hole_list_widget.setStyleSheet("border: 1px solid #ccc; padding: 8px; color: #666;")
+        # 使用主题管理器的颜色
+        try:
+            from modules.theme_manager import theme_manager
+            colors = theme_manager.COLORS
+            self.hole_list_widget.setStyleSheet(f"border: 1px solid {colors['border_normal']}; padding: 8px; color: {colors['text_disabled']};")
+        except ImportError:
+            self.hole_list_widget.setStyleSheet("border: 1px solid #ccc; padding: 8px; color: #666;")
         self.hole_list_widget.setMaximumHeight(60)  # 增加高度以显示更多内容
         self.hole_list_widget.setWordWrap(True)  # 允许文字换行
         layout.addWidget(self.hole_list_widget)

@@ -3,11 +3,57 @@
 定义单个管孔的图形表示
 """
 
-from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem
-from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QPen, QBrush, QColor, QPainter
+from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem, QLabel, QWidget
+from PySide6.QtCore import QRectF, Qt, QTimer
+from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QFont
 
 from aidcis2.models.hole_data import HoleData, HoleStatus
+
+
+class PersistentTooltip(QLabel):
+    """持久化的自定义工具提示标签"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # 使用独立窗口标志，避免被父窗口事件影响
+        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)  # 鼠标事件穿透
+        self.setStyleSheet("""
+            QLabel {
+                background-color: rgba(255, 255, 200, 240);
+                border: 1px solid #888;
+                border-radius: 4px;
+                padding: 6px;
+                font-size: 11px;
+                color: #333;
+            }
+        """)
+        self.hide()
+    
+    def showTooltip(self, text: str, pos):
+        """显示工具提示"""
+        self.setText(text)
+        self.adjustSize()
+        
+        # 调整位置避免超出屏幕
+        screen_rect = self.screen().availableGeometry()
+        tooltip_rect = self.geometry()
+        tooltip_rect.moveTopLeft(pos)
+        
+        # 确保工具提示在屏幕内
+        if tooltip_rect.right() > screen_rect.right():
+            tooltip_rect.moveRight(screen_rect.right() - 5)
+        if tooltip_rect.bottom() > screen_rect.bottom():
+            tooltip_rect.moveBottom(screen_rect.bottom() - 5)
+        
+        self.setGeometry(tooltip_rect)
+        self.show()
+        self.raise_()
+    
+    def hideTooltip(self):
+        """隐藏工具提示"""
+        self.hide()
 
 
 class HoleGraphicsItem(QGraphicsEllipseItem):
@@ -15,12 +61,12 @@ class HoleGraphicsItem(QGraphicsEllipseItem):
     
     # 状态颜色映射
     STATUS_COLORS = {
-        HoleStatus.PENDING: QColor(200, 200, 200),      # 灰色 - 待检
-        HoleStatus.QUALIFIED: QColor(0, 255, 0),        # 绿色 - 合格
-        HoleStatus.DEFECTIVE: QColor(255, 0, 0),        # 红色 - 异常
-        HoleStatus.BLIND: QColor(255, 255, 0),          # 黄色 - 盲孔
-        HoleStatus.TIE_ROD: QColor(0, 0, 255),          # 蓝色 - 拉杆孔
-        HoleStatus.PROCESSING: QColor(255, 165, 0),     # 橙色 - 检测中
+        HoleStatus.PENDING: QColor(200, 200, 200),          # 灰色 - 待检
+        HoleStatus.PROCESSING: QColor(100, 150, 255),       # 蓝色 - 检测中
+        HoleStatus.QUALIFIED: QColor(50, 200, 50),          # 绿色 - 合格
+        HoleStatus.DEFECTIVE: QColor(255, 50, 50),          # 红色 - 异常
+        HoleStatus.BLIND: QColor(255, 200, 50),             # 黄色 - 盲孔
+        HoleStatus.TIE_ROD: QColor(100, 255, 100),         # 亮绿色 - 拉杆孔
     }
     
     def __init__(self, hole_data: HoleData, parent=None):
@@ -46,11 +92,16 @@ class HoleGraphicsItem(QGraphicsEllipseItem):
         self._is_selected = False
         self._is_search_highlighted = False
         
+        # 自定义工具提示
+        self._custom_tooltip = None
+        self._tooltip_shown = False
+        
         # 设置图形项属性
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges, False)  # 禁用几何变化通知
         self.setFlag(QGraphicsItem.ItemIgnoresTransformations, False)
         self.setFlag(QGraphicsItem.ItemClipsToShape, True)  # 启用形状裁剪
+        self.setAcceptHoverEvents(True)  # 启用悬停事件
         
         # 设置初始样式
         self.update_appearance()
@@ -110,11 +161,15 @@ class HoleGraphicsItem(QGraphicsEllipseItem):
         if self.hole_data.status != new_status:
             self.hole_data.status = new_status
             self.update_appearance()
-            self.setToolTip(self._create_tooltip())
     
     def _create_tooltip(self) -> str:
         """创建工具提示文本"""
-        grid_pos = f"第{self.hole_data.row}行第{self.hole_data.column}列" if self.hole_data.row and self.hole_data.column else "未分配"
+        # 统一坐标格式为RXXXCXXX
+        if self.hole_data.row and self.hole_data.column:
+            grid_pos = f"R{self.hole_data.row:03d}C{self.hole_data.column:03d}"
+        else:
+            grid_pos = "未分配"
+        
         return (
             f"孔位置: {self.hole_data.hole_id}\n"
             f"网格位置: {grid_pos}\n"
@@ -201,3 +256,48 @@ class HoleItemFactory:
             if hole_id in status_updates:
                 new_status = status_updates[hole_id]
                 item.update_status(new_status)
+    
+    def _get_custom_tooltip(self):
+        """获取或创建自定义工具提示"""
+        if not self._custom_tooltip:
+            # 找到顶级窗口作为父级
+            view = self.scene().views()[0] if self.scene() and self.scene().views() else None
+            parent = view.window() if view else None
+            self._custom_tooltip = PersistentTooltip(parent)
+        return self._custom_tooltip
+    
+    def hoverEnterEvent(self, event):
+        """鼠标进入事件 - 显示持久化工具提示"""
+        try:
+            tooltip = self._get_custom_tooltip()
+            tooltip_text = self._create_tooltip()
+            
+            # 获取鼠标在屏幕上的位置
+            if self.scene() and self.scene().views():
+                view = self.scene().views()[0]
+                # 将场景坐标转换为全局坐标
+                scene_pos = event.scenePos()
+                view_pos = view.mapFromScene(scene_pos)
+                global_pos = view.mapToGlobal(view_pos)
+                
+                # 偏移一点避免遮挡光标
+                global_pos.setX(global_pos.x() + 15)
+                global_pos.setY(global_pos.y() + 15)
+                
+                tooltip.showTooltip(tooltip_text, global_pos)
+                self._tooltip_shown = True
+        except Exception as e:
+            print(f"显示工具提示失败: {e}")
+        
+        super().hoverEnterEvent(event)
+    
+    def hoverLeaveEvent(self, event):
+        """鼠标离开事件 - 隐藏工具提示"""
+        try:
+            if self._custom_tooltip and self._tooltip_shown:
+                self._custom_tooltip.hideTooltip()
+                self._tooltip_shown = False
+        except Exception as e:
+            print(f"隐藏工具提示失败: {e}")
+        
+        super().hoverLeaveEvent(event)

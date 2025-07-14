@@ -41,8 +41,8 @@ class InteractionMixin:
         self.rubber_band_enabled = True
         self.selected_items: Set[HoleGraphicsItem] = set()
         
-        # 提示框参数
-        self.tooltip_enabled = True
+        # 提示框参数 - 禁用以避免与HoleGraphicsItem的自定义工具提示冲突
+        self.tooltip_enabled = False
         self.tooltip_delay = 500  # 提示框延迟（毫秒）
         self.tooltip_timer = QTimer()
         self.tooltip_timer.setSingleShot(True)
@@ -154,8 +154,8 @@ class InteractionMixin:
         # 清除悬停状态
         self._clear_hover()
         
-        # 隐藏提示框
-        QToolTip.hideText()
+        # 不再强制隐藏工具提示，让自定义工具提示自行管理
+        # QToolTip.hideText()  # 注释掉以避免隐藏PersistentTooltip
         self.tooltip_timer.stop()
         
         # 调用父类方法

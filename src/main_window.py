@@ -44,7 +44,7 @@ from aidcis2.graphics.dynamic_sector_view import DynamicSectorDisplayWidget, Com
 from aidcis2.graphics.sector_manager_adapter import SectorManagerAdapter
 from aidcis2.graphics.dynamic_sector_overview import DynamicSectorOverviewWidget, DynamicSectorDetailView
 
-
+    
 class MainWindow(QMainWindow):
     """
     合并后的主窗口类
@@ -109,6 +109,12 @@ class MainWindow(QMainWindow):
         self.setup_status_bar()
         self.setup_connections()
         self.setup_search_completer()
+        
+        # 添加主题调试快捷键（Ctrl+Shift+T）
+        from PySide6.QtGui import QKeySequence, QShortcut
+        theme_shortcut = QShortcut(QKeySequence("Ctrl+Shift+T"), self)
+        theme_shortcut.activated.connect(self.open_theme_debugger)
+        print("✅ 主题调试快捷键已设置: Ctrl+Shift+T")
         
         # 定时器用于状态更新
         self.update_timer = QTimer()
@@ -275,8 +281,61 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.view_combo)
 
         layout.addStretch()
+        
+        # 扇形偏移配置框
+        self._create_sector_offset_config(layout, toolbar_font)
 
         return toolbar
+    
+    def _create_sector_offset_config(self, layout, font):
+        """创建扇形偏移配置控件"""
+        from PySide6.QtWidgets import QFrame, QLabel, QSpinBox, QCheckBox
+        
+        # 创建配置框架
+        config_frame = QFrame()
+        config_frame.setFrameStyle(QFrame.StyledPanel)
+        config_frame.setMaximumWidth(200)
+        
+        config_layout = QHBoxLayout(config_frame)
+        config_layout.setContentsMargins(8, 4, 8, 4)
+        config_layout.setSpacing(5)
+        
+        # 标签
+        config_label = QLabel("扇形偏移:")
+        config_label.setFont(font)
+        config_layout.addWidget(config_label)
+        
+        # 偏移百分比输入框（0-50%）
+        self.offset_spinbox = QSpinBox()
+        self.offset_spinbox.setRange(0, 50)  # 0-50%
+        self.offset_spinbox.setValue(10)  # 默认10%
+        self.offset_spinbox.setSuffix("%")
+        self.offset_spinbox.setMinimumWidth(50)
+        self.offset_spinbox.setFont(font)
+        self.offset_spinbox.setToolTip("设置中间栏扇形视图向右偏移的百分比")
+        config_layout.addWidget(self.offset_spinbox)
+        
+        # 启用/禁用复选框
+        self.offset_enabled_checkbox = QCheckBox("启用")
+        self.offset_enabled_checkbox.setChecked(True)
+        self.offset_enabled_checkbox.setFont(font)
+        self.offset_enabled_checkbox.setToolTip("启用或禁用扇形偏移")
+        config_layout.addWidget(self.offset_enabled_checkbox)
+        
+        layout.addWidget(config_frame)
+        
+        # 连接信号
+        self.offset_spinbox.valueChanged.connect(self._on_offset_config_changed)
+        self.offset_enabled_checkbox.toggled.connect(self._on_offset_config_changed)
+    
+    def _on_offset_config_changed(self):
+        """偏移配置变化时的处理"""
+        if hasattr(self, 'dynamic_sector_display') and self.dynamic_sector_display:
+            ratio = self.offset_spinbox.value() / 100.0  # 转换为小数
+            enabled = self.offset_enabled_checkbox.isChecked()
+            
+            self.dynamic_sector_display.set_sector_offset_config(ratio=ratio, enabled=enabled)
+            self.log_message(f"🔧 扇形偏移配置已更新: {ratio:.1%}, {'启用' if enabled else '禁用'}")
 
     def create_left_info_panel(self) -> QWidget:
         """创建左侧信息面板"""
@@ -483,13 +542,8 @@ class MainWindow(QMainWindow):
         # 创建全景预览组件
         self.sidebar_panorama = CompletePanoramaWidget()
         self.sidebar_panorama.setFixedSize(360, 420)  # 调整容器尺寸适配面板：宽度360，高度420（增大高度）
-        self.sidebar_panorama.setStyleSheet("""
-            QWidget {
-                background-color: white;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-            }
-        """)
+        # 移除内联样式，使用主题管理器
+        self.sidebar_panorama.setObjectName("PanoramaWidget")
         panorama_layout.addWidget(self.sidebar_panorama)
         layout.addWidget(panorama_group)
 
@@ -504,15 +558,8 @@ class MainWindow(QMainWindow):
         self.sector_stats_label.setWordWrap(True)
         self.sector_stats_label.setMinimumHeight(120)  # 增加最小高度
         self.sector_stats_label.setAlignment(Qt.AlignTop)
-        self.sector_stats_label.setStyleSheet("""
-            QLabel {
-                background-color: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: 4px;
-                padding: 12px;
-                line-height: 1.4;
-            }
-        """)
+        # 移除内联样式，使用主题管理器
+        self.sector_stats_label.setObjectName("SectorStatsLabel")
         sector_stats_layout.addWidget(self.sector_stats_label)
         layout.addWidget(sector_stats_group)
 
@@ -624,7 +671,9 @@ class MainWindow(QMainWindow):
             # 颜色指示器
             color_label = QLabel()
             color_label.setFixedSize(16, 16)  # 增加颜色指示器大小
-            color_label.setStyleSheet(f"background-color: {color}; border: 1px solid #000;")
+            # 使用ObjectName而不是内联样式
+            color_label.setObjectName("StatusColorLabel")
+            color_label.setProperty("status_color", color)
 
             # 状态文本
             text_label = QLabel(status_names.get(status, status.value))
@@ -658,27 +707,8 @@ class MainWindow(QMainWindow):
         self.macro_view_btn.setMinimumHeight(35)
         self.macro_view_btn.setMinimumWidth(140)
         self.macro_view_btn.setToolTip("显示整个管板的全貌，适合快速浏览和状态概览")
-        self.macro_view_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 6px;
-                font-weight: bold;
-                font-size: 11px;
-            }
-            QPushButton:checked {
-                background-color: #45a049;
-                border: 2px solid #2E7D32;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QPushButton:pressed {
-                background-color: #3e8e41;
-            }
-        """)
+        # 移除内联样式，使用主题管理器
+        self.macro_view_btn.setProperty("class", "PrimaryAction")
         self.macro_view_btn.clicked.connect(self.switch_to_macro_view)
         layout.addWidget(self.macro_view_btn)
         
@@ -688,27 +718,8 @@ class MainWindow(QMainWindow):
         self.micro_view_btn.setMinimumHeight(35)
         self.micro_view_btn.setMinimumWidth(140)
         self.micro_view_btn.setToolTip("显示管孔的详细信息，适合精确检查和操作")
-        self.micro_view_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 6px;
-                font-weight: bold;
-                font-size: 11px;
-            }
-            QPushButton:checked {
-                background-color: #1976D2;
-                border: 2px solid #1565C0;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-            QPushButton:pressed {
-                background-color: #1565C0;
-            }
-        """)
+        # 移除内联样式，使用主题管理器
+        self.micro_view_btn.setProperty("class", "ActionButton")
         self.micro_view_btn.clicked.connect(self.switch_to_micro_view)
         layout.addWidget(self.micro_view_btn)
         
@@ -723,30 +734,16 @@ class MainWindow(QMainWindow):
         self.orient_btn.setMinimumHeight(35)
         self.orient_btn.setMinimumWidth(100)
         self.orient_btn.setToolTip("确保管板在所有视图中都是竖向摆放")
-        self.orient_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #FF9800;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 6px;
-                font-weight: bold;
-                font-size: 11px;
-            }
-            QPushButton:hover {
-                background-color: #F57C00;
-            }
-            QPushButton:pressed {
-                background-color: #E65100;
-            }
-        """)
+        # 移除内联样式，使用主题管理器
+        self.orient_btn.setProperty("class", "WarningButton")
         self.orient_btn.clicked.connect(self.ensure_vertical_orientation)
         layout.addWidget(self.orient_btn)
         
         # 添加当前视图状态指示器
         self.view_status_label = QLabel("当前: 宏观视图")
         self.view_status_label.setFont(QFont("Arial", 10))
-        self.view_status_label.setStyleSheet("color: #666; font-style: italic;")
+        # 移除内联样式，使用主题管理器
+        self.view_status_label.setObjectName("ViewStatusLabel")
         layout.addWidget(self.view_status_label)
         
         layout.addStretch()
@@ -909,6 +906,29 @@ class MainWindow(QMainWindow):
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
+
+        # 视图菜单
+        view_menu = menubar.addMenu("视图")
+        
+        # 主题切换子菜单
+        theme_menu = view_menu.addMenu("主题")
+        
+        dark_theme_action = QAction("深色主题（默认）", self)
+        dark_theme_action.setShortcut("Ctrl+D")
+        dark_theme_action.triggered.connect(self.switch_to_dark_theme)
+        theme_menu.addAction(dark_theme_action)
+        
+        light_theme_action = QAction("浅色主题", self)
+        light_theme_action.setShortcut("Ctrl+L")
+        light_theme_action.triggered.connect(self.switch_to_light_theme)
+        theme_menu.addAction(light_theme_action)
+        
+        theme_menu.addSeparator()
+        
+        theme_debug_action = QAction("主题调试工具", self)
+        theme_debug_action.setShortcut("Ctrl+Shift+T")
+        theme_debug_action.triggered.connect(self.open_theme_debugger)
+        theme_menu.addAction(theme_debug_action)
 
         # 工具菜单
         tools_menu = menubar.addMenu("工具")
@@ -1274,7 +1294,11 @@ class MainWindow(QMainWindow):
             
             # 清空UI显示
             if hasattr(self, 'dynamic_sector_display') and self.dynamic_sector_display:
-                self.dynamic_sector_display.set_hole_collection(None)
+                # 清空显示但不调用set_hole_collection(None)
+                if hasattr(self.dynamic_sector_display, 'graphics_view'):
+                    self.dynamic_sector_display.graphics_view.clear()
+                if hasattr(self.dynamic_sector_display, 'mini_panorama') and hasattr(self.dynamic_sector_display.mini_panorama, 'scene'):
+                    self.dynamic_sector_display.mini_panorama.scene.clear()
             if hasattr(self, 'sidebar_panorama') and self.sidebar_panorama:
                 self.sidebar_panorama.info_label.setText("等待数据加载...")
             
@@ -1390,7 +1414,11 @@ class MainWindow(QMainWindow):
         try:
             # 清空主视图数据
             if hasattr(self, 'dynamic_sector_display') and self.dynamic_sector_display:
-                self.dynamic_sector_display.set_hole_collection(None)
+                # 清空显示但不调用set_hole_collection(None)
+                if hasattr(self.dynamic_sector_display, 'graphics_view'):
+                    self.dynamic_sector_display.graphics_view.clear()
+                if hasattr(self.dynamic_sector_display, 'mini_panorama') and hasattr(self.dynamic_sector_display.mini_panorama, 'scene'):
+                    self.dynamic_sector_display.mini_panorama.scene.clear()
                 self.log_message("🧹 主视图已清空")
             
             # 清空侧边栏全景图
@@ -1545,8 +1573,16 @@ class MainWindow(QMainWindow):
             
             # 加载到动态扇形显示组件
             if hasattr(self, 'dynamic_sector_display') and self.dynamic_sector_display:
+                self.log_message(f"🔍 准备调用 set_hole_collection，dynamic_sector_display = {self.dynamic_sector_display}")
                 self.dynamic_sector_display.set_hole_collection(self.hole_collection)
+                # 连接浮动全景图的数据更新信号
+                self.dynamic_sector_display.connect_data_signals(self)
                 self.log_message(f"✅ 动态扇形显示组件已加载孔位数据")
+                
+                # 显示孔位ID格式示例
+                if hasattr(self, 'graphics_view') and self.graphics_view.hole_items:
+                    sample_ids = list(self.graphics_view.hole_items.keys())[:5]
+                    self.log_message(f"📋 孔位ID格式示例: {sample_ids}")
                 
                 # 确保主视图显示第一个扇形（扇形专注显示）
                 from aidcis2.graphics.sector_manager import SectorQuadrant
@@ -1685,9 +1721,9 @@ class MainWindow(QMainWindow):
         self.log_message(f"  📊 孔位数据: ID={hole.hole_id}, X={hole.center_x}, Y={hole.center_y}, R={hole.radius}, 状态={hole.status}")
 
         try:
-            # 基本信息 - 使用(row,column)格式显示
+            # 基本信息 - 使用RXXXCXXX格式显示
             if hole.row is not None and hole.column is not None:
-                id_text = f"({hole.row},{hole.column})"
+                id_text = f"R{hole.row:03d}C{hole.column:03d}"
             else:
                 id_text = f"{hole.hole_id}"
             position_text = f"({hole.center_x:.1f}, {hole.center_y:.1f})"
@@ -1731,7 +1767,9 @@ class MainWindow(QMainWindow):
 
             # 设置状态标签并验证
             self.selected_hole_status_label.setText(status_text)
-            self.selected_hole_status_label.setStyleSheet(f"color: {status_color}; font-weight: bold;")
+            # 移除内联样式，使用ObjectName
+            self.selected_hole_status_label.setObjectName("SelectedHoleStatusLabel")
+            self.selected_hole_status_label.setProperty("status_type", status.value if hasattr(status, 'value') else str(status))
             actual_status_text = self.selected_hole_status_label.text()
             self.log_message(f"  ✅ 状态标签设置结果: 期望='{status_text}', 实际='{actual_status_text}'")
 
@@ -2454,6 +2492,10 @@ class MainWindow(QMainWindow):
             # 停止模拟
             if hasattr(self, 'simulation_timer_v2'):
                 self.simulation_timer_v2.stop()
+            if hasattr(self, 'batch_generation_timer'):
+                self.batch_generation_timer.stop()
+            if hasattr(self, 'render_timer'):
+                self.render_timer.stop()
             self.simulation_running_v2 = False
             self.simulate_btn.setText("使用模拟进度")
             self.log_message("⏹️ 停止模拟进度 V2")
@@ -2494,6 +2536,9 @@ class MainWindow(QMainWindow):
     
     def _initialize_sector_simulation(self):
         """初始化连续模拟数据"""
+        # 重置模拟索引
+        self.simulation_index_v2 = 0
+        self.batch_render_index = 0
         from aidcis2.graphics.sector_manager import SectorQuadrant
         
         # 确保扇形管理器存在
@@ -2529,15 +2574,20 @@ class MainWindow(QMainWindow):
                 self.hole_to_sector_map[hole.hole_id] = sector
             
             self.log_message(f"📋 {sector.value}: {len(sector_holes)} 个孔位")
+
+            # 调试：显示每个扇形的前几个孔位ID，验证排序
+            if sector_holes:
+                first_few = [h.hole_id for h in sector_holes[:5]]
+                self.log_message(f"   🔍 {sector.value} 前5个孔位: {first_few}")
         
         # 模拟状态
         self.simulation_index_v2 = 0
         self.current_displayed_sector = None
         
-        # 最后对整个序列进行全局最近邻优化
-        self.holes_list_v2 = self._optimize_global_detection_path(self.holes_list_v2)
-        
-        self.log_message(f"🔄 V2模拟准备完成: 共 {len(self.holes_list_v2)} 个孔位连续检测")
+        # 保持严格的扇形->行->列顺序，不进行全局优化
+        # self.holes_list_v2 = self._optimize_global_detection_path(self.holes_list_v2)  # 注释掉全局优化
+
+        self.log_message(f"🔄 V2模拟准备完成: 共 {len(self.holes_list_v2)} 个孔位，严格按扇形->行->列顺序")
         
         # 显示调整后的参数总结
         self._log_detection_parameters()
@@ -2546,39 +2596,85 @@ class MainWindow(QMainWindow):
         self._verify_detection_path_continuity(self.holes_list_v2)
     
     def _create_spiral_detection_path(self, holes):
-        """创建扇形区域内连续无漏检的检测路径"""
+        """创建扇形区域内严格按行->列顺序的检测路径"""
         if not holes:
             return holes
-        
-        # 简化但更可靠的策略：蛇形扫描确保连续性和完整覆盖
-        # 核心思路：行优先扫描，像打印机一样从左到右、从上到下
-        
+
+        # 严格按行->列顺序，支持蛇形扫描模式
+        # 核心思路：先精确按行分组，再在每行内按列排序
+
         try:
-            # 使用更小的容差确保精确分组（可调参数1）- 进一步降低
-            base_tolerance = 4  # 进一步激进降低基础容差，从8px降到4px
-            rows = self._group_holes_into_rows(holes, tolerance=base_tolerance)
+            # 第一步：基于Y坐标进行精确行分组
+            # 使用更小的容差确保行分组的准确性
+            tolerance = 5.0  # 减小容差，提高行分组精度
             
-            # 行与行之间从上到下排序
+            # 按Y坐标排序所有孔位
+            y_sorted_holes = sorted(holes, key=lambda h: h.center_y)
+            
+            # 动态计算行间距
+            if len(y_sorted_holes) > 1:
+                y_gaps = []
+                for i in range(1, len(y_sorted_holes)):
+                    gap = abs(y_sorted_holes[i].center_y - y_sorted_holes[i-1].center_y)
+                    if gap > tolerance:  # 只记录大于容差的间距
+                        y_gaps.append(gap)
+                
+                if y_gaps:
+                    # 使用最小显著间距的一半作为动态容差
+                    min_gap = min(y_gaps)
+                    tolerance = min(tolerance, min_gap * 0.6)
+            
+            # 按行分组
+            rows = []
+            if y_sorted_holes:
+                current_row = [y_sorted_holes[0]]
+                
+                for hole in y_sorted_holes[1:]:
+                    # 计算当前行的平均Y坐标
+                    avg_y = sum(h.center_y for h in current_row) / len(current_row)
+                    
+                    # 判断是否应该加入当前行
+                    if abs(hole.center_y - avg_y) <= tolerance:
+                        current_row.append(hole)
+                    else:
+                        # 开始新行
+                        if current_row:
+                            rows.append(current_row)
+                        current_row = [hole]
+                
+                # 添加最后一行
+                if current_row:
+                    rows.append(current_row)
+
+            # 第二步：行间排序 - 严格按Y坐标从上到下
             rows.sort(key=lambda row: min(h.center_y for h in row))
-            
-            # 构建蛇形扫描路径（左右交替，确保连续）
+
+            # 第三步：构建严格的行->列蛇形扫描路径
             sorted_holes = []
-            for i, row_holes in enumerate(rows):
-                if i % 2 == 0:
+            for row_index, row_holes in enumerate(rows):
+                # 在每行内按X坐标排序
+                if row_index % 2 == 0:
                     # 偶数行：从左到右
                     row_holes.sort(key=lambda h: h.center_x)
                 else:
                     # 奇数行：从右到左（蛇形路径）
                     row_holes.sort(key=lambda h: h.center_x, reverse=True)
-                
+
                 sorted_holes.extend(row_holes)
+
+            self.log_message(f"📐 扇形内严格排序: {len(holes)} 个孔位 -> {len(rows)} 行，蛇形扫描模式")
             
-            self.log_message(f"📐 扇形内蛇形扫描: {len(holes)} 个孔位 -> {len(rows)} 行，容差={base_tolerance}px，确保连续无漏检")
+            # 调试信息：显示前几行的排序情况
+            for i, row in enumerate(rows[:3]):  # 只显示前3行
+                x_coords = [f"{h.center_x:.0f}" for h in row]
+                direction = "→" if i % 2 == 0 else "←"
+                self.log_message(f"  第{i+1}行 {direction}: [{', '.join(x_coords)}]")
+            
             return sorted_holes
-            
+
         except Exception as e:
-            self.log_message(f"⚠️ 蛇形扫描失败，使用备用方案: {e}")
-            # 备用方案：简单但可靠的排序
+            self.log_message(f"⚠️ 行列排序失败，使用简单排序: {e}")
+            # 备用方案：简单的行列排序（不使用蛇形）
             return sorted(holes, key=lambda h: (h.center_y, h.center_x))
     
     def _optimize_global_detection_path(self, all_holes):
@@ -2832,12 +2928,41 @@ class MainWindow(QMainWindow):
         self.simulation_index_v2 = 0
         self.current_displayed_sector = None
         
-        # 启动连续模拟定时器
-        if not hasattr(self, 'simulation_timer_v2'):
-            self.simulation_timer_v2 = QTimer()
-            self.simulation_timer_v2.timeout.connect(self._update_simulation_v2)
+        # 初始化批量数据管理器
+        if not hasattr(self, 'batch_data_manager'):
+            try:
+                from models.batch_data_manager import BatchDataManager
+            except ImportError:
+                # 如果models包导入失败，尝试直接导入
+                try:
+                    from batch_data_manager import BatchDataManager
+                except ImportError:
+                    # 最后尝试相对路径导入
+                    import sys
+                    import os
+                    models_path = os.path.join(os.path.dirname(__file__), '..', 'models')
+                    sys.path.insert(0, models_path)
+                    from batch_data_manager import BatchDataManager
+            self.batch_data_manager = BatchDataManager()
         
-        self.simulation_timer_v2.start(100)  # 100ms一个孔位，连续无间断
+        # 重置模拟状态，确保全局计数器从0开始
+        self.batch_data_manager.reset_simulation()
+        
+        # 创建两个定时器：批量数据生成(1000ms) + 渲染分发(100ms)
+        if not hasattr(self, 'batch_generation_timer'):
+            self.batch_generation_timer = QTimer()
+            self.batch_generation_timer.timeout.connect(self._generate_batch_data)
+            
+        if not hasattr(self, 'render_timer'):
+            self.render_timer = QTimer()
+            self.render_timer.timeout.connect(self._render_next_hole)
+        
+        # 启动批量数据生成定时器 (1000ms)
+        self.batch_generation_timer.start(1000)
+        self.log_message("🚀 启动新的批量渲染模拟 (1000ms批量 + 100ms渲染)")
+        
+        # 渲染定时器在有数据时启动 (100ms)
+        self.render_timer.start(100)
         
     def _start_next_sector_simulation(self):
         """开始下一个扇形的模拟"""
@@ -2881,7 +3006,9 @@ class MainWindow(QMainWindow):
             self.simulation_timer_v2 = QTimer()
             self.simulation_timer_v2.timeout.connect(self._update_simulation_v2)
         
-        self.simulation_timer_v2.start(100)  # 100ms一个孔位 (0.1秒)
+        import random
+        interval = 400 + random.randint(0, 10)  # 400-410ms随机间隔，避免时序冲突
+        self.simulation_timer_v2.start(interval)
         
     def _complete_current_sector(self):
         """完成当前扇形的模拟"""
@@ -2902,6 +3029,10 @@ class MainWindow(QMainWindow):
         """完成所有扇形的模拟"""
         if hasattr(self, 'simulation_timer_v2'):
             self.simulation_timer_v2.stop()
+        if hasattr(self, 'batch_generation_timer'):
+            self.batch_generation_timer.stop()
+        if hasattr(self, 'render_timer'):
+            self.render_timer.stop()
         
         self.simulation_running_v2 = False
         self.simulate_btn.setText("使用模拟进度")
@@ -2983,11 +3114,251 @@ class MainWindow(QMainWindow):
             else:
                 self.log_message(f"✅ 所有 {len(self.holes_list_v2)} 个图形项验证通过")
 
+    def _generate_batch_data(self):
+        """生成批量数据 (1000ms周期)"""
+        if not hasattr(self, 'holes_list_v2') or not self.holes_list_v2:
+            return
+            
+        # 检查是否还有未处理的孔位
+        remaining_holes = len(self.holes_list_v2) - self.simulation_index_v2
+        if remaining_holes <= 0:
+            self.log_message("🏁 所有孔位处理完成，停止批量生成")
+            self.batch_generation_timer.stop()
+            return
+        
+        # 获取下一批10个孔位
+        batch_size = min(10, remaining_holes)
+        holes_batch = self.holes_list_v2[self.simulation_index_v2:self.simulation_index_v2 + batch_size]
+        
+        # 确定当前扇形
+        current_hole = holes_batch[0]
+        current_sector = self._get_hole_sector(current_hole)
+        
+        # 生成批量数据
+        batch = self.batch_data_manager.generate_simulation_batch(holes_batch, current_sector.value)
+        
+        self.log_message(f"📦 生成批量数据: {batch.batch_id}, {len(batch.holes)}个孔位, 扇形: {current_sector.value}")
+        
+        # 更新索引
+        self.simulation_index_v2 += batch_size
+    
+    def _render_next_hole(self):
+        """渲染下一个孔位 (100ms周期)"""
+        if not hasattr(self, 'batch_data_manager'):
+            return
+            
+        # 获取下一个要渲染的孔位
+        render_item = self.batch_data_manager.get_next_render_item()
+        if not render_item:
+            # 当前批次渲染完成，等待下一批次
+            return
+        
+        hole_id = render_item.hole_id
+        
+        # 智能扇形切换
+        from aidcis2.graphics.sector_manager import SectorQuadrant
+        try:
+            current_sector = SectorQuadrant(render_item.sector)
+            self._handle_sector_switching(current_sector)
+        except:
+            self.log_message(f"⚠️ 扇形解析失败: {render_item.sector}")
+        
+        # 检查图形项是否存在
+        # 处理ID格式不匹配问题
+        original_hole_id = hole_id
+        if hole_id not in self.graphics_view.hole_items:
+            # 尝试使用实际存在的孔位ID
+            available_items = list(self.graphics_view.hole_items.items())
+            if available_items:
+                # 根据模拟索引选择对应的实际孔位
+                actual_index = self.simulation_hole_index % len(available_items)
+                hole_id, hole_item = available_items[actual_index]
+                self.log_message(f"📝 ID映射: {original_hole_id} -> {hole_id}")
+            else:
+                self.log_message(f"⚠️ 没有可用的图形项")
+                self.simulation_hole_index += 1
+                return
+        
+        if hole_id not in self.graphics_view.hole_items:
+            # 添加调试信息
+            available_ids = list(self.graphics_view.hole_items.keys())[:5]  # 只取前5个
+            self.log_message(f"⚠️ 图形项不存在 {hole_id}")
+            self.log_message(f"🔍 可用的前5个图形项ID: {available_ids}")
+            self._reload_current_sector()
+            if hole_id not in self.graphics_view.hole_items:
+                self.log_message(f"❌ 图形项 {hole_id} 仍然不存在，跳过")
+                return
+
+        # 渲染孔位状态
+        hole_item = self.graphics_view.hole_items[hole_id]
+        color = self._get_status_color(render_item.status)
+        
+        try:
+            from PySide6.QtGui import QBrush
+            hole_item.setBrush(QBrush(color))
+            
+            # 只在调试时显示详细渲染信息
+            if not hasattr(self, '_render_count'):
+                self._render_count = 0
+            self._render_count += 1
+            
+            # 每10个孔位显示一次进度
+            if self._render_count % 10 == 0:
+                self.log_message(f"🎨 已渲染 {self._render_count} 个孔位 (最新: {hole_id}, {render_item.status})")
+            
+            # 同步到全景图 - 使用统一的批量更新机制
+            self._synchronize_panorama_status(hole_id, render_item.status, color)
+            
+        except Exception as e:
+            self.log_message(f"❌ 渲染失败 {hole_id}: {e}")
+    
+    def _get_status_color(self, status: str):
+        """根据状态获取颜色"""
+        from PySide6.QtGui import QColor
+        status_colors = {
+            "processing": QColor(76, 175, 80),    # 绿色 - 直接显示最终结果，不显示中间状态
+            "qualified": QColor(76, 175, 80),     # 绿色 - 合格
+            "defective": QColor(244, 67, 54),     # 红色 - 不合格
+            "pending": QColor(158, 158, 158),     # 灰色 - 待检
+            "unknown": QColor(158, 158, 158)      # 灰色 - 未知
+        }
+        return status_colors.get(status, status_colors["unknown"])
+    
+    def _reload_current_sector(self):
+        """重新加载当前扇形"""
+        if hasattr(self, 'current_displayed_sector') and self.current_displayed_sector:
+            try:
+                self.dynamic_sector_display.switch_to_sector(self.current_displayed_sector)
+                self.log_message(f"✅ 重新加载扇形: {self.current_displayed_sector.value}")
+            except Exception as e:
+                self.log_message(f"❌ 扇形重新加载失败: {e}")
+
+    def _handle_sector_switching(self, target_sector):
+        """处理扇形切换逻辑"""
+        if self.current_displayed_sector != target_sector:
+            try:
+                self.dynamic_sector_display.switch_to_sector(target_sector)
+                self.current_displayed_sector = target_sector
+                self.log_message(f"🔄 智能切换到扇形: {target_sector.value}")
+                
+                # 手动同步全景预览
+                from PySide6.QtCore import QTimer
+                QTimer.singleShot(50, lambda: self._manual_sync_panorama(target_sector))
+                
+            except Exception as e:
+                self.log_message(f"❌ 扇形切换失败: {e}")
+
+    def _get_hole_sector(self, hole):
+        """获取孔位所属的扇形"""
+        from aidcis2.graphics.sector_manager import SectorQuadrant
+        import math
+        
+        # 使用简单的坐标方式确定扇形，与sector_manager逻辑一致
+        if not hasattr(self, 'hole_collection') or not self.hole_collection:
+            # 默认返回SECTOR_1
+            return SectorQuadrant.SECTOR_1
+        
+        try:
+            # 获取数据边界
+            bounds = self.hole_collection.get_bounds()
+            center_x = (bounds[0] + bounds[2]) / 2
+            center_y = (bounds[1] + bounds[3]) / 2
+            
+            # 计算相对于中心的坐标
+            dx = hole.center_x - center_x
+            dy = hole.center_y - center_y
+            
+            # 使用象限划分
+            if dx >= 0 and dy >= 0:
+                return SectorQuadrant.SECTOR_1  # 右上
+            elif dx < 0 and dy >= 0:
+                return SectorQuadrant.SECTOR_2  # 左上
+            elif dx < 0 and dy < 0:
+                return SectorQuadrant.SECTOR_3  # 左下
+            else:
+                return SectorQuadrant.SECTOR_4  # 右下
+                
+        except Exception as e:
+            self.log_message(f"⚠️ 扇形计算失败: {e}")
+            return SectorQuadrant.SECTOR_1
+
+    def _synchronize_panorama_status(self, hole_id: str, status: str, color):
+        """统一的全景图同步机制（包含侧边栏全景图和小型全景图）"""
+        print(f"🔄 [调试] _synchronize_panorama_status 被调用: {hole_id} -> {status}")
+        print(f"🔍 [调试] 参数类型: hole_id={type(hole_id)}, status={type(status)}, color={type(color)}")
+        
+        # 调试：检查主要组件状态
+        print(f"📊 [调试] 组件状态检查:")
+        print(f"  - hasattr(self, 'sidebar_panorama'): {hasattr(self, 'sidebar_panorama')}")
+        print(f"  - self.sidebar_panorama is not None: {getattr(self, 'sidebar_panorama', None) is not None}")
+        print(f"  - hasattr(self, 'dynamic_sector_display'): {hasattr(self, 'dynamic_sector_display')}")
+        print(f"  - self.dynamic_sector_display is not None: {getattr(self, 'dynamic_sector_display', None) is not None}")
+        
+        try:
+            # 将状态转换为HoleStatus
+            from aidcis2.models.hole_data import HoleStatus
+            
+            status_mapping = {
+                "processing": HoleStatus.PROCESSING,
+                "qualified": HoleStatus.QUALIFIED,
+                "defective": HoleStatus.DEFECTIVE,
+                "pending": HoleStatus.PENDING
+            }
+            
+            hole_status = status_mapping.get(status, HoleStatus.PENDING)
+            
+            # 同步到侧边栏全景图
+            if hasattr(self, 'sidebar_panorama') and self.sidebar_panorama:
+                self.sidebar_panorama.update_hole_status(hole_id, hole_status)
+            
+            # 同步到小型全景图（关键修复！）
+            if hasattr(self, 'dynamic_sector_display') and self.dynamic_sector_display:
+                if hasattr(self.dynamic_sector_display, 'update_mini_panorama_hole_status'):
+                    self.dynamic_sector_display.update_mini_panorama_hole_status(hole_id, hole_status)
+                    
+                    # 添加调试日志确认调用
+                    if hasattr(self, '_mini_sync_counter'):
+                        self._mini_sync_counter += 1
+                    else:
+                        self._mini_sync_counter = 1
+                    
+                    # 每5次输出一次小型全景图同步信息
+                    if self._mini_sync_counter % 5 == 0:
+                        print(f"🔗 [同步-小型] 主视图 -> 小型全景图: 已同步 {self._mini_sync_counter} 个孔位 (最新: {hole_id} -> {status})")
+                else:
+                    print(f"❌ [同步-小型] dynamic_sector_display 没有 update_mini_panorama_hole_status 方法")
+            else:
+                print(f"❌ [同步-小型] dynamic_sector_display 不存在")
+            
+            # 添加调试日志（减少频率）
+            if hasattr(self, '_sync_debug_counter'):
+                self._sync_debug_counter += 1
+            else:
+                self._sync_debug_counter = 1
+            
+            # 只每10次输出一次调试信息
+            if self._sync_debug_counter % 10 == 0:
+                print(f"🔗 [同步] 主视图 -> 全景图: 已同步 {self._sync_debug_counter} 个孔位")
+            
+        except Exception as e:
+            # 减少错误日志频率
+            if not hasattr(self, '_sync_error_count'):
+                self._sync_error_count = 0
+            self._sync_error_count += 1
+            if self._sync_error_count <= 5:  # 只显示前5个错误
+                self.log_message(f"❌ 全景图同步失败 {hole_id}: {e}")
+            elif self._sync_error_count == 6:
+                self.log_message("❌ 全景图同步错误过多，后续错误将被静默处理")
+
     def _update_simulation_v2(self):
         """更新模拟进度 V2 - 连续模拟所有孔位"""
         if self.simulation_index_v2 >= len(self.holes_list_v2):
             # 所有孔位完成，结束模拟
             self.simulation_timer_v2.stop()
+            if hasattr(self, 'batch_generation_timer'):
+                self.batch_generation_timer.stop()
+            if hasattr(self, 'render_timer'):
+                self.render_timer.stop()
             self.simulation_running_v2 = False
             self.simulate_btn.setText("使用模拟进度")
             self.log_message("✅ 连续模拟 V2 完成")
@@ -3302,22 +3673,38 @@ class MainWindow(QMainWindow):
             from aidcis2.models.hole_data import HoleStatus
             from PySide6.QtGui import QColor
             
-            # 根据颜色推断状态（简化版本）
+            # 根据颜色推断状态（修复颜色映射）
             if isinstance(color, QColor):
                 color_name = color.name().upper()
-                print(f"🎨 [全景更新] 颜色名称: {color_name}")
-                if color_name == "#4CAF50" or color_name == "#00FF00":  # 绿色（Material Design 或 纯绿）
+                r, g, b = color.red(), color.green(), color.blue()
+                print(f"🎨 [全景更新] 颜色: {color_name} RGB({r}, {g}, {b})")
+                
+                # 使用RGB值进行精确匹配，以匹配模拟中使用的确切颜色
+                if (r, g, b) == (0, 255, 0) or color_name == "#00FF00":  # 纯绿色 - 合格
                     status = HoleStatus.QUALIFIED
-                elif color_name == "#F44336" or color_name == "#FF0000":  # 红色
+                elif (r, g, b) == (255, 0, 0) or color_name == "#FF0000":  # 纯红色 - 异常
                     status = HoleStatus.DEFECTIVE
-                elif color_name == "#2196F3" or color_name == "#0000FF":  # 蓝色
-                    status = HoleStatus.PROCESSING
-                elif color_name == "#FF9800" or color_name == "#FFA500":  # 橙色 - 盲孔
+                elif (r, g, b) == (255, 255, 0) or color_name == "#FFFF00":  # 纯黄色 - 盲孔
                     status = HoleStatus.BLIND
-                elif color_name == "#9C27B0" or color_name == "#800080":  # 紫色 - 拉杆孔
+                elif (r, g, b) == (0, 0, 255) or color_name == "#0000FF":  # 纯蓝色 - 拉杆孔
                     status = HoleStatus.TIE_ROD
+                elif (r, g, b) == (0, 123, 255):  # 检测中使用的蓝色
+                    status = HoleStatus.PROCESSING
                 else:
-                    status = HoleStatus.PENDING  # 默认状态
+                    # 其他Material Design颜色的兼容性
+                    if color_name in ["#4CAF50"]:  # Material 绿色
+                        status = HoleStatus.QUALIFIED
+                    elif color_name in ["#F44336"]:  # Material 红色
+                        status = HoleStatus.DEFECTIVE
+                    elif color_name in ["#2196F3"]:  # Material 蓝色
+                        status = HoleStatus.PROCESSING
+                    elif color_name in ["#FF9800", "#FFA500"]:  # Material 橙色
+                        status = HoleStatus.BLIND
+                    elif color_name in ["#9C27B0", "#800080"]:  # Material 紫色
+                        status = HoleStatus.TIE_ROD
+                    else:
+                        print(f"⚠️ [全景更新] 未知颜色，使用默认状态: {color_name} RGB({r}, {g}, {b})")
+                        status = HoleStatus.PENDING
             else:
                 print(f"⚠️ [全景更新] 颜色不是QColor类型: {type(color)}")
                 status = HoleStatus.PENDING
@@ -3332,6 +3719,48 @@ class MainWindow(QMainWindow):
                 print(f"✅ [全景更新] 状态更新完成")
             else:
                 print(f"❌ [全景更新] sidebar_panorama 没有 update_hole_status 方法")
+            
+            # 更新动态扇形视图中的小型全景图
+            if hasattr(self, 'dynamic_sector_display'):
+                print(f"✅ [小型全景图] dynamic_sector_display 存在: {type(self.dynamic_sector_display)}")
+                
+                if hasattr(self.dynamic_sector_display, 'update_mini_panorama_hole_status'):
+                    print(f"✅ [小型全景图] 调用 dynamic_sector_display.update_mini_panorama_hole_status({hole_id}, {status.value})")
+                    self.dynamic_sector_display.update_mini_panorama_hole_status(hole_id, status)
+                    print(f"✅ [小型全景图] 状态更新调用完成")
+                else:
+                    print(f"❌ [小型全景图] dynamic_sector_display 没有 update_mini_panorama_hole_status 方法")
+                    print(f"🔍 [小型全景图] 可用方法: {[m for m in dir(self.dynamic_sector_display) if not m.startswith('_')]}")
+                    
+                # 检查 mini_panorama 的存在性和状态
+                if hasattr(self.dynamic_sector_display, 'mini_panorama'):
+                    mini_panorama = self.dynamic_sector_display.mini_panorama
+                    print(f"✅ [小型全景图] mini_panorama 存在: {type(mini_panorama)}")
+                    
+                    if hasattr(mini_panorama, 'hole_items'):
+                        hole_items_count = len(mini_panorama.hole_items) if mini_panorama.hole_items else 0
+                        print(f"📊 [小型全景图] hole_items 数量: {hole_items_count}")
+                        
+                        if hole_id in mini_panorama.hole_items:
+                            print(f"✅ [小型全景图] 找到目标孔位 {hole_id} 在 hole_items 中")
+                        else:
+                            print(f"❌ [小型全景图] 目标孔位 {hole_id} 不在 hole_items 中")
+                    else:
+                        print(f"❌ [小型全景图] mini_panorama 没有 hole_items 属性")
+                        
+                    if hasattr(mini_panorama, 'scene'):
+                        scene = mini_panorama.scene
+                        if scene:
+                            scene_items_count = len(scene.items())
+                            print(f"📊 [小型全景图] 场景图形项数量: {scene_items_count}")
+                        else:
+                            print(f"❌ [小型全景图] scene 为 None")
+                    else:
+                        print(f"❌ [小型全景图] mini_panorama 没有场景或场景为空")
+                else:
+                    print(f"❌ [小型全景图] dynamic_sector_display 没有 mini_panorama 属性")
+            else:
+                print(f"❌ [小型全景图] dynamic_sector_display 不存在")
                 
         except Exception as e:
             # 添加详细错误信息，便于调试
@@ -3480,8 +3909,8 @@ class MainWindow(QMainWindow):
             self.logger.info(f"📡 [信号] 接收到扇形切换信号: {sector.value}")
             self.log_message(f"📡 [信号] 动态扇形显示切换到: {sector.value}")
             
-            # 立即强制同步全景图高亮（最高优先级）
-            self._force_sync_panorama_highlight(sector)
+            # 异步同步全景图高亮，避免阻塞扇形切换
+            QTimer.singleShot(100, lambda: self._async_sync_panorama_highlight(sector))
             
             # 同步更新扇形详细视图
             try:
@@ -3499,8 +3928,21 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.logger.error(f"处理扇形切换事件失败: {e}")
     
+    def _async_sync_panorama_highlight(self, sector):
+        """异步同步全景预览高亮，避免阻塞扇形切换"""
+        try:
+            if not hasattr(self, 'sidebar_panorama') or not self.sidebar_panorama:
+                return
+            
+            # 简化的同步逻辑，不做过多调试检查
+            self.sidebar_panorama.highlight_sector(sector) 
+            self.log_message(f"✅ [异步同步] 全景高亮: {sector.value}")
+            
+        except Exception as e:
+            self.log_message(f"❌ [异步同步] 失败: {e}")
+            
     def _force_sync_panorama_highlight(self, sector):
-        """强制同步全景预览高亮"""
+        """强制同步全景预览高亮（保留原方法用于兼容性）"""
         try:
             self.log_message(f"🔧 [强制同步] 开始: {sector.value}")
             
@@ -3508,8 +3950,8 @@ class MainWindow(QMainWindow):
                 self.log_message(f"❌ [强制同步] 全景预览组件不存在")
                 return
             
-            # 调试：检查扇形映射是否一致
-            self._debug_sector_mapping(sector)
+            # 减少调试检查，提高效率
+            # self._debug_sector_mapping(sector)
             
             # 直接调用高亮，不做过多检查
             self.sidebar_panorama.highlight_sector(sector) 
@@ -3587,6 +4029,50 @@ class MainWindow(QMainWindow):
         if total > 0:
             overall_rate = (completed / total) * 100
             self.logger.debug(f"整体进度更新: {overall_rate:.1f}%")
+    
+    def switch_to_dark_theme(self):
+        """切换到深色主题（默认主题）"""
+        try:
+            from modules.theme_manager import theme_manager
+            from PySide6.QtWidgets import QApplication
+            
+            app = QApplication.instance()
+            if app:
+                theme_manager.apply_dark_theme(app)
+                print("✅ 已切换到深色主题（默认主题）")
+                QMessageBox.information(self, "主题切换", "已切换到深色主题（默认主题）")
+            
+        except Exception as e:
+            print(f"切换到深色主题失败: {e}")
+            QMessageBox.warning(self, "错误", f"切换到深色主题失败:\n{str(e)}")
+    
+    def switch_to_light_theme(self):
+        """切换到浅色主题（可选主题）"""
+        try:
+            from modules.theme_manager import theme_manager
+            from PySide6.QtWidgets import QApplication
+            
+            app = QApplication.instance()
+            if app:
+                theme_manager.apply_light_theme(app)
+                print("✅ 已切换到浅色主题")
+                QMessageBox.information(self, "主题切换", "已切换到浅色主题")
+            
+        except Exception as e:
+            print(f"切换到浅色主题失败: {e}")
+            QMessageBox.warning(self, "错误", f"切换到浅色主题失败:\n{str(e)}")
+
+    def open_theme_debugger(self):
+        """打开主题调试工具"""
+        try:
+            from modules.theme_switcher import show_theme_switcher
+            print("打开主题调试工具...")
+            show_theme_switcher(self)
+        except Exception as e:
+            print(f"打开主题调试工具失败: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.warning(self, "错误", f"无法打开主题调试工具:\n{str(e)}")
 
 
 if __name__ == "__main__":

@@ -412,8 +412,16 @@ class ReportOutputInterface(QWidget):
         self.db_total_holes_label.setObjectName("DashboardNumber")
         self.db_qualified_holes_label.setObjectName("DashboardNumber")
         self.db_unqualified_holes_label.setObjectName("DashboardNumber")
-        self.db_qualified_holes_label.setStyleSheet("color: #2ECC71;")  # 合格用绿色
-        self.db_unqualified_holes_label.setStyleSheet("color: #E74C3C;")  # 不合格用红色
+        # 使用主题管理器的颜色而不是硬编码颜色
+        try:
+            from .theme_manager import theme_manager
+            colors = theme_manager.COLORS
+            self.db_qualified_holes_label.setStyleSheet(f"color: {colors['success']};")  # 合格用绿色
+            self.db_unqualified_holes_label.setStyleSheet(f"color: {colors['error']};")  # 不合格用红色
+        except ImportError:
+            # 备用颜色
+            self.db_qualified_holes_label.setStyleSheet("color: #2ECC71;")  # 合格用绿色
+            self.db_unqualified_holes_label.setStyleSheet("color: #E74C3C;")  # 不合格用红色
 
         dashboard_layout.addWidget(QLabel("总检测孔数"), 2, 0)
         dashboard_layout.addWidget(self.db_total_holes_label, 3, 0)

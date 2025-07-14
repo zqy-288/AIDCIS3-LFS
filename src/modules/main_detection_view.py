@@ -184,7 +184,9 @@ class MainDetectionView(QWidget):
         for text, color in statuses:
             color_label = QLabel()
             color_label.setFixedSize(16, 16)
-            color_label.setStyleSheet(f"background-color: {color}; border: 1px solid black;")
+            # 使用ObjectName而不是内联样式
+            color_label.setObjectName("StatusColorLabel")
+            color_label.setProperty("status_color", color)
             legend_layout.addWidget(color_label)
             legend_layout.addWidget(QLabel(text))
             legend_layout.addSpacing(10)
@@ -322,9 +324,10 @@ class ControlPanel(QGroupBox):
         self.stop_button = QPushButton("停止检测")
         self.reset_button = QPushButton("重置")
         
-        self.start_button.setStyleSheet("background-color: green; color: white;")
-        self.pause_button.setStyleSheet("background-color: orange; color: white;")
-        self.stop_button.setStyleSheet("background-color: red; color: white;")
+        # 移除内联样式，使用主题管理器
+        self.start_button.setProperty("class", "PrimaryAction")
+        self.pause_button.setProperty("class", "WarningButton")
+        self.stop_button.setProperty("class", "ErrorButton")
         
         self.pause_button.setEnabled(False)
         self.stop_button.setEnabled(False)

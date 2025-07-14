@@ -62,13 +62,8 @@ class EndoscopeView(QWidget):
         # 设置视图属性
         self.graphics_view.setRenderHint(QPainter.Antialiasing)
         self.graphics_view.setRenderHint(QPainter.SmoothPixmapTransform)  # 平滑图像变换
-        self.graphics_view.setStyleSheet("""
-                QGraphicsView {
-        background-color: #ffffff;  // 白色背景
-        border: 2px solid #555;
-        border-radius: 5px;
-                    }
-                                """)
+        # 移除硬编码样式，使用主题管理器
+        self.graphics_view.setObjectName("EndoscopeGraphicsView")
 
         # 设置对齐方式 - 图像左对齐以增强动感
         self.graphics_view.setAlignment(Qt.AlignLeft | Qt.AlignTop)

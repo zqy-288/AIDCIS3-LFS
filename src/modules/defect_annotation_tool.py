@@ -142,7 +142,13 @@ class DefectAnnotationTool(QWidget):
 
         # 孔位信息显示
         self.hole_info_label = QLabel("选择孔位查看信息")
-        self.hole_info_label.setStyleSheet("color: #666; font-size: 11px;")
+        # 使用主题管理器的颜色
+        try:
+            from .theme_manager import theme_manager
+            colors = theme_manager.COLORS
+            self.hole_info_label.setStyleSheet(f"color: {colors['text_disabled']}; font-size: 11px;")
+        except ImportError:
+            self.hole_info_label.setStyleSheet("color: #666; font-size: 11px;")
         layout.addWidget(self.hole_info_label)
 
         # 图像文件列表
@@ -150,7 +156,13 @@ class DefectAnnotationTool(QWidget):
 
         # 添加提示信息
         tip_label = QLabel("💡 建议：每个孔位只标注最大的图像文件")
-        tip_label.setStyleSheet("color: #666; font-size: 11px; font-style: italic;")
+        # 使用主题管理器的颜色
+        try:
+            from .theme_manager import theme_manager
+            colors = theme_manager.COLORS
+            tip_label.setStyleSheet(f"color: {colors['text_disabled']}; font-size: 11px; font-style: italic;")
+        except ImportError:
+            tip_label.setStyleSheet("color: #666; font-size: 11px; font-style: italic;")
         layout.addWidget(tip_label)
 
         self.image_list = QListWidget()
