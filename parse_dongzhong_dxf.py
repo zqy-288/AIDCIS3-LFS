@@ -59,12 +59,14 @@ def parse_dxf_holes(dxf_file_path: str, expected_radius: float = 8.865, toleranc
             radius = entity.dxf.radius
             
             if abs(radius - expected_radius) <= tolerance and radius < 100:
+                # AI员工3号修改开始 - 临时使用H格式，稍后转换为新格式
                 hole = Hole(
                     hole_id=f"H{hole_counter:05d}",
                     center_x=center[0],
                     center_y=center[1],
                     radius=radius
                 )
+                # AI员工3号修改结束
                 holes.append(hole)
                 hole_counter += 1
     
@@ -87,17 +89,25 @@ def parse_dxf_holes(dxf_file_path: str, expected_radius: float = 8.865, toleranc
             if abs(total_angle - 360) <= 10:
                 avg_radius = sum(arc.dxf.radius for arc in arcs) / len(arcs)
                 
+                # AI员工3号修改开始 - 临时使用H格式，稍后转换为新格式
                 hole = Hole(
                     hole_id=f"H{hole_counter:05d}",
                     center_x=center[0],
                     center_y=center[1],
                     radius=avg_radius
                 )
+                # AI员工3号修改结束
                 holes.append(hole)
                 hole_counter += 1
     
     print(f"总共识别出 {len(holes)} 个孔位")
     return holes
+
+# AI员工3号修改开始 - 新格式ID转换函数
+def convert_to_new_hole_id(row: int, column: int) -> str:
+    """将行列坐标转换为新格式孔位ID: C{col:03d}R{row:03d}"""
+    return f"C{column:03d}R{row:03d}"
+# AI员工3号修改结束
 
 def assign_grid_positions(holes: List[Hole], row_tolerance: float = 5.0) -> None:
     """分配网格位置"""
@@ -125,11 +135,17 @@ def assign_grid_positions(holes: List[Hole], row_tolerance: float = 5.0) -> None
         row_holes.sort(key=lambda h: h.center_x)
         for col_num, hole in enumerate(row_holes, 1):
             hole.column = col_num
+            # AI员工3号修改开始 - 更新为新格式ID
+            hole.hole_id = convert_to_new_hole_id(hole.row, hole.column)
+            # AI员工3号修改结束
     
     max_row = max(hole.row for hole in holes)
     max_cols_per_row = max(len(row_holes) for row_holes in rows.values())
     
     print(f"网格结构: {max_row} 行, 最大 {max_cols_per_row} 列")
+    # AI员工3号修改开始 - 输出格式转换信息
+    print(f"✅ 已将所有孔位ID转换为新格式 C{{col:03d}}R{{row:03d}}")
+    # AI员工3号修改结束
 
 def generate_correspondence_table(holes: List[Hole], output_file: str = "dongzhong_hole_grid.json"):
     """生成Row/Column对应表"""
@@ -169,15 +185,17 @@ def generate_correspondence_table(holes: List[Hole], output_file: str = "dongzho
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(correspondence_data, f, ensure_ascii=False, indent=2)
     
+    # AI员工3号修改开始 - 更新表头显示新格式
     # 生成简化的表格输出
     print("\n" + "="*80)
-    print("东重管板 Row/Column 对应表 (前20项)")
+    print("东重管板 Row/Column 对应表 (前20项) - 新格式 C{col:03d}R{row:03d}")
     print("="*80)
-    print(f"{'孔编号':<8} | {'X坐标(mm)':<10} | {'Y坐标(mm)':<10} | {'行(Row)':<6} | {'列(Column)':<8}")
+    print(f"{'孔编号(新)':<12} | {'X坐标(mm)':<10} | {'Y坐标(mm)':<10} | {'行(Row)':<6} | {'列(Column)':<8}")
     print("-" * 80)
+    # AI员工3号修改结束
     
     for i, hole in enumerate(holes_sorted[:20]):
-        print(f"{hole.hole_id:<8} | {hole.center_x:<10.2f} | {hole.center_y:<10.2f} | {hole.row:<6} | {hole.column:<8}")
+        print(f"{hole.hole_id:<12} | {hole.center_x:<10.2f} | {hole.center_y:<10.2f} | {hole.row:<6} | {hole.column:<8}")
     
     if len(holes) > 20:
         print(f"... (还有 {len(holes) - 20} 个孔位)")

@@ -86,10 +86,13 @@ class DXFParser:
             # 分配网格位置
             self._assign_grid_positions(holes)
             
-            # 更新hole_id为(row, column)格式
+            # AI员工2号修改开始 - 2025-01-14
+            # 修改目的：将孔位ID从(row,column)格式转换为C{col}R{row}格式
+            # 更新hole_id为C{column:03d}R{row:03d}格式
             for hole in holes:
                 if hole.row is not None and hole.column is not None:
-                    hole.hole_id = f"({hole.row},{hole.column})"
+                    hole.hole_id = f"C{hole.column:03d}R{hole.row:03d}"
+            # AI员工2号修改结束
 
             # 对所有孔位进行90度逆时针旋转
             self._rotate_holes_90_ccw(holes)

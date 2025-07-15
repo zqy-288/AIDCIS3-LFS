@@ -184,9 +184,27 @@ class MainDetectionView(QWidget):
         for text, color in statuses:
             color_label = QLabel()
             color_label.setFixedSize(16, 16)
-            # 使用ObjectName而不是内联样式
+            
+            # 将颜色转换为CSS颜色字符串
+            if hasattr(color, 'name'):
+                # QColor对象，转换为十六进制颜色
+                css_color = color.name()
+            elif isinstance(color, str):
+                # 已经是字符串颜色
+                css_color = color if color.startswith('#') else f"#{color}"
+            else:
+                # 其他类型，尝试转换
+                css_color = str(color)
+            
+            # 直接设置背景色样式
+            color_label.setStyleSheet(f"""
+                QLabel {{
+                    background-color: {css_color};
+                    border: 1px solid #999;
+                    border-radius: 2px;
+                }}
+            """)
             color_label.setObjectName("StatusColorLabel")
-            color_label.setProperty("status_color", color)
             legend_layout.addWidget(color_label)
             legend_layout.addWidget(QLabel(text))
             legend_layout.addSpacing(10)

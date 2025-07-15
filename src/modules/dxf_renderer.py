@@ -127,12 +127,21 @@ class DXFRenderer:
                 hole.center_y + label_offset_y
             )
             
+            # AI员工2号修改开始 - 2025-01-14
+            # 修改目的：将孔位标签从H格式转换为C{col}R{row}格式
+            # 根据孔位在排序后的位置计算近似的行列坐标
+            # 假设每行大约有合理数量的孔位
+            holes_per_row = max(1, int(math.sqrt(len(numbered_holes))))
+            approx_row = (i // holes_per_row) + 1
+            approx_col = (i % holes_per_row) + 1
+            
             annotation = HoleAnnotation(
                 hole=hole,
                 number=i + 1,
-                label=f"H{i + 1:02d}",  # H01, H02, H03...
+                label=f"C{approx_col:03d}R{approx_row:03d}",  # C001R001, C002R001...
                 label_position=label_position
             )
+            # AI员工2号修改结束
             annotations.append(annotation)
         
         return annotations

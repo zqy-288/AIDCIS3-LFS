@@ -11,7 +11,10 @@ from typing import List, Dict, Optional, Any
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
+# AI员工3号修改开始
 from aidcis2.models.hole_data import HoleData, HoleStatus
+import re  # 用于孔位ID格式验证和转换
+# AI员工3号修改结束
 
 
 @dataclass
@@ -71,14 +74,101 @@ class DataBatch:
 class BatchDataManager:
     """批量数据管理器"""
     
-    def __init__(self, data_dir: Optional[Path] = None):
+    # AI员工3号修改开始 - 孔位ID格式转换支持
+    @staticmethod
+    def validate_hole_id_format(hole_id: str) -> bool:
+        """验证孔位ID格式是否符合新标准 C{col:03d}R{row:03d}"""
+        pattern = r'^C\d{3}R\d{3}$'
+        return bool(re.match(pattern, hole_id))
+    
+    @staticmethod
+    def convert_hole_id_to_new_format(row: int, column: int) -> str:
+        """标准转换函数：将行列坐标转换为新格式ID"""
+        return f"C{column:03d}R{row:03d}"
+    
+    @staticmethod
+    def parse_old_format_ids(hole_id: str) -> Optional[tuple[int, int]]:
+        """解析旧格式ID并返回(row, column)，支持多种旧格式"""
+        # 格式1: H00001, H00002... (纯数字编号)
+        if re.match(r'^H\d+$', hole_id):
+            return None  # 纯数字编号无法直接转换为坐标
+        
+        # 格式2: (row,column) 坐标格式
+        coord_match = re.match(r'^\((\d+),(\d+)\)$', hole_id)
+        if coord_match:
+            row, col = map(int, coord_match.groups())
+            return (row, col)
+        
+        # 格式3: R###C### 格式
+        rc_match = re.match(r'^R(\d+)C(\d+)$', hole_id)
+        if rc_match:
+            row, col = map(int, rc_match.groups())
+            return (row, col)
+        
+        return None
+    
+    def ensure_new_format_compatibility(self, batch_holes: List[BatchHoleData]) -> List[BatchHoleData]:
+        """确保批量数据中的孔位ID符合新格式"""
+        converted_holes = []
+        
+        for hole in batch_holes:
+            # 如果已经是新格式，直接使用
+            if self.validate_hole_id_format(hole.hole_id):
+                converted_holes.append(hole)
+                continue
+            
+            # 尝试从旧格式转换
+            coords = self.parse_old_format_ids(hole.hole_id)
+            if coords:
+                row, col = coords
+                new_hole_id = self.convert_hole_id_to_new_format(row, col)
+                
+                # 创建新的BatchHoleData with updated hole_id
+                new_hole = BatchHoleData(
+                    hole_id=new_hole_id,
+                    center_x=hole.center_x,
+                    center_y=hole.center_y,
+                    radius=hole.radius,
+                    row=row,
+                    column=col,
+                    status=hole.status,
+                    sector=hole.sector,
+                    timestamp=hole.timestamp
+                )
+                converted_holes.append(new_hole)
+                print(f"🔄 [批量数据] 格式转换: {hole.hole_id} → {new_hole_id}")
+            else:
+                # 如果有行列信息，使用行列生成新ID
+                if hole.row and hole.column:
+                    new_hole_id = self.convert_hole_id_to_new_format(hole.row, hole.column)
+                    hole.hole_id = new_hole_id
+                    print(f"🔄 [批量数据] 基于坐标生成新ID: ({hole.row},{hole.column}) → {new_hole_id}")
+                
+                converted_holes.append(hole)
+        
+        return converted_holes
+    # AI员工3号修改结束
+    
+    def __init__(self, data_dir: Optional[Path] = None, product_id: Optional[str] = None, inspection_batch_id: Optional[str] = None):
+        # 支持新的目录结构：Data/Products/{product_id}/InspectionBatches/{inspection_batch_id}/data_batches/
         if data_dir is None:
-            self.data_dir = Path("src/data")
+            if product_id and inspection_batch_id:
+                # 使用新的目录结构
+                self.data_dir = Path("Data/Products") / product_id / "InspectionBatches" / inspection_batch_id / "data_batches"
+            else:
+                # 兼容旧的目录结构
+                self.data_dir = Path("src/data")
         elif isinstance(data_dir, str):
             self.data_dir = Path(data_dir)
         else:
             self.data_dir = data_dir
-        self.data_dir.mkdir(exist_ok=True)
+        
+        # 创建目录（包括父目录）
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 存储产品和检测批次信息
+        self.product_id = product_id
+        self.inspection_batch_id = inspection_batch_id
         
         # 批量数据缓存
         self.current_batch: Optional[DataBatch] = None
@@ -98,7 +188,12 @@ class BatchDataManager:
     def create_batch(self, holes: List[HoleData], sector: str) -> DataBatch:
         """创建批量数据"""
         self.batch_counter += 1
-        batch_id = f"batch_{self.batch_counter:04d}_{int(time.time())}"
+        
+        # 根据是否有检测批次ID生成不同的批次ID格式
+        if self.inspection_batch_id:
+            batch_id = f"{self.inspection_batch_id}_batch_{self.batch_counter:04d}"
+        else:
+            batch_id = f"batch_{self.batch_counter:04d}_{int(time.time())}"
         
         # 模拟正确的状态分布：99.5%合格，0.4%不合格，0.1%其他
         # 使用随机分配但保持准确比例
@@ -136,6 +231,10 @@ class BatchDataManager:
             status = status_list[i]
             batch_hole = BatchHoleData.from_hole_data(hole, status, sector)
             batch_holes.append(batch_hole)
+        
+        # AI员工3号修改开始 - 确保孔位ID格式兼容性
+        batch_holes = self.ensure_new_format_compatibility(batch_holes)
+        # AI员工3号修改结束
         
         # 更新全局处理计数器
         self.total_processed_holes += len(batch_holes)
@@ -207,7 +306,7 @@ class BatchDataManager:
                     if not content.strip():  # 检查文件是否为空
                         raise ValueError("文件内容为空")
                     batch = DataBatch.from_json(content)
-                print(f"📂 [批量数据] 加载批量数据: {batch_id}, {len(batch.holes)}个孔位")
+                print(f"📂 [批量数据] 加载批量数据: {batch.batch_id}, {len(batch.holes)}个孔位")
                 return batch
                 
             except (json.JSONDecodeError, ValueError) as e:

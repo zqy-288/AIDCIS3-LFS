@@ -8,6 +8,14 @@ from typing import Optional, Dict, Any
 from enum import Enum
 
 
+# AI员工1号修改开始 - 2025-01-14
+# 修改目的：添加标准孔位ID转换函数
+def convert_hole_id(row: int, column: int) -> str:
+    """标准转换函数"""
+    return f"C{column:03d}R{row:03d}"
+# AI员工1号修改结束
+
+
 class HoleStatus(Enum):
     """管孔状态枚举"""
     PENDING = "pending"      # 待检
@@ -37,9 +45,17 @@ class HoleData:
         if self.metadata is None:
             self.metadata = {}
         
+        # AI员工1号修改开始 - 2025-01-14
+        # 修改目的：将孔位ID从H格式转换为C{col}R{row}格式
         # 生成默认ID（如果未提供）
         if not self.hole_id:
-            self.hole_id = f"hole_{self.center_x:.3f}_{self.center_y:.3f}"
+            if self.row is not None and self.column is not None:
+                # 使用新的C{column:03d}R{row:03d}格式
+                self.hole_id = f"C{self.column:03d}R{self.row:03d}"
+            else:
+                # 如果没有行列信息，使用坐标生成临时ID
+                self.hole_id = f"hole_{self.center_x:.3f}_{self.center_y:.3f}"
+        # AI员工1号修改结束
     
     @property
     def position(self) -> tuple[float, float]:

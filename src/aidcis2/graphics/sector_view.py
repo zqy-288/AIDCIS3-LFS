@@ -13,7 +13,10 @@ from PySide6.QtCore import Qt, QRectF, QPointF, Signal
 from PySide6.QtGui import (QPen, QBrush, QColor, QFont, QPainter, QPainterPath,
                           QRadialGradient, QConicalGradient)
 
+# AI员工3号修改开始
 from aidcis2.graphics.sector_manager import SectorManager, SectorQuadrant, SectorProgress
+import re  # 用于孔位ID格式验证和转换
+# AI员工3号修改结束
 
 
 class SectorGraphicsItem(QGraphicsPathItem):
@@ -318,6 +321,27 @@ class SectorOverviewWidget(QWidget):
 class SectorDetailView(QWidget):
     """扇形详细视图（主预览区）"""
     
+    # AI员工3号修改开始 - 孔位ID格式验证和转换支持
+    @staticmethod
+    def validate_new_hole_id_format(hole_id: str) -> bool:
+        """验证孔位ID是否符合新格式 C{col:03d}R{row:03d}"""
+        pattern = r'^C\d{3}R\d{3}$'
+        return bool(re.match(pattern, hole_id))
+    
+    @staticmethod
+    def format_hole_id_for_display(hole_id: str) -> str:
+        """格式化孔位ID用于显示，优先显示新格式"""
+        # 如果已经是新格式，直接返回
+        if SectorDetailView.validate_new_hole_id_format(hole_id):
+            return hole_id
+        
+        # 其他格式保持原样，但添加标识
+        if re.match(r'^H\d+$', hole_id):
+            return f"{hole_id}(旧)"
+        
+        return hole_id
+    # AI员工3号修改结束
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         self.sector_manager: Optional[SectorManager] = None
@@ -438,9 +462,14 @@ class SectorDetailView(QWidget):
             self.hole_list_widget.setText("该区域暂无孔位")
             return
         
+        # AI员工3号修改开始 - 支持新格式孔位ID显示
         # 创建简化的孔位信息文本，适应有限的显示空间
         hole_info_lines = []
         hole_info_lines.append(f"区域包含 {len(holes)} 个孔位")
+        
+        # 统计格式类型
+        new_format_count = 0
+        old_format_count = 0
         
         # 按状态分组显示，只显示重要统计信息
         status_groups = {}
@@ -448,7 +477,26 @@ class SectorDetailView(QWidget):
             status = hole.status.value
             if status not in status_groups:
                 status_groups[status] = []
-            status_groups[status].append(hole.hole_id)
+            
+            # 格式化孔位ID用于显示
+            formatted_id = self.format_hole_id_for_display(hole.hole_id)
+            status_groups[status].append(formatted_id)
+            
+            # 统计格式类型
+            if self.validate_new_hole_id_format(hole.hole_id):
+                new_format_count += 1
+            else:
+                old_format_count += 1
+        
+        # 显示格式统计
+        format_info = []
+        if new_format_count > 0:
+            format_info.append(f"新格式: {new_format_count}")
+        if old_format_count > 0:
+            format_info.append(f"旧格式: {old_format_count}")
+        
+        if format_info:
+            hole_info_lines.append(f"格式分布: {', '.join(format_info)}")
         
         # 只显示状态统计，不显示具体孔位ID以节省空间
         for status, hole_ids in status_groups.items():
@@ -456,3 +504,4 @@ class SectorDetailView(QWidget):
         
         self.hole_list_widget.setText("\n".join(hole_info_lines))
         self.hole_list_widget.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        # AI员工3号修改结束

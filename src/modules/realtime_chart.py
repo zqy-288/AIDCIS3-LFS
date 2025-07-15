@@ -339,18 +339,21 @@ class RealtimeChart(QWidget):
         # 获取当前工作目录
         base_dir = os.getcwd()
 
+        # AI员工1号修改开始 - 2025-01-14
+        # 修改目的：将孔位ID从H格式转换为C{col}R{row}格式
         # 使用绝对路径确保路径解析正确
         self.hole_to_csv_map = {
-            "H00001": os.path.join(base_dir, "Data/H00001/CCIDM"),
-            "H00002": os.path.join(base_dir, "Data/H00002/CCIDM"),
-            "H00003": os.path.join(base_dir, "Data/H00003/CCIDM")
+            "C001R001": os.path.join(base_dir, "Data/C001R001/CCIDM"),  # 原H00001
+            "C002R001": os.path.join(base_dir, "Data/C002R001/CCIDM"),  # 原H00002
+            "C003R001": os.path.join(base_dir, "Data/C003R001/CCIDM")   # 原H00003
         }
 
         self.hole_to_image_map = {
-            "H00001": os.path.join(base_dir, "Data/H00001/BISDM/result"),
-            "H00002": os.path.join(base_dir, "Data/H00002/BISDM/result"),
-            "H00003": os.path.join(base_dir, "Data/H00003/BISDM/result")
+            "C001R001": os.path.join(base_dir, "Data/C001R001/BISDM/result"),  # 原H00001
+            "C002R001": os.path.join(base_dir, "Data/C002R001/BISDM/result"),  # 原H00002
+            "C003R001": os.path.join(base_dir, "Data/C003R001/BISDM/result")   # 原H00003
         }
+        # AI员工1号修改结束
 
         # 打印路径信息用于调试
         print("🔧 孔位数据映射初始化:")
@@ -375,9 +378,12 @@ class RealtimeChart(QWidget):
             self.current_hole_label.setText(f"当前孔位：{hole_id}")
             self.current_hole_id = hole_id
             print(f"🔄 设置当前孔位显示: {hole_id}")
+            # AI员工1号修改开始 - 2025-01-14  
+            # 修改目的：将孔位ID从H格式转换为C{col}R{row}格式
             # 如果有对应的数据文件，自动加载
-            if hole_id in ["H00001", "H00002", "H00003"]:
+            if hole_id in ["C001R001", "C002R001", "C003R001"]:
                 self.load_data_for_hole(hole_id)
+            # AI员工1号修改结束
         else:
             self.current_hole_label.setText("当前孔位：未选择")
             self.current_hole_id = None
@@ -1039,7 +1045,10 @@ class RealtimeChart(QWidget):
         # 多文件管理（向后兼容，但主要使用新的孔位映射）
         self.csv_file_list = []
         self.current_file_index = 0  # 当前文件索引
-        self.csv_base_path = "Data/H00001/CCIDM"  # 使用相对路径
+        # AI员工1号修改开始 - 2025-01-14
+        # 修改目的：将孔位ID从H格式转换为C{col}R{row}格式  
+        self.csv_base_path = "Data/C001R001/CCIDM"  # 使用相对路径，原H00001
+        # AI员工1号修改结束
         
     @Slot(float, float)
     def update_data(self, depth, diameter):
@@ -1265,8 +1274,11 @@ class RealtimeChart(QWidget):
         if self.is_csv_playing:
             self.stop_csv_data_import()
 
+        # AI员工1号修改开始 - 2025-01-14
+        # 修改目的：将孔位ID从H格式转换为C{col}R{row}格式
         # 定义孔位切换顺序
-        hole_sequence = ["H00001", "H00002"]
+        hole_sequence = ["C001R001", "C002R001"]  # 原H00001, H00002
+        # AI员工1号修改结束
 
         # 获取当前孔位ID
         current_hole = self.current_hole_id

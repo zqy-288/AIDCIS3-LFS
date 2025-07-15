@@ -70,47 +70,51 @@ class DataPathManager:
     
     # ============ 检测批次相关路径 ============
     
-    def get_inspections_dir(self, product_id: str) -> str:
-        """获取产品检测记录目录"""
-        return str(self.data_root / "Products" / product_id / "Inspections")
+    def get_inspection_batches_dir(self, product_id: str) -> str:
+        """获取产品检测批次记录目录"""
+        return str(self.data_root / "Products" / product_id / "InspectionBatches")
     
     def get_inspection_batch_path(self, product_id: str, batch_id: str) -> str:
         """获取检测批次目录路径"""
-        return str(self.data_root / "Products" / product_id / "Inspections" / batch_id)
+        return str(self.data_root / "Products" / product_id / "InspectionBatches" / batch_id)
     
-    def get_inspection_info_path(self, product_id: str, batch_id: str) -> str:
-        """获取检测信息文件路径"""
-        return str(self.data_root / "Products" / product_id / "Inspections" / batch_id / "inspection_info.json")
+    def get_batch_info_path(self, product_id: str, batch_id: str) -> str:
+        """获取批次信息文件路径"""
+        return str(self.data_root / "Products" / product_id / "InspectionBatches" / batch_id / "batch_info.json")
     
-    def get_inspection_summary_path(self, product_id: str, batch_id: str) -> str:
-        """获取检测汇总文件路径"""
-        return str(self.data_root / "Products" / product_id / "Inspections" / batch_id / "summary.json")
+    def get_batch_summary_path(self, product_id: str, batch_id: str) -> str:
+        """获取批次汇总文件路径"""
+        return str(self.data_root / "Products" / product_id / "InspectionBatches" / batch_id / "batch_summary.json")
+    
+    def get_data_batches_dir(self, product_id: str, batch_id: str) -> str:
+        """获取数据批次目录路径（BatchDataManager使用）"""
+        return str(self.data_root / "Products" / product_id / "InspectionBatches" / batch_id / "data_batches")
     
     # ============ 孔位检测结果路径 ============
     
-    def get_holes_dir(self, product_id: str, batch_id: str) -> str:
+    def get_hole_results_dir(self, product_id: str, batch_id: str) -> str:
         """获取孔位检测结果目录"""
-        return str(self.data_root / "Products" / product_id / "Inspections" / batch_id / "Holes")
+        return str(self.data_root / "Products" / product_id / "InspectionBatches" / batch_id / "HoleResults")
     
     def get_hole_path(self, product_id: str, batch_id: str, hole_id: str) -> str:
         """获取单个孔位目录路径"""
-        return str(self.data_root / "Products" / product_id / "Inspections" / batch_id / "Holes" / hole_id)
+        return str(self.data_root / "Products" / product_id / "InspectionBatches" / batch_id / "HoleResults" / hole_id)
     
     def get_hole_bisdm_dir(self, product_id: str, batch_id: str, hole_id: str) -> str:
         """获取孔位BISDM(内窥镜)目录路径"""
-        return str(self.data_root / "Products" / product_id / "Inspections" / batch_id / "Holes" / hole_id / "BISDM")
+        return str(self.data_root / "Products" / product_id / "InspectionBatches" / batch_id / "HoleResults" / hole_id / "BISDM")
     
     def get_hole_ccidm_dir(self, product_id: str, batch_id: str, hole_id: str) -> str:
         """获取孔位CCIDM(孔径检测)目录路径"""
-        return str(self.data_root / "Products" / product_id / "Inspections" / batch_id / "Holes" / hole_id / "CCIDM")
+        return str(self.data_root / "Products" / product_id / "InspectionBatches" / batch_id / "HoleResults" / hole_id / "CCIDM")
     
     def get_hole_bisdm_result_dir(self, product_id: str, batch_id: str, hole_id: str) -> str:
         """获取BISDM结果目录路径"""
-        return str(self.data_root / "Products" / product_id / "Inspections" / batch_id / "Holes" / hole_id / "BISDM" / "result")
+        return str(self.data_root / "Products" / product_id / "InspectionBatches" / batch_id / "HoleResults" / hole_id / "BISDM" / "result")
     
     def get_hole_panorama_path(self, product_id: str, batch_id: str, hole_id: str) -> str:
         """获取孔位全景图路径"""
-        return str(self.data_root / "Products" / product_id / "Inspections" / batch_id / "Holes" / hole_id / "BISDM" / "panorama.png")
+        return str(self.data_root / "Products" / product_id / "InspectionBatches" / batch_id / "HoleResults" / hole_id / "BISDM" / "panorama.png")
     
     def get_hole_measurement_path(self, product_id: str, batch_id: str, hole_id: str, 
                                  timestamp: str = None) -> str:

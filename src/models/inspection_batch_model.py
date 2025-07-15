@@ -46,6 +46,10 @@ class InspectionBatch(Base):
     data_path = Column(String(500), nullable=True, comment='数据存储路径')
     description = Column(Text, nullable=True, comment='检测批次描述')
     
+    # 新增：支持新目录结构
+    batch_data_path = Column(String(500), nullable=True, comment='批次数据存储路径')
+    hole_results_path = Column(String(500), nullable=True, comment='孔位结果存储路径')
+    
     # 时间戳
     created_at = Column(DateTime, default=datetime.now, comment='创建时间')
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
@@ -72,6 +76,8 @@ class InspectionBatch(Base):
             'status': self.status,
             'data_path': self.data_path,
             'description': self.description,
+            'batch_data_path': self.batch_data_path,
+            'hole_results_path': self.hole_results_path,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -128,9 +134,13 @@ class InspectionBatchManager:
         if not product:
             raise ValueError(f"产品 ID {product_id} 不存在")
         
-        # 创建目录结构
+        # 创建新的目录结构
         self.path_manager.create_inspection_structure(product.model_name, batch_id)
         data_path = self.path_manager.get_inspection_batch_path(product.model_name, batch_id)
+        
+        # 新增：支持新目录结构的路径
+        batch_data_path = self.path_manager.get_data_batches_dir(product.model_name, batch_id)
+        hole_results_path = self.path_manager.get_hole_results_dir(product.model_name, batch_id)
         
         # 创建批次记录
         batch = InspectionBatch(
@@ -140,6 +150,8 @@ class InspectionBatchManager:
             equipment_id=equipment_id,
             description=description,
             data_path=data_path,
+            batch_data_path=batch_data_path,
+            hole_results_path=hole_results_path,
             status='pending'
         )
         

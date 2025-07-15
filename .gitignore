@@ -187,6 +187,13 @@ tmp/
 temp_removed_files/
 Archive/
 
+# BatchDataManager generated files (too many, temporary simulation data)
+data_batches/
+**/data_batches/
+*/data_batches/
+Data/**/data_batches/
+src/data/
+
 # Test files
 test_*.py
 verify_*.py

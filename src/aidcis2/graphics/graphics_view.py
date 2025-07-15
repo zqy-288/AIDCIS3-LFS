@@ -560,6 +560,11 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         self.viewport().update()
     
     def set_macro_view_scale(self):
+        """设置宏观视图的适当缩放比例"""
+        # 【增强保护】如果禁用了自动适配，则跳过宏观视图缩放
+        if getattr(self, 'disable_auto_fit', False):
+            self.logger.info("跳过 set_macro_view_scale（disable_auto_fit=True）")
+            return
         """设置适合宏观视图的缩放比例"""
         # 如果设置了 disable_auto_fit，则跳过
         if getattr(self, 'disable_auto_fit', False):
@@ -620,6 +625,11 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             print("🚫 跳过强制居中（disable_auto_center=True）")
     
     def _ensure_perfect_centering(self, target_center: QPointF):
+        """确保内容精确居中显示"""
+        # 【增强保护】如果禁用了自动适配，则跳过精确居中
+        if getattr(self, 'disable_auto_fit', False):
+            self.logger.info("跳过精确居中（disable_auto_fit=True）")
+            return
         """确保内容精确居中显示"""
         try:
             # 获取当前视图中心
