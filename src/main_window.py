@@ -610,7 +610,7 @@ class MainWindow(QMainWindow):
         
         # 动态扇形区域显示（主要显示区域）- 直接填满整个可用空间
         self.dynamic_sector_display = DynamicSectorDisplayWidget()
-        self.dynamic_sector_display.setMinimumSize(600, 500)  # 保持基本尺寸要求
+        self.dynamic_sector_display.setMinimumSize(800, 700)  # 增大中间框扇形显示区域的初始大小
         
         # 直接添加主视图，让它填满整个容器，不使用居中包装
         sector_container_layout.addWidget(self.dynamic_sector_display)
@@ -3300,14 +3300,13 @@ class MainWindow(QMainWindow):
             self.render_timer = QTimer()
             self.render_timer.timeout.connect(self._render_next_hole)
         
-        # 启动批量数据生成定时器 (1000ms)
-        self.batch_generation_timer.start(1000)
         self.log_message("🚀 启动新的批量渲染模拟 (1000ms批量 + 100ms渲染)")
         
-        # 🔧 增加初始延迟，确保图形视图完全准备好
-        # 延迟500ms再启动渲染定时器，避免初始1-2个点渲染失败
+        # 🔧 同步启动两个定时器，确保图形视图完全准备好且数据不丢失
+        # 延迟500ms同时启动批量数据生成和渲染定时器
+        QTimer.singleShot(500, lambda: self.batch_generation_timer.start(1000))
         QTimer.singleShot(500, lambda: self.render_timer.start(100))
-        self.log_message("⏳ 渲染定时器将在500ms后启动，确保图形视图完全准备好")
+        self.log_message("⏳ 批量数据生成和渲染定时器将在500ms后同步启动，确保图形视图完全准备好")
         
     def _start_next_sector_simulation(self):
         """开始下一个扇形的模拟"""

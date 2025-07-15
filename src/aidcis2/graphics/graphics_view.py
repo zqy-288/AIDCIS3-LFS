@@ -582,7 +582,7 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         
         self.logger.info(f"宏观视图缩放设置完成，当前缩放比例: {self.transform().m11():.3f}")
             
-    def fit_in_view_with_margin(self, margin_ratio=0.02):
+    def fit_in_view_with_margin(self, margin_ratio=0.15):
         """适应视图并留有边距，确保内容居中显示"""
         # 如果设置了 disable_auto_fit，则跳过
         if getattr(self, 'disable_auto_fit', False):

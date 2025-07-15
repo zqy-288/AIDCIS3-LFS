@@ -568,7 +568,10 @@ class DynamicSectorDisplayWidget(QWidget):
         if hasattr(self, 'mini_panorama') and self.mini_panorama:
             self.update_mini_panorama_hole_status(hole_id, status)
         else:
-            print(f"⚠️ [浮动全景图] mini_panorama 不存在，无法更新状态")
+            # 如果mini_panorama不存在，创建它
+            self._create_mini_panorama()
+            if hasattr(self, 'mini_panorama') and self.mini_panorama:
+                self.update_mini_panorama_hole_status(hole_id, status)
     
     def resizeEvent(self, event):
         """处理窗口大小变化事件，更新浮动窗口位置"""
@@ -745,8 +748,11 @@ class DynamicSectorDisplayWidget(QWidget):
                 
                 # 显示初始扇形
                 if hasattr(self, 'graphics_view'):
+                    # 设置禁用自动适应，避免显示完整圆形
+                    self.graphics_view.disable_auto_fit = True
+                    
                     # 改为加载完整集合，然后通过切换扇形来显示
-                    print(f"🔧 [初始化] 加载完整孔位集合到视图")
+                    print(f"🔧 [初始化] 加载完整孔位集合到视图（禁用自动适应）")
                     self.graphics_view.load_holes(self.complete_hole_collection)
                     
                     # 立即切换到初始扇形
@@ -757,17 +763,8 @@ class DynamicSectorDisplayWidget(QWidget):
                     self.graphics_view.scene.update()
                     self.graphics_view.viewport().update()
                     
-                    # 【治标方案】简化自适应逻辑，避免多重延时器冲突
-                    from PySide6.QtCore import QTimer
-                    
-                    # 偏移检查已移除，直接执行自动适应
-                    if True:
-                        # 只保留一个延时器，减少竞争
-                        def smart_auto_fit():
-                            if hasattr(self.graphics_view, 'fit_to_window_width'):
-                                self.graphics_view.fit_to_window_width()
-                                print("✅ [扇形视图] 智能自适应完成")
-                        QTimer.singleShot(150, smart_auto_fit)  # 使用中间值150ms，避免多重延时器
+                    # 跳过自动适应，避免显示完整圆形
+                    print("🚫 [扇形视图] 跳过自动适应，避免完整圆形显示")
                     
                 if hasattr(self, 'graphics_view') and self.graphics_view:
                     self.graphics_view.show()
@@ -1030,7 +1027,7 @@ class DynamicSectorDisplayWidget(QWidget):
         # 计算全景图半径，调整尺寸让高亮区域适中
         width = bounds[2] - bounds[0]
         height = bounds[3] - bounds[1]
-        self.panorama_radius = max(width, height) / 2 * 1.05  # 调整到1.05，让高亮区域稍微小一些
+        self.panorama_radius = max(width, height) / 2 * 1.3  # 调整到1.3，让扇形初始大小更大
         
         # 添加所有孔位到小型全景图
         hole_count = 0
@@ -1720,7 +1717,7 @@ class DynamicSectorDisplayWidget(QWidget):
             normalized_id = self._normalize_hole_id(sid)
             normalized_sector_ids.add(normalized_id)
             if normalized_id != sid:
-                print(f"[DEBUG] ID规范化: {sid} -> {normalized_id}")
+                pass  # Debug message silenced
         
         # 隐藏所有孔位，只显示当前扇形的孔位
         total_hidden = 0
@@ -1953,7 +1950,7 @@ class DynamicSectorDisplayWidget(QWidget):
         transform_changed = abs(current_transform.m11() - new_transform.m11()) > 0.01 or \
                            abs(current_transform.m22() - new_transform.m22()) > 0.01
         
-        center_changed = (current_center - data_center).manhattanLength() > 10.0
+        center_changed = (current_center - data_center).manhattanLength() > 1.0
         
         # 如果当前缩放接近1.0（未初始化状态），强制更新
         is_uninitialized = abs(current_transform.m11() - 1.0) < 0.01 and abs(current_transform.m22() - 1.0) < 0.01
@@ -1961,6 +1958,10 @@ class DynamicSectorDisplayWidget(QWidget):
         if not transform_changed and not center_changed and not is_uninitialized:
             print(f"🔄 [动态扇形] 变换未发生显著变化，跳过更新")
             return
+        
+        # 强制更新如果启用了偏移
+        if self.sector_offset_enabled:
+            print(f"🔧 [动态扇形] 强制更新（偏移已启用）")
         
         print(f"🔄 [动态扇形] 更新变换: transform_changed={transform_changed}, center_changed={center_changed}, is_uninitialized={is_uninitialized}")
             
@@ -2514,7 +2515,7 @@ class CompletePanoramaWidget(QWidget):
                 max_distance = max(max_distance, distance)
             
             # 添加一些边距，让高亮区域适中
-            self.panorama_radius = max_distance * 1.05  # 调整到1.05，让高亮区域稍微小一些
+            self.panorama_radius = max_distance * 1.3  # 调整到1.3，让扇形初始大小更大
             
             print(f"📏 [全景图] 计算半径: {self.panorama_radius:.1f} (最远距离: {max_distance:.1f})")
             
@@ -2749,6 +2750,24 @@ class CompletePanoramaWidget(QWidget):
         self.panorama_view.viewport().update()
         self.panorama_view.repaint()
         print("🧪 [测试] 所有扇形高亮已显示")
+    
+    def update_sector_progress(self, sector: SectorQuadrant, progress):
+        """
+        更新扇形进度显示
+        """
+        # 如果有扇形高亮，可以在此处更新高亮状态
+        if hasattr(self, 'sector_highlights') and sector in self.sector_highlights:
+            highlight = self.sector_highlights[sector]
+            if progress and hasattr(progress, 'completed_holes') and progress.completed_holes > 0:
+                highlight.show_highlight()
+            else:
+                highlight.hide_highlight()
+        
+        # 如果有扇形视图，也可以在此处更新
+        if hasattr(self, 'sector_views') and sector in self.sector_views:
+            sector_view = self.sector_views[sector]
+            if hasattr(sector_view, 'update_sector_progress'):
+                sector_view.update_sector_progress(sector, progress)
     
     def highlight_sector(self, sector: SectorQuadrant):
         """高亮显示指定的扇形区域"""
