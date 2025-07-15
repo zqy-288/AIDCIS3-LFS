@@ -1011,11 +1011,16 @@ class MainWindow(QMainWindow):
 
     def _update_detection_time(self):
         """更新检测时间显示"""
-        if self.detection_running and self.detection_start_time:
+        # 如果检测正在进行或模拟正在进行，并且有开始时间，则计算经过的时间
+        is_running = getattr(self, 'detection_running', False) or getattr(self, 'simulation_running_v2', False)
+        
+        if is_running and self.detection_start_time:
             from datetime import datetime
             current_time = datetime.now()
             elapsed = current_time - self.detection_start_time
             self.detection_elapsed_seconds = int(elapsed.total_seconds())
+        elif not hasattr(self, 'detection_elapsed_seconds'):
+            self.detection_elapsed_seconds = 0
 
         # 格式化时间显示
         hours = self.detection_elapsed_seconds // 3600
@@ -1859,9 +1864,6 @@ class MainWindow(QMainWindow):
         if not self.hole_collection:
             return
         
-        # 调试信息
-        print(f"📊 [update_status_display] 被调用")
-
         # 统计各种状态的孔位数量
         status_counts = {
             HoleStatus.PENDING: 0,
@@ -1898,9 +1900,9 @@ class MainWindow(QMainWindow):
         self.completed_count_label.setText(f"已完成: {completed_holes}")
         self.pending_count_label.setText(f"待完成: {pending_holes}")
         
-        # 调试信息
-        print(f"📊 [update_status_display] 状态统计: {status_counts}")
-        print(f"📊 [update_status_display] 已完成: {completed_holes}, 待完成: {pending_holes}")
+        # 调试信息（已静默）
+        # print(f"📊 [update_status_display] 状态统计: {status_counts}")
+        # print(f"📊 [update_status_display] 已完成: {completed_holes}, 待完成: {pending_holes}")
 
         if total_holes > 0:
             completion_rate = (completed_holes / total_holes) * 100
@@ -1917,6 +1919,10 @@ class MainWindow(QMainWindow):
         if self.detection_running and not self.detection_start_time:
             from datetime import datetime
             self.detection_start_time = datetime.now()
+            
+        # 更新当前显示的扇形统计信息
+        if hasattr(self, 'current_displayed_sector') and self.current_displayed_sector:
+            self._update_sector_stats_display(self.current_displayed_sector)
 
     def update_hole_info_display(self):
         """更新选中孔位信息显示"""
@@ -2792,6 +2798,10 @@ class MainWindow(QMainWindow):
             # 重置批次显示状态
             self.current_batch_label.setText("检测批次: 已停止")
             self.batch_progress_label.setText("批次进度: 0/0")
+            
+            # 重置检测时间
+            self.detection_start_time = None
+            self.detection_elapsed_seconds = 0
             return
 
         # 初始化V2模拟
@@ -2802,11 +2812,35 @@ class MainWindow(QMainWindow):
         self.batch_progress_label.setText("批次进度: 0/0")
         self.simulation_index_v2 = 0
         
+        # 重置检测时间相关变量
+        self.detection_elapsed_seconds = 0
+        
+        # 初始化当前显示的扇形（如果还没有设置）
+        if not hasattr(self, 'current_displayed_sector') or not self.current_displayed_sector:
+            from aidcis2.graphics.sector_manager import SectorQuadrant
+            self.current_displayed_sector = SectorQuadrant.SECTOR_1
+        
         # 初始化扇形顺序模拟
         self._initialize_sector_simulation()
         
-        # 验证和修复图形项
-        self._ensure_graphics_items_exist()
+        # 确保图形视图引用正确
+        if hasattr(self, 'dynamic_sector_display') and self.dynamic_sector_display:
+            self.graphics_view = self.dynamic_sector_display.graphics_view
+        
+        # 强制加载完整数据集以确保所有孔位都有图形项
+        if hasattr(self, 'graphics_view') and self.graphics_view and hasattr(self, 'hole_collection'):
+            try:
+                self.graphics_view.load_holes(self.hole_collection)
+                self.log_message(f"✅ 模拟前完整数据集加载: {len(self.graphics_view.hole_items)} 个孔位")
+                
+                # 🔧 延迟确保图形项完全创建
+                QTimer.singleShot(200, lambda: self._ensure_graphics_items_exist())
+                self.log_message("⏳ 图形项验证将在200ms后执行")
+            except Exception as e:
+                self.log_message(f"❌ 模拟前数据加载失败: {e}")
+        else:
+            # 如果没有图形视图，延迟验证
+            QTimer.singleShot(200, lambda: self._ensure_graphics_items_exist())
 
         # 初始化统计计数器
         self.v2_stats = {
@@ -3247,7 +3281,7 @@ class MainWindow(QMainWindow):
             # 生成检测批次ID
             from datetime import datetime
             inspection_batch_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-            product_id = self.current_product.model if self.current_product else "DefaultProduct"
+            product_id = self.current_product.model_name if self.current_product else "DefaultProduct"
             
             self.batch_data_manager = BatchDataManager(
                 product_id=product_id,
@@ -3270,8 +3304,10 @@ class MainWindow(QMainWindow):
         self.batch_generation_timer.start(1000)
         self.log_message("🚀 启动新的批量渲染模拟 (1000ms批量 + 100ms渲染)")
         
-        # 渲染定时器在有数据时启动 (100ms)
-        self.render_timer.start(100)
+        # 🔧 增加初始延迟，确保图形视图完全准备好
+        # 延迟500ms再启动渲染定时器，避免初始1-2个点渲染失败
+        QTimer.singleShot(500, lambda: self.render_timer.start(100))
+        self.log_message("⏳ 渲染定时器将在500ms后启动，确保图形视图完全准备好")
         
     def _start_next_sector_simulation(self):
         """开始下一个扇形的模拟"""
@@ -3299,11 +3335,15 @@ class MainWindow(QMainWindow):
             self.dynamic_sector_display.switch_to_sector(current_sector)
             self.log_message(f"🔄 [模拟] 已调用切换到 {current_sector.value} 视图")
             
+            # 🔧 增加更多延迟，确保视图完全渲染
             # 手动触发全景预览同步（确保同步）
-            QTimer.singleShot(50, lambda: self._manual_sync_panorama(current_sector))
+            QTimer.singleShot(100, lambda: self._manual_sync_panorama(current_sector))
             
             # 适应视图到当前扇形区域
-            QTimer.singleShot(100, lambda: self._fit_view_to_current_sector(current_sector))
+            QTimer.singleShot(200, lambda: self._fit_view_to_current_sector(current_sector))
+            
+            # 🔧 额外延迟，确保所有图形项都完全准备好
+            QTimer.singleShot(300, lambda: self._ensure_graphics_items_exist())
         
         # 设置当前扇形的孔位列表用于模拟
         self.holes_list_v2 = sector_holes
@@ -3377,50 +3417,52 @@ class MainWindow(QMainWindow):
     
     def _ensure_graphics_items_exist(self):
         """确保图形项存在，如果不存在则重新创建"""
+        # 首先确保graphics_view引用正确
+        if hasattr(self, 'dynamic_sector_display') and self.dynamic_sector_display:
+            self.graphics_view = self.dynamic_sector_display.graphics_view
+        
         if not hasattr(self, 'graphics_view') or not self.graphics_view:
             self.log_message("⚠️ 图形视图不存在，跳过图形项验证")
             return
         
         # 检查当前图形项数量
-        current_items_count = len(self.graphics_view.hole_items)
-        expected_count = len(self.holes_list_v2)
+        current_items_count = len(self.graphics_view.hole_items) if hasattr(self.graphics_view, 'hole_items') else 0
+        expected_count = len(self.holes_list_v2) if hasattr(self, 'holes_list_v2') else 0
         
         self.log_message(f"📊 图形项数量检查: 当前={current_items_count}, 期望={expected_count}")
         
-        # 如果图形项数量不匹配，重新加载当前扇形保持专注显示
-        if current_items_count != expected_count:
-            self.log_message(f"⚠️ 图形项数量不匹配，重新加载当前扇形")
+        # 如果没有图形项或数量严重不匹配，先加载完整数据
+        if current_items_count == 0 or current_items_count < expected_count * 0.8:
+            self.log_message(f"⚠️ 图形项严重缺失，重新加载完整数据集")
             try:
-                # 重新加载当前扇形而不是完整数据
-                if hasattr(self, 'current_sector_index') and hasattr(self, 'sector_order'):
-                    current_sector = self.sector_order[self.current_sector_index]
-                    self.dynamic_sector_display.switch_to_sector(current_sector)
-                    self.log_message(f"✅ 当前扇形 {current_sector.value} 重新加载，保持专注显示")
+                # 先加载完整数据确保所有孔位都有图形项
+                self.graphics_view.load_holes(self.hole_collection)
+                self.log_message(f"✅ 完整数据集重新加载完成")
                 
                 # 再次检查
                 new_count = len(self.graphics_view.hole_items)
-                if new_count == expected_count:
-                    self.log_message(f"✅ 图形项重新加载成功: {new_count} 个")
-                else:
-                    self.log_message(f"⚠️ 重新加载后数量仍不匹配: {new_count}/{expected_count}")
+                self.log_message(f"📊 重新加载后图形项数量: {new_count}")
+                
             except Exception as e:
                 self.log_message(f"❌ 图形项重新加载失败: {e}")
         else:
-            # 即使数量匹配，也检查是否有缺失的特定项目
+            # 检查是否有缺失的特定项目
             missing_items = []
-            for hole in self.holes_list_v2:
-                if hole.hole_id not in self.graphics_view.hole_items:
-                    missing_items.append(hole.hole_id)
+            if hasattr(self, 'holes_list_v2'):
+                for hole in self.holes_list_v2:
+                    if hole.hole_id not in self.graphics_view.hole_items:
+                        missing_items.append(hole.hole_id)
             
             if missing_items:
-                self.log_message(f"⚠️ 发现 {len(missing_items)} 个特定图形项缺失，重新加载")
+                self.log_message(f"⚠️ 发现 {len(missing_items)} 个特定图形项缺失: {missing_items[:5]}...")
                 try:
+                    # 重新加载完整数据集
                     self.graphics_view.load_holes(self.hole_collection)
                     self.log_message("✅ 特定图形项修复完成")
                 except Exception as e:
                     self.log_message(f"❌ 特定图形项修复失败: {e}")
             else:
-                self.log_message(f"✅ 所有 {len(self.holes_list_v2)} 个图形项验证通过")
+                self.log_message(f"✅ 所有 {expected_count} 个图形项验证通过")
 
     def _generate_batch_data(self):
         """生成批量数据 (1000ms周期)"""
@@ -3479,6 +3521,14 @@ class MainWindow(QMainWindow):
         if not hasattr(self, 'batch_data_manager'):
             return
             
+        # 🔧 检查图形视图是否准备好
+        if not hasattr(self, 'graphics_view') or not self.graphics_view:
+            return
+            
+        # 🔧 检查图形项是否存在，如果不存在则跳过此次渲染
+        if not hasattr(self.graphics_view, 'hole_items') or not self.graphics_view.hole_items:
+            return
+            
         # 获取下一个要渲染的孔位
         render_item = self.batch_data_manager.get_next_render_item()
         if not render_item:
@@ -3494,6 +3544,7 @@ class MainWindow(QMainWindow):
             self._handle_sector_switching(current_sector)
         except:
             self.log_message(f"⚠️ 扇形解析失败: {render_item.sector}")
+            current_sector = SectorQuadrant.SECTOR_1  # 默认扇形
         
         # 检查图形项是否存在
         # 处理ID格式不匹配问题
@@ -3547,6 +3598,35 @@ class MainWindow(QMainWindow):
             # 同步到全景图 - 使用统一的批量更新机制
             self._synchronize_panorama_status(hole_id, render_item.status, color)
             
+            # 更新在HoleCollection中的状态
+            if self.hole_collection and hole_id in self.hole_collection.holes:
+                from aidcis2.models.hole_data import HoleStatus
+                new_status = HoleStatus(render_item.status)
+                self.hole_collection.holes[hole_id].status = new_status
+                self.log_message(f"✅ 更新孔位状态: {hole_id} -> {render_item.status}")
+                
+                # 更新sector_manager中的状态
+                if self.sector_manager:
+                    self.sector_manager.update_hole_status(hole_id, new_status)
+            
+            # 更新状态统计显示
+            self.update_status_display()
+            
+            # 启动检测时间计时器（如果还没有启动）
+            if not self.detection_start_time:
+                from datetime import datetime
+                self.detection_start_time = datetime.now()
+                self.log_message("🕐 开始检测时间计时")
+            
+            # 更新选中孔位的信息显示
+            if self.selected_hole and self.selected_hole.hole_id == hole_id:
+                self.selected_hole.status = HoleStatus(render_item.status)
+                self.update_selected_hole_info()
+            
+            # 更新选中扇形的统计信息
+            if hasattr(self, 'current_displayed_sector') and self.current_displayed_sector == current_sector:
+                self._update_sector_stats_display(current_sector)
+            
         except Exception as e:
             self.log_message(f"❌ 渲染失败 {hole_id}: {e}")
     
@@ -3582,6 +3662,9 @@ class MainWindow(QMainWindow):
                 # 手动同步全景预览
                 from PySide6.QtCore import QTimer
                 QTimer.singleShot(50, lambda: self._manual_sync_panorama(target_sector))
+                
+                # 更新扇形统计信息
+                QTimer.singleShot(100, lambda: self._update_sector_stats_display(target_sector))
                 
             except Exception as e:
                 self.log_message(f"❌ 扇形切换失败: {e}")
@@ -3739,18 +3822,23 @@ class MainWindow(QMainWindow):
 
         # 检查图形项是否存在
         if hole_id not in self.graphics_view.hole_items:
-            self.log_message(f"⚠️ V2: 图形项不存在 {hole_id}，尝试重新加载")
+            self.log_message(f"⚠️ V2: 图形项不存在 {hole_id}，尝试修复")
             try:
-                # 如果当前扇形已知，重新加载该扇形
-                if self.current_displayed_sector:
-                    self.dynamic_sector_display.switch_to_sector(self.current_displayed_sector)
-                    self.log_message(f"✅ V2: 扇形 {self.current_displayed_sector.value} 重新加载")
+                # 确保graphics_view引用正确
+                if hasattr(self, 'dynamic_sector_display') and self.dynamic_sector_display:
+                    self.graphics_view = self.dynamic_sector_display.graphics_view
+                
+                # 尝试重新加载完整数据集（这样可以确保所有孔位都有图形项）
+                self.graphics_view.load_holes(self.hole_collection)
+                self.log_message(f"✅ V2: 完整数据集重新加载")
                 
                 # 重新检查
                 if hole_id not in self.graphics_view.hole_items:
                     self.log_message(f"❌ V2: 图形项 {hole_id} 仍然不存在，跳过")
                     self.simulation_index_v2 += 1
                     return
+                else:
+                    self.log_message(f"✅ V2: 图形项 {hole_id} 修复成功")
             except Exception as e:
                 self.log_message(f"❌ V2: 图形项修复失败 {e}，跳过 {hole_id}")
                 self.simulation_index_v2 += 1
@@ -3824,7 +3912,7 @@ class MainWindow(QMainWindow):
             h_item.setPen(QPen(final_color.darker(120), 2.0))
             h_item.update()
 
-            # 减少日志输出频率
+            # 减少日志输出频率但不影响状态更新
             if self.simulation_index_v2 % 10 == 0:
                 self.log_message(f"{emoji} V2: {h_id} 检测完成 → {status_text} ({final_color.name()})")
 
@@ -3859,6 +3947,11 @@ class MainWindow(QMainWindow):
                 
                 # 立即更新状态统计显示
                 self.update_status_display()
+                
+                # 更新扇形进度显示
+                if hasattr(self, 'hole_to_sector_map') and h_id in self.hole_to_sector_map:
+                    current_sector = self.hole_to_sector_map[h_id]
+                    self._update_sector_stats_display(current_sector)
                 
             else:
                 print(f"❌ [修复-数据更新] 无法找到原始数据对象 {h_id}")
