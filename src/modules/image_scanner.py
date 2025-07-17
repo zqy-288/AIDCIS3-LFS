@@ -34,8 +34,8 @@ class ImageScanner:
     # 支持的图像格式
     SUPPORTED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif'}
     
-    # 孔ID模式匹配
-    HOLE_ID_PATTERN = re.compile(r'^H\d+$')
+    # 孔ID模式匹配（新格式：R开头，包含C）
+    HOLE_ID_PATTERN = re.compile(r'^R\d+C\d+$')
     
     def __init__(self, base_path: str = "Data"):
         """
@@ -63,12 +63,12 @@ class ImageScanner:
                 print(f"警告: 基础路径不存在: {self.base_path}")
                 return False
                 
-            # 扫描所有H开头的目录
+            # 扫描所有新格式孔位目录（R开头且包含C）
             for item in self.base_path.iterdir():
                 if item.is_dir() and self.HOLE_ID_PATTERN.match(item.name):
                     hole_id = item.name
                     self.hole_ids.add(hole_id)
-                    
+
                     # 扫描该孔ID下的图像文件
                     images = self._scan_hole_images(hole_id, item)
                     self.images_by_hole[hole_id] = images
