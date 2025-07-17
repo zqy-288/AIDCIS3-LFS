@@ -283,59 +283,11 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         
         # 扇形偏移配置框
-        self._create_sector_offset_config(layout, toolbar_font)
+        # 扇形偏移配置已移除
 
         return toolbar
     
-    def _create_sector_offset_config(self, layout, font):
-        """创建扇形偏移配置控件"""
-        from PySide6.QtWidgets import QFrame, QLabel, QSpinBox, QCheckBox
-        
-        # 创建配置框架
-        config_frame = QFrame()
-        config_frame.setFrameStyle(QFrame.StyledPanel)
-        config_frame.setMaximumWidth(200)
-        
-        config_layout = QHBoxLayout(config_frame)
-        config_layout.setContentsMargins(8, 4, 8, 4)
-        config_layout.setSpacing(5)
-        
-        # 标签
-        config_label = QLabel("扇形偏移:")
-        config_label.setFont(font)
-        config_layout.addWidget(config_label)
-        
-        # 偏移百分比输入框（-50% 到 +50%）
-        self.offset_spinbox = QSpinBox()
-        self.offset_spinbox.setRange(-50, 50)  # -50% 到 +50%
-        self.offset_spinbox.setValue(10)  # 默认10%
-        self.offset_spinbox.setSuffix("%")
-        self.offset_spinbox.setMinimumWidth(60)  # 增加宽度以容纳负号
-        self.offset_spinbox.setFont(font)
-        self.offset_spinbox.setToolTip("扇形视图偏移控制：\n正值(+)：内容向右偏移，显示左侧更多区域\n负值(-)：内容向左偏移，显示右侧更多区域\n0：无偏移，标准居中视图\n\n范围：-50% 到 +50%")
-        config_layout.addWidget(self.offset_spinbox)
-        
-        # 启用/禁用复选框
-        self.offset_enabled_checkbox = QCheckBox("启用")
-        self.offset_enabled_checkbox.setChecked(True)
-        self.offset_enabled_checkbox.setFont(font)
-        self.offset_enabled_checkbox.setToolTip("启用或禁用扇形偏移功能\n禁用时将使用标准居中视图")
-        config_layout.addWidget(self.offset_enabled_checkbox)
-        
-        layout.addWidget(config_frame)
-        
-        # 连接信号
-        self.offset_spinbox.valueChanged.connect(self._on_offset_config_changed)
-        self.offset_enabled_checkbox.toggled.connect(self._on_offset_config_changed)
     
-    def _on_offset_config_changed(self):
-        """偏移配置变化时的处理"""
-        if hasattr(self, 'dynamic_sector_display') and self.dynamic_sector_display:
-            ratio = self.offset_spinbox.value() / 100.0  # 转换为小数
-            enabled = self.offset_enabled_checkbox.isChecked()
-            
-            self.dynamic_sector_display.set_sector_offset_config(ratio=ratio, enabled=enabled)
-            self.log_message(f"🔧 扇形偏移配置已更新: {ratio:.1%}, {'启用' if enabled else '禁用'}")
 
     def create_left_info_panel(self) -> QWidget:
         """创建左侧信息面板"""
@@ -631,10 +583,7 @@ class MainWindow(QMainWindow):
         # 连接侧边栏全景图的扇形点击信号
         self.sidebar_panorama.sector_clicked.connect(self.on_panorama_sector_clicked)
         
-        # 连接全景图的偏移控制信号到动态扇形显示
-        self.sidebar_panorama.offset_changed.connect(
-            lambda ratio, enabled: self.dynamic_sector_display.set_sector_offset_config(ratio, enabled)
-        )
+        # 偏移控制信号连接已移除
         
         # 连接扇形管理器信号
         self.sector_manager.sector_progress_updated.connect(self.on_sector_progress_updated)
@@ -1282,9 +1231,14 @@ class MainWindow(QMainWindow):
                 time.sleep(0.1)
                 QApplication.processEvents()
                 
+                # 高亮左侧全景图中对应的扇形
+                self._highlight_panorama_sector(target_sector)
+                
                 return True
             else:
                 self.log_message(f"✅ 孔位已在当前显示的 {target_sector.value} 中")
+                # 即使已在当前扇形，也要高亮左侧全景图中对应的扇形
+                self._highlight_panorama_sector(target_sector)
                 return True
                 
         except Exception as e:
@@ -1293,6 +1247,51 @@ class MainWindow(QMainWindow):
             traceback.print_exc()
             return False
 
+    def _highlight_panorama_sector(self, sector):
+        """高亮左侧全景图中对应的扇形
+        
+        Args:
+            sector: SectorQuadrant对象，要高亮的扇形
+        """
+        try:
+            if not hasattr(self, 'sidebar_panorama') or not self.sidebar_panorama:
+                self.log_message("⚠️ 左侧全景图组件不存在，无法高亮扇形")
+                return
+            
+            # 检查sidebar_panorama是否有highlight_sector方法
+            if not hasattr(self.sidebar_panorama, 'highlight_sector'):
+                self.log_message("⚠️ 左侧全景图组件没有highlight_sector方法")
+                return
+            
+            # 高亮对应的扇形
+            self.sidebar_panorama.highlight_sector(sector)
+            self.log_message(f"✨ 左侧全景图已高亮 {sector.value}")
+            
+        except Exception as e:
+            self.log_message(f"❌ 高亮左侧全景图扇形失败: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _clear_panorama_sector_highlight(self):
+        """清空左侧全景图的扇形高亮"""
+        try:
+            if hasattr(self, 'sidebar_panorama') and self.sidebar_panorama:
+                # 如果有清空高亮的方法，调用它
+                if hasattr(self.sidebar_panorama, 'clear_sector_highlight'):
+                    self.sidebar_panorama.clear_sector_highlight()
+                    self.log_message("✨ 已清空左侧全景图扇形高亮")
+                # 如果没有专门的清空方法，尝试设置为None或重置所有高亮
+                elif hasattr(self.sidebar_panorama, 'current_highlighted_sector'):
+                    self.sidebar_panorama.current_highlighted_sector = None
+                    # 如果有扇形高亮字典，隐藏所有高亮
+                    if hasattr(self.sidebar_panorama, 'sector_highlights'):
+                        for highlight in self.sidebar_panorama.sector_highlights.values():
+                            if hasattr(highlight, 'hide_highlight'):
+                                highlight.hide_highlight()
+                    self.log_message("✨ 已清空左侧全景图扇形高亮")
+        except Exception as e:
+            self.log_message(f"❌ 清空左侧全景图扇形高亮失败: {e}")
+
     def perform_search(self):
         """执行搜索"""
         search_text = self.search_input.text().strip()
@@ -1300,6 +1299,8 @@ class MainWindow(QMainWindow):
             # 清空搜索，显示所有孔位
             if hasattr(self, 'graphics_view'):
                 self.graphics_view.clear_search_highlight()
+            # 清空左侧全景图的扇形高亮
+            self._clear_panorama_sector_highlight()
             self.log_message("清空搜索")
             return
 
@@ -1330,6 +1331,9 @@ class MainWindow(QMainWindow):
                         break
                 if exact_match:
                     self._switch_to_hole_sector(exact_match)
+                else:
+                    # 如果没有精确匹配，高亮第一个结果所在的扇形
+                    self._switch_to_hole_sector(matched_holes[0])
             
             # 延迟高亮匹配的孔位，确保扇形切换完成
             def delayed_highlight():

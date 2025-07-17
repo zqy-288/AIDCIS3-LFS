@@ -320,9 +320,7 @@ class DynamicSectorDisplayWidget(QWidget):
         self.current_sector = SectorQuadrant.SECTOR_1
         self.sector_views = {}  # 缓存各扇形的图形视图
         
-        # 扇形偏移配置
-        self.sector_offset_enabled = True
-        self.sector_offset_ratio = 0.1  # 默认10%偏移
+        # 扇形偏移配置已移除
         
         # 小型全景图相关
         # 不再需要 mini_panorama_items，使用 CompletePanoramaWidget 的内部机制
@@ -574,12 +572,64 @@ class DynamicSectorDisplayWidget(QWidget):
                 self.update_mini_panorama_hole_status(hole_id, status)
     
     def resizeEvent(self, event):
-        """处理窗口大小变化事件，更新浮动窗口位置"""
+        """处理窗口大小变化事件，实现响应式设计"""
         super().resizeEvent(event)
+        
+        # 更新浮动窗口位置
         if hasattr(self, 'floating_panorama') and self.floating_panorama:
             # 保持浮动窗口在左上角
             self.floating_panorama.move(10, 10)
             self.floating_panorama.raise_()
+        
+        # 实现响应式设计：根据窗口大小调整图表
+        if hasattr(self, 'graphics_view') and self.graphics_view and hasattr(self, 'current_sector'):
+            self._update_responsive_chart_size()
+    
+    def _update_responsive_chart_size(self):
+        """更新响应式图表大小"""
+        try:
+            # 获取可用的视图尺寸
+            view_size = self.graphics_view.size()
+            available_width = view_size.width() - 40  # 留出边距
+            available_height = view_size.height() - 40
+            
+            if available_width <= 0 or available_height <= 0:
+                return
+            
+            # 计算最优缩放比例
+            # 使用更大的可用空间（80-90%）
+            optimal_scale = min(available_width, available_height) * 0.85 / 1000  # 假设基础大小为1000
+            
+            # 确保最小和最大缩放限制
+            optimal_scale = max(0.3, min(3.0, optimal_scale))
+            
+            # 应用新的缩放
+            if hasattr(self, 'current_sector') and self.current_sector:
+                print(f"🔄 [响应式设计] 窗口大小: {available_width}x{available_height}, 最优缩放: {optimal_scale:.2f}")
+                self._apply_responsive_scaling(optimal_scale)
+                
+        except Exception as e:
+            print(f"❌ [响应式设计] 更新图表大小失败: {e}")
+    
+    def _apply_responsive_scaling(self, scale: float):
+        """应用响应式缩放"""
+        try:
+            # 更新视图变换，保持居中
+            if hasattr(self, 'graphics_view') and self.graphics_view:
+                # 获取当前视图中心
+                view_center = self.graphics_view.mapToScene(self.graphics_view.viewport().rect().center())
+                
+                # 重置变换并应用新的缩放
+                self.graphics_view.resetTransform()
+                self.graphics_view.scale(scale, scale)
+                
+                # 重新居中视图
+                self.graphics_view.centerOn(view_center)
+                
+                print(f"✅ [响应式设计] 应用缩放: {scale:.2f}")
+                
+        except Exception as e:
+            print(f"❌ [响应式设计] 应用缩放失败: {e}")
     
     def _verify_transform_applied(self, expected_center_x: float, expected_center_y: float):
         """验证变换是否成功应用"""
@@ -1574,33 +1624,7 @@ class DynamicSectorDisplayWidget(QWidget):
         print(f"  - 扇形列表: {list(self.sector_views.keys())}")
         print("=== [DEBUG] 扇形视图创建完成 ===\n")
     
-    def set_sector_offset_config(self, ratio: float = None, enabled: bool = None):
-        """设置扇形偏移配置"""
-        config_changed = False
-        
-        if ratio is not None:
-            # 先检查输入是否是以百分比形式传入的（例如 -10.0）
-            # 如果绝对值大于 1，则假设是百分比，需要除以 100
-            if abs(ratio) > 1:
-                ratio = ratio / 100.0
-                print(f"🔧 [配置] 检测到百分比输入，转换为比例: {ratio:.3f}")
-            
-            new_ratio = max(-1.0, min(1.0, ratio))  # 限制在-100%到+100%
-            if abs(new_ratio - self.sector_offset_ratio) > 0.001:  # 只有显著变化才更新
-                self.sector_offset_ratio = new_ratio
-                config_changed = True
-                print(f"🔧 [配置] 扇形偏移比例已设置为: {self.sector_offset_ratio:+.1%}")  # 使用+号显示正负
-        
-        if enabled is not None:
-            if self.sector_offset_enabled != enabled:
-                self.sector_offset_enabled = enabled
-                config_changed = True
-                print(f"🔧 [配置] 扇形偏移已{'启用' if enabled else '禁用'}")
-        
-        # 如果配置改变，刷新当前扇形视图
-        if config_changed and self.current_sector and hasattr(self, 'graphics_view'):
-            print(f"🔄 [配置] 应用新的偏移配置到当前扇形")
-            self._apply_fill_view_strategy()
+    # 扇形偏移配置方法已移除
     
     def _debug_verify_sector_visibility(self):
         """调试方法：验证当前扇形的可见性设置"""
@@ -1862,20 +1886,10 @@ class DynamicSectorDisplayWidget(QWidget):
             original_center_x = (min_x + max_x) / 2
             original_center_y = (min_y + max_y) / 2
         
-        # 🔧 修复中心点计算：使用扇形的实际几何中心，而不是完整数据的中心
-        # 这样可以确保扇形内容正确居中显示，避免显示偏移问题
-        if self.sector_offset_enabled:
-            # 计算简单的X轴偏移
-            data_width = max_x - min_x
-            offset_distance = data_width * self.sector_offset_ratio * 0.1  # 数据宽度的10%比例偏移
-            data_center_x = original_center_x + offset_distance
-            data_center_y = original_center_y
-            print(f"🎯 [动态扇形] 应用偏移: 原始中心({original_center_x:.1f}, {original_center_y:.1f}) -> 偏移中心({data_center_x:.1f}, {data_center_y:.1f}), 偏移距离: {offset_distance:.1f}")
-        else:
-            # 使用扇形的实际几何中心，这样可以确保扇形内容正确居中显示
-            data_center_x = original_center_x
-            data_center_y = original_center_y
-            print(f"🎯 [动态扇形] 使用扇形几何中心（无偏移）: ({data_center_x:.1f}, {data_center_y:.1f})")
+        # 使用扇形的实际几何中心，确保扇形内容正确居中显示
+        data_center_x = original_center_x
+        data_center_y = original_center_y
+        print(f"🎯 [动态扇形] 使用扇形几何中心: ({data_center_x:.1f}, {data_center_y:.1f})")
         
         data_center = QPointF(data_center_x, data_center_y)
         print(f"📊 [动态扇形] 最终数据中心: ({data_center_x:.1f}, {data_center_y:.1f})")
@@ -1922,17 +1936,19 @@ class DynamicSectorDisplayWidget(QWidget):
         scale_y = view_height / content_height if content_height > 0 else 1.0
         base_scale = min(scale_x, scale_y)
         
-        # 根据视图大小动态调整缩放
-        # 大视图使用更温和的缩放，小视图使用更激进的缩放
-        if view_width >= 1000 and view_height >= 700:
-            # 大视图：适度缩放
-            scale_factor = 0.70
-        elif view_width >= 800 and view_height >= 600:
+        # 根据视图大小动态调整缩放 - 更好地利用可用空间
+        # 计算视图面积比例来确定缩放因子
+        view_area = view_width * view_height
+        
+        if view_area >= 700000:  # 大视图 (1000x700+)
+            # 大视图：充分利用空间
+            scale_factor = 0.85
+        elif view_area >= 480000:  # 中等视图 (800x600+)
             # 中等视图：平衡缩放
-            scale_factor = 0.75
+            scale_factor = 0.82
         else:
-            # 小视图：充分利用空间
-            scale_factor = 0.80
+            # 小视图：最大化利用空间
+            scale_factor = 0.88
         
         # 应用缩放系数
         final_scale = base_scale * scale_factor
@@ -1959,9 +1975,7 @@ class DynamicSectorDisplayWidget(QWidget):
             print(f"🔄 [动态扇形] 变换未发生显著变化，跳过更新")
             return
         
-        # 强制更新如果启用了偏移
-        if self.sector_offset_enabled:
-            print(f"🔧 [动态扇形] 强制更新（偏移已启用）")
+        # 偏移功能已移除
         
         print(f"🔄 [动态扇形] 更新变换: transform_changed={transform_changed}, center_changed={center_changed}, is_uninitialized={is_uninitialized}")
             
@@ -2013,44 +2027,7 @@ class DynamicSectorDisplayWidget(QWidget):
         print(f"🔍 [动态扇形] 最终缩放: {final_scale:.3f} (基础: {base_scale:.3f}, 系数: {scale_factor:.2f})")
         print(f"✅ [动态扇形] 视图策略应用完成 - 修复扇形移动和定位问题")
     
-    def _apply_scroll_offset(self):
-        """使用滚动条应用偏移"""
-        if not self.sector_offset_enabled or self.sector_offset_ratio == 0:
-            return
-            
-        # 获取水平滚动条
-        h_scrollbar = self.graphics_view.horizontalScrollBar()
-        if not h_scrollbar:
-            return
-            
-        # 计算偏移量
-        # 获取滚动条的范围
-        min_value = h_scrollbar.minimum()
-        max_value = h_scrollbar.maximum()
-        range_value = max_value - min_value
-        
-        if range_value <= 0:
-            print(f"⚠️ [动态扇形] 滚动条范围无效: min={min_value}, max={max_value}")
-            return
-            
-        # 计算目标滚动位置
-        # 偏移比例越大，滚动条越靠右（显示内容越靠左，看起来内容向右偏移）
-        current_value = h_scrollbar.value()
-        center_value = (min_value + max_value) / 2
-        
-        # 计算偏移值
-        # sector_offset_ratio 已经是 -1 到 1 的比例（例如 -0.1 表示 -10%）
-        # 使用一个更大的系数让偏移效果明显一些
-        offset_value = range_value * self.sector_offset_ratio * 0.3  # 0.3 让偏移效果明显
-        target_value = center_value + offset_value
-        
-        # 确保在有效范围内
-        target_value = max(min_value, min(max_value, target_value))
-        
-        # 应用偏移
-        h_scrollbar.setValue(int(target_value))
-        
-        print(f"🎯 [动态扇形] 应用滚动偏移: 范围=[{min_value}, {max_value}], 中心={center_value:.1f}, 目标={target_value:.1f}, 偏移比例={self.sector_offset_ratio:.1%}, 偏移值={offset_value:.1f}")
+    # 滚动偏移方法已移除
     
     def _normalize_hole_id(self, hole_id: str) -> str:
         """规范化孔位ID以支持新旧格式匹配
@@ -2130,7 +2107,7 @@ class CompletePanoramaWidget(QWidget):
     sector_clicked = Signal(SectorQuadrant)
     
     # 添加偏移控制信号
-    offset_changed = Signal(float, bool)  # 偏移比例, 是否启用
+    # 偏移信号已移除
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -2208,8 +2185,7 @@ class CompletePanoramaWidget(QWidget):
         self.panorama_view.setParent(panorama_widget)
         self.panorama_view.move(0, 0)
         
-        # 🔧 添加偏移控制面板（浮动在右上角）
-        self.offset_control_panel = self._create_offset_control_panel(panorama_widget)
+        # 偏移控制面板已移除
         
         panorama_layout.addWidget(panorama_widget)
         layout.addWidget(panorama_container)
@@ -2231,89 +2207,7 @@ class CompletePanoramaWidget(QWidget):
         """)
         layout.addWidget(self.info_label)
     
-    def _create_offset_control_panel(self, parent):
-        """创建偏移控制面板"""
-        from PySide6.QtWidgets import QPushButton, QSlider, QLabel, QHBoxLayout
-        
-        # 创建控制面板容器
-        panel = QWidget(parent)
-        panel.setFixedSize(120, 30)
-        panel.move(350 - 125, 5)  # 定位到右上角
-        
-        # 设置面板样式
-        panel.setStyleSheet("""
-            QWidget {
-                background-color: rgba(255, 255, 255, 200);
-                border: 1px solid #ccc;
-                border-radius: 5px;
-            }
-        """)
-        
-        # 创建布局
-        layout = QHBoxLayout(panel)
-        layout.setContentsMargins(5, 2, 5, 2)
-        layout.setSpacing(2)
-        
-        # 偏移按钮
-        self.offset_btn = QPushButton("偏移", panel)
-        self.offset_btn.setFixedSize(35, 25)
-        self.offset_btn.setCheckable(True)
-        self.offset_btn.setStyleSheet("""
-            QPushButton {
-                font-size: 10px;
-                border: 1px solid #999;
-                border-radius: 3px;
-                background-color: #f0f0f0;
-            }
-            QPushButton:checked {
-                background-color: #4CAF50;
-                color: white;
-            }
-        """)
-        
-        # 偏移滑块
-        self.offset_slider = QSlider(parent)
-        self.offset_slider.setOrientation(Qt.Horizontal)
-        self.offset_slider.setFixedSize(70, 25)
-        self.offset_slider.setRange(-50, 50)  # -50% 到 +50%
-        self.offset_slider.setValue(0)
-        self.offset_slider.setStyleSheet("""
-            QSlider::groove:horizontal {
-                border: 1px solid #999;
-                height: 6px;
-                border-radius: 3px;
-                background: #f0f0f0;
-            }
-            QSlider::handle:horizontal {
-                background: #4CAF50;
-                border: 1px solid #999;
-                width: 12px;
-                border-radius: 6px;
-                margin: -3px 0;
-            }
-        """)
-        
-        layout.addWidget(self.offset_btn)
-        layout.addWidget(self.offset_slider)
-        
-        # 连接信号
-        self.offset_btn.toggled.connect(self._on_offset_enabled_changed)
-        self.offset_slider.valueChanged.connect(self._on_offset_value_changed)
-        
-        return panel
     
-    def _on_offset_enabled_changed(self, enabled):
-        """偏移启用状态改变"""
-        ratio = self.offset_slider.value()
-        self.offset_changed.emit(ratio, enabled)
-        print(f"🔧 [偏移控制] 偏移{'启用' if enabled else '禁用'}: {ratio}%")
-    
-    def _on_offset_value_changed(self, value):
-        """偏移值改变"""
-        enabled = self.offset_btn.isChecked()
-        if enabled:  # 只有在启用时才发送信号
-            self.offset_changed.emit(value, enabled)
-            print(f"🔧 [偏移控制] 偏移值改变: {value}%")
     
     def load_complete_view(self, hole_collection: HoleCollection):
         """加载完整的全景图 - 使用统一缩放管理"""
@@ -2564,6 +2458,9 @@ class CompletePanoramaWidget(QWidget):
             # 使用之前计算的数据半径
             display_radius = self.panorama_radius
             
+            # 扇形高亮使用更小的半径，以更好地适应圆形区域
+            sector_highlight_radius = self.panorama_radius * 0.75
+            
             # 计算真正的数据中心点用于扇形高亮（不偏移）
             bounds = self.hole_collection.get_bounds()
             true_center_x = (bounds[0] + bounds[2]) / 2
@@ -2578,7 +2475,7 @@ class CompletePanoramaWidget(QWidget):
                 highlight = SectorHighlightItem(
                     sector=sector,
                     center=true_center_point,  # 使用真正的中心点
-                    radius=display_radius,
+                    radius=sector_highlight_radius,  # 使用更小的扇形高亮半径
                     sector_bounds=None  # 不使用边界框模式
                 )
                 
@@ -2660,11 +2557,13 @@ class CompletePanoramaWidget(QWidget):
 
             # 使用当前的半径，如果没有则使用默认值
             radius = getattr(self, 'panorama_radius', 100.0)
+            # 扇形高亮使用更小的半径，以更好地适应圆形区域
+            sector_highlight_radius = radius * 0.75
 
             highlight = SectorHighlightItem(
                 sector=sector,
                 center=true_center_point,
-                radius=radius,
+                radius=sector_highlight_radius,
                 sector_bounds=None
             )
             highlight.set_highlight_mode("sector")
