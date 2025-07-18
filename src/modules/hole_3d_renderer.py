@@ -4,6 +4,8 @@
 生成实测管径、最大正误差、最小负误差的三维模型
 """
 
+import gc
+import weakref
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -23,6 +25,13 @@ class Hole3DRenderer(FigureCanvas):
         self.figure = Figure(figsize=(14, 12))
         super().__init__(self.figure)
         self.setParent(parent)
+        
+        # 内存管理相关
+        self._cleanup_called = False
+        self._signal_connections = []
+        self._widget_refs = weakref.WeakSet()
+        self._current_measurements = None
+        self._legend_text_box = None
 
         # 创建单个三维子图，调整位置以充分利用空间
         self.ax = self.figure.add_subplot(111, projection='3d')
@@ -38,15 +47,97 @@ class Hole3DRenderer(FigureCanvas):
 
         # 调整布局，减少边距以最大化绘图区域
         self.figure.tight_layout(pad=1.0)
+        
+        # 注册到内存监控
+        try:
+            from .memory_monitor import register_widget_for_monitoring
+            register_widget_for_monitoring(self)
+        except ImportError:
+            pass
+
+    def _connect_signal(self, signal, slot):
+        """安全地连接信号和槽，并跟踪连接"""
+        try:
+            connection = signal.connect(slot)
+            self._signal_connections.append((signal, slot, connection))
+            return connection
+        except Exception as e:
+            print(f"连接信号失败: {e}")
+            return None
+        
+    def _disconnect_all_signals(self):
+        """断开所有信号连接"""
+        for signal, slot, connection in self._signal_connections:
+            try:
+                signal.disconnect(slot)
+            except:
+                pass
+        self._signal_connections.clear()
+        
+    def cleanup(self):
+        """清理资源"""
+        if self._cleanup_called:
+            return
+        self._cleanup_called = True
+        
+        try:
+            # 断开所有信号连接
+            self._disconnect_all_signals()
+            
+            # 清理matplotlib图形
+            if hasattr(self, 'ax') and self.ax:
+                self.ax.clear()
+                self.ax = None
+                
+            if hasattr(self, 'figure') and self.figure:
+                plt.close(self.figure)
+                self.figure = None
+                
+            # 清理图例引用
+            if hasattr(self, '_legend_text_box'):
+                self._legend_text_box = None
+                
+            # 清理测量数据
+            if hasattr(self, '_current_measurements'):
+                self._current_measurements = None
+                
+            # 清理弱引用
+            self._widget_refs.clear()
+            
+            # 从内存监控中移除
+            try:
+                from .memory_monitor import unregister_widget_from_monitoring
+                unregister_widget_from_monitoring(self)
+            except ImportError:
+                pass
+                
+            # 强制垃圾回收
+            gc.collect()
+            
+        except Exception as e:
+            print(f"清理Hole3DRenderer资源时出错: {e}")
+            
+    def __del__(self):
+        """析构函数"""
+        self.cleanup()
+        
+    def closeEvent(self, event):
+        """窗口关闭事件"""
+        self.cleanup()
+        if hasattr(super(), 'closeEvent'):
+            super().closeEvent(event)
 
     def setup_mouse_interaction(self):
         """设置鼠标交互功能"""
         # 连接鼠标滚轮事件
-        self.mpl_connect('scroll_event', self.on_scroll)
+        try:
+            self.mpl_connect('scroll_event', self.on_scroll)
+        except Exception as e:
+            print(f"设置鼠标交互失败: {e}")
 
     def on_scroll(self, event):
         """鼠标滚轮缩放事件处理"""
-        if event.inaxes != self.ax:
+        if self._cleanup_called or not hasattr(self, 'ax') or not self.ax or event.inaxes != self.ax:
             return
 
         # 获取当前坐标轴范围
@@ -111,6 +202,9 @@ class Hole3DRenderer(FigureCanvas):
 
     def init_empty_model(self):
         """初始化空的三维模型"""
+        if self._cleanup_called or not hasattr(self, 'ax') or not self.ax:
+            return
+            
         self.ax.clear()
         self.ax.set_xlabel('X (mm)', fontsize=12)
         self.ax.set_ylabel('Y (mm)', fontsize=12)
@@ -129,17 +223,23 @@ class Hole3DRenderer(FigureCanvas):
         # 设置网格
         self.ax.grid(True, alpha=0.3)
 
-        self.draw()
+        try:
+            self.draw()
+        except Exception as e:
+            print(f"绘制初始模型失败: {e}")
     
     def generate_3d_hole_models(self, measurements):
         """生成合并的三维管孔模型"""
+        if self._cleanup_called or not hasattr(self, 'ax') or not self.ax:
+            return
+            
         if not measurements:
             self.init_empty_model()
             return
 
         # 清除之前的图例引用（如果存在）
         if hasattr(self, '_legend_text_box'):
-            delattr(self, '_legend_text_box')
+            self._legend_text_box = None
 
         # 保存当前测量数据，供reset_view使用
         self._current_measurements = measurements
@@ -182,12 +282,18 @@ class Hole3DRenderer(FigureCanvas):
                                        upper_tolerance, lower_tolerance,
                                        max_positive_error, min_negative_error)
 
-        self.draw()
+        try:
+            self.draw()
+        except Exception as e:
+            print(f"绘制3D模型失败: {e}")
 
     def render_combined_hole_models(self, depths, diameters, standard_diameter,
                                    upper_tolerance, lower_tolerance,
                                    max_positive_error, min_negative_error):
         """在单个图中渲染所有三维模型"""
+        if self._cleanup_called or not hasattr(self, 'ax') or not self.ax:
+            return
+            
         self.ax.clear()
         # 清除后重新应用深色主题
         self.apply_dark_theme()
@@ -276,7 +382,7 @@ class Hole3DRenderer(FigureCanvas):
 
         # 清除之前的图例信息
         if hasattr(self, '_legend_text_box'):
-            self._legend_text_box.remove()
+            self._legend_text_box = None
 
         # 添加图例信息（文本框形式），使用更清晰的颜色说明
         legend_text = f"""模型说明:
@@ -319,22 +425,24 @@ class Hole3DRenderer(FigureCanvas):
 
     def clear_models(self):
         """清除所有模型"""
+        if self._cleanup_called:
+            return
+            
         # 安全地清除图例文本框引用
         if hasattr(self, '_legend_text_box'):
-            try:
-                # 不需要手动remove，ax.clear()会清除所有内容
-                delattr(self, '_legend_text_box')
-            except Exception as e:
-                print(f"清除图例引用时出错（忽略）: {e}")
+            self._legend_text_box = None
 
         # 清除当前测量数据引用
         if hasattr(self, '_current_measurements'):
-            delattr(self, '_current_measurements')
+            self._current_measurements = None
 
         self.init_empty_model()
 
     def reset_view(self):
         """重置视图到初始状态"""
+        if self._cleanup_called or not hasattr(self, 'ax') or not self.ax:
+            return
+            
         # 恢复优化后的默认视角
         self.ax.view_init(elev=25, azim=35)
 
@@ -357,7 +465,10 @@ class Hole3DRenderer(FigureCanvas):
             self.ax.set_zlim(0, 100)
 
         # 重新绘制
-        self.draw()
+        try:
+            self.draw()
+        except Exception as e:
+            print(f"重置视图绘制失败: {e}")
 
 
 
@@ -366,7 +477,20 @@ class Hole3DViewer(QWidget):
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        
+        # 内存管理相关
+        self._cleanup_called = False
+        self._signal_connections = []
+        self._widget_refs = weakref.WeakSet()
+        
         self.setup_ui()
+        
+        # 注册到内存监控
+        try:
+            from .memory_monitor import register_widget_for_monitoring
+            register_widget_for_monitoring(self)
+        except ImportError:
+            pass
         
     def setup_ui(self):
         """设置用户界面"""
@@ -394,20 +518,82 @@ class Hole3DViewer(QWidget):
         layout.addWidget(QLabel("视角:"))
         self.view_combo = QComboBox()
         self.view_combo.addItems(["默认视角", "正视图", "侧视图", "俯视图"])
-        self.view_combo.currentTextChanged.connect(self.change_view_angle)
+        self._connect_signal(self.view_combo.currentTextChanged, self.change_view_angle)
         layout.addWidget(self.view_combo)
         
         # 适应视图按钮
         fit_view_btn = QPushButton("适应视图")
-        fit_view_btn.clicked.connect(self.fit_view)
+        self._connect_signal(fit_view_btn.clicked, self.fit_view)
         layout.addWidget(fit_view_btn)
         
         layout.addStretch()
         
         return panel
     
+    def _connect_signal(self, signal, slot):
+        """安全地连接信号和槽，并跟踪连接"""
+        try:
+            connection = signal.connect(slot)
+            self._signal_connections.append((signal, slot, connection))
+            return connection
+        except Exception as e:
+            print(f"连接信号失败: {e}")
+            return None
+        
+    def _disconnect_all_signals(self):
+        """断开所有信号连接"""
+        for signal, slot, connection in self._signal_connections:
+            try:
+                signal.disconnect(slot)
+            except:
+                pass
+        self._signal_connections.clear()
+        
+    def cleanup(self):
+        """清理资源"""
+        if self._cleanup_called:
+            return
+        self._cleanup_called = True
+        
+        try:
+            # 断开所有信号连接
+            self._disconnect_all_signals()
+            
+            # 清理渲染器
+            if hasattr(self, 'renderer') and self.renderer:
+                self.renderer.cleanup()
+                self.renderer = None
+                
+            # 清理弱引用
+            self._widget_refs.clear()
+            
+            # 从内存监控中移除
+            try:
+                from .memory_monitor import unregister_widget_from_monitoring
+                unregister_widget_from_monitoring(self)
+            except ImportError:
+                pass
+                
+            # 强制垃圾回收
+            gc.collect()
+            
+        except Exception as e:
+            print(f"清理Hole3DViewer资源时出错: {e}")
+            
+    def __del__(self):
+        """析构函数"""
+        self.cleanup()
+        
+    def closeEvent(self, event):
+        """窗口关闭事件"""
+        self.cleanup()
+        super().closeEvent(event)
+
     def change_view_angle(self, view_name):
         """改变视角"""
+        if self._cleanup_called or not hasattr(self, 'renderer') or not self.renderer:
+            return
+            
         angles = {
             "默认视角": (20, 45),
             "正视图": (0, 0),
@@ -417,17 +603,35 @@ class Hole3DViewer(QWidget):
 
         if view_name in angles:
             elev, azim = angles[view_name]
-            self.renderer.ax.view_init(elev=elev, azim=azim)
-            self.renderer.draw()
+            try:
+                self.renderer.ax.view_init(elev=elev, azim=azim)
+                self.renderer.draw()
+            except Exception as e:
+                print(f"改变视角失败: {e}")
     
     def fit_view(self):
         """适应视图 - 恢复模型初始导入时的视图和缩放大小"""
-        self.renderer.reset_view()
+        if self._cleanup_called or not hasattr(self, 'renderer') or not self.renderer:
+            return
+        try:
+            self.renderer.reset_view()
+        except Exception as e:
+            print(f"适应视图失败: {e}")
 
     def clear_models(self):
         """清除模型"""
-        self.renderer.clear_models()
+        if self._cleanup_called or not hasattr(self, 'renderer') or not self.renderer:
+            return
+        try:
+            self.renderer.clear_models()
+        except Exception as e:
+            print(f"清除模型失败: {e}")
     
     def update_models(self, measurements):
         """更新三维模型"""
-        self.renderer.generate_3d_hole_models(measurements)
+        if self._cleanup_called or not hasattr(self, 'renderer') or not self.renderer:
+            return
+        try:
+            self.renderer.generate_3d_hole_models(measurements)
+        except Exception as e:
+            print(f"更新3D模型失败: {e}")

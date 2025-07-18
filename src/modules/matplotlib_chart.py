@@ -56,9 +56,9 @@ class MatplotlibChart(QWidget):
         title_label.setStyleSheet("""
             font-size: 16px; 
             font-weight: bold; 
-            color: #2c3e50; 
+            color: #D3D8E0; 
             padding: 10px;
-            background-color: #ecf0f1;
+            background-color: #313642;
             border-radius: 5px;
             margin-bottom: 10px;
         """)

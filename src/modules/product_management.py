@@ -46,7 +46,7 @@ class ProductManagementDialog(QDialog):
         title_font.setBold(True)
         title_label.setFont(title_font)
         title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("padding: 5px; color: #333;")  # 减小padding
+        title_label.setStyleSheet("padding: 5px; color: #D3D8E0;")  # 减小padding
         main_layout.addWidget(title_label)
         main_layout.setSpacing(5)  # 减小组件间距
         
@@ -58,9 +58,9 @@ class ProductManagementDialog(QDialog):
         left_container.setObjectName("leftContainer")
         left_container.setStyleSheet("""
             #leftContainer {
-                border: 1px solid #ddd;
+                border: 1px solid #404552;
                 border-radius: 5px;
-                background-color: #f9f9f9;
+                background-color: #313642;
                 padding: 5px;
             }
         """)
@@ -116,9 +116,9 @@ class ProductManagementDialog(QDialog):
         right_container.setObjectName("rightContainer")
         right_container.setStyleSheet("""
             #rightContainer {
-                border: 1px solid #ddd;
+                border: 1px solid #404552;
                 border-radius: 5px;
-                background-color: #f9f9f9;
+                background-color: #313642;
                 padding: 5px;
             }
         """)
@@ -211,8 +211,8 @@ class ProductManagementDialog(QDialog):
         self.cancel_btn.setEnabled(False)
         
         # 设置按钮样式
-        self.save_btn.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; }")
-        self.delete_btn.setStyleSheet("QPushButton { background-color: #f44336; color: white; }")
+        self.save_btn.setStyleSheet("QPushButton { background-color: #2ECC71; color: white; font-weight: bold; }")
+        self.delete_btn.setStyleSheet("QPushButton { background-color: #313642; color: white; }")
         
         for btn in [self.save_btn, self.edit_btn, self.delete_btn, self.cancel_btn]:
             btn.setMinimumHeight(35)
@@ -973,8 +973,8 @@ class DXFImportDialog(QDialog):
         self.cancel_btn.clicked.connect(self.reject)
         
         # 设置按钮样式
-        self.import_btn.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; }")
-        self.cancel_btn.setStyleSheet("QPushButton { background-color: #f44336; color: white; }")
+        self.import_btn.setStyleSheet("QPushButton { background-color: #2ECC71; color: white; font-weight: bold; }")
+        self.cancel_btn.setStyleSheet("QPushButton { background-color: #313642; color: white; }")
         
         for btn in [self.import_btn, self.cancel_btn]:
             btn.setMinimumHeight(35)

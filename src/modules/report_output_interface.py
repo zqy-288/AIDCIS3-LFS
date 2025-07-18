@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional
+import weakref
+import gc
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -46,6 +48,7 @@ class ReportGenerationWorker(QThread):
         self.workpiece_id = workpiece_id
         self.config = config
         self.generator = ReportGenerator()
+        self._cleanup_called = False
     
     def run(self):
         """执行报告生成"""
@@ -76,6 +79,23 @@ class ReportGenerationWorker(QThread):
             
         except Exception as e:
             self.error_occurred.emit(f"报告生成失败: {str(e)}")
+    
+    def cleanup(self):
+        """清理工作线程资源"""
+        if self._cleanup_called:
+            return
+        self._cleanup_called = True
+        
+        try:
+            if hasattr(self, 'generator') and self.generator:
+                self.generator = None
+            gc.collect()
+        except Exception as e:
+            print(f"清理ReportGenerationWorker资源时出错: {e}")
+    
+    def __del__(self):
+        """析构函数"""
+        self.cleanup()
     
     def _generate_simple_report(self, report_data: ReportData, output_path: str):
         """生成简单的文本报告"""
@@ -160,9 +180,73 @@ class ReportOutputInterface(QWidget):
         self.template_manager = ReportTemplateManager()
         self.generation_worker = None
         
+        # 内存管理相关
+        self._cleanup_called = False
+        self._widget_refs = weakref.WeakSet()
+        self._signal_connections = []
+        
         self.setup_ui()
         self.setup_connections()
         self.load_workpiece_list()
+    
+    def _connect_signal(self, signal, slot):
+        """安全地连接信号和槽，并跟踪连接"""
+        connection = signal.connect(slot)
+        self._signal_connections.append((signal, slot, connection))
+        return connection
+        
+    def _disconnect_all_signals(self):
+        """断开所有信号连接"""
+        for signal, slot, connection in self._signal_connections:
+            try:
+                signal.disconnect(slot)
+            except:
+                pass
+        self._signal_connections.clear()
+        
+    def cleanup(self):
+        """清理资源"""
+        if self._cleanup_called:
+            return
+        self._cleanup_called = True
+        
+        try:
+            # 断开所有信号连接
+            self._disconnect_all_signals()
+            
+            # 清理工作线程
+            if self.generation_worker and self.generation_worker.isRunning():
+                self.generation_worker.terminate()
+                self.generation_worker.wait(3000)  # 等待3秒
+                if hasattr(self.generation_worker, 'cleanup'):
+                    self.generation_worker.cleanup()
+                self.generation_worker = None
+            
+            # 清理管理器
+            if hasattr(self, 'report_generator'):
+                self.report_generator = None
+            if hasattr(self, 'history_manager'):
+                self.history_manager = None
+            if hasattr(self, 'template_manager'):
+                self.template_manager = None
+                
+            # 清理弱引用
+            self._widget_refs.clear()
+            
+            # 强制垃圾回收
+            gc.collect()
+            
+        except Exception as e:
+            print(f"清理ReportOutputInterface资源时出错: {e}")
+            
+    def __del__(self):
+        """析构函数"""
+        self.cleanup()
+        
+    def closeEvent(self, event):
+        """窗口关闭事件"""
+        self.cleanup()
+        super().closeEvent(event)
     
     def setup_ui(self):
         """设置用户界面"""
@@ -202,7 +286,7 @@ class ReportOutputInterface(QWidget):
         workpiece_layout = QVBoxLayout(workpiece_group)
 
         self.workpiece_combo = QComboBox()
-        self.workpiece_combo.currentTextChanged.connect(self.on_workpiece_changed)
+        self._connect_signal(self.workpiece_combo.currentTextChanged, self.on_workpiece_changed)
         self.workpiece_combo.setToolTip("选择要生成报告的工件\n系统会自动扫描Data目录下的可用工件")
         workpiece_layout.addWidget(QLabel("选择工件:"))
         workpiece_layout.addWidget(self.workpiece_combo)
@@ -224,7 +308,7 @@ class ReportOutputInterface(QWidget):
         for template_id, display_name in display_names.items():
             self.template_combo.addItem(display_name)
 
-        self.template_combo.currentTextChanged.connect(self.on_template_text_changed)
+        self._connect_signal(self.template_combo.currentTextChanged, self.on_template_text_changed)
         self.template_combo.setToolTip("选择预定义的报告模板或使用自定义配置")
         template_layout.addWidget(self.template_combo)
 
@@ -261,7 +345,7 @@ class ReportOutputInterface(QWidget):
 
         self.format_combo = QComboBox()
         self.format_combo.addItems(["PDF", "HTML", "Excel", "Word"])
-        self.format_combo.currentTextChanged.connect(self.on_format_changed)
+        self._connect_signal(self.format_combo.currentTextChanged, self.on_format_changed)
         self.format_combo.setToolTip(
             "选择输出格式:\n"
             "• PDF: 专业的报告格式，适合打印和存档\n"
@@ -280,7 +364,7 @@ class ReportOutputInterface(QWidget):
         # 安装PDF依赖按钮
         self.install_pdf_btn = QPushButton("安装PDF支持")
         self.install_pdf_btn.setVisible(False)
-        self.install_pdf_btn.clicked.connect(self.show_pdf_install_guide)
+        self._connect_signal(self.install_pdf_btn.clicked, self.show_pdf_install_guide)
         format_layout.addWidget(self.install_pdf_btn)
 
         config_layout.addWidget(format_group)
@@ -321,12 +405,12 @@ class ReportOutputInterface(QWidget):
 
         self.preview_btn = QPushButton("预览报告")
         self.preview_btn.setProperty("class", "PrimaryAction")  
-        self.preview_btn.clicked.connect(self.preview_report)
+        self._connect_signal(self.preview_btn.clicked, self.preview_report)
         self.preview_btn.setToolTip("预览报告内容结构，无需生成实际文件")
 
         self.generate_btn = QPushButton("生成报告")
         self.generate_btn.setProperty("class", "PrimaryAction")  
-        self.generate_btn.clicked.connect(self.generate_report)
+        self._connect_signal(self.generate_btn.clicked, self.generate_report)
         self.generate_btn.setToolTip("根据当前配置生成完整的报告文件")
 
         # 将按钮添加到网格的不同列中
@@ -472,15 +556,15 @@ class ReportOutputInterface(QWidget):
         toolbar_layout = QHBoxLayout()
 
         self.refresh_history_btn = QPushButton("刷新")
-        self.refresh_history_btn.clicked.connect(self.refresh_history)
+        self._connect_signal(self.refresh_history_btn.clicked, self.refresh_history)
         toolbar_layout.addWidget(self.refresh_history_btn)
 
         self.cleanup_history_btn = QPushButton("清理失效记录")
-        self.cleanup_history_btn.clicked.connect(self.cleanup_history)
+        self._connect_signal(self.cleanup_history_btn.clicked, self.cleanup_history)
         toolbar_layout.addWidget(self.cleanup_history_btn)
 
         self.export_history_btn = QPushButton("导出历史记录")
-        self.export_history_btn.clicked.connect(self.export_history)
+        self._connect_signal(self.export_history_btn.clicked, self.export_history)
         toolbar_layout.addWidget(self.export_history_btn)
 
         toolbar_layout.addStretch()
@@ -502,7 +586,7 @@ class ReportOutputInterface(QWidget):
 
         # --- 新增代码：启用自定义上下文菜单 ---
         self.report_history_table.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.report_history_table.customContextMenuRequested.connect(self.show_history_context_menu)
+        self._connect_signal(self.report_history_table.customContextMenuRequested, self.show_history_context_menu)
         # ------------------------------------
 
         header = self.report_history_table.horizontalHeader()
@@ -686,9 +770,9 @@ class ReportOutputInterface(QWidget):
         # 启动报告生成工作线程
         self.generation_worker = ReportGenerationWorker(self.current_workpiece_id, config)
         # 将子线程的信号直接转发出去
-        self.generation_worker.status_updated.connect(self.status_updated.emit)
-        self.generation_worker.report_completed.connect(self.on_report_completed)
-        self.generation_worker.error_occurred.connect(self.on_generation_error)
+        self._connect_signal(self.generation_worker.status_updated, self.status_updated.emit)
+        self._connect_signal(self.generation_worker.report_completed, self.on_report_completed)
+        self._connect_signal(self.generation_worker.error_occurred, self.on_generation_error)
 
         # 发射状态信号
         self.status_updated.emit("正在生成报告...")
@@ -1145,7 +1229,7 @@ class ReportPreviewDialog(QDialog):
         button_layout = QHBoxLayout()
 
         self.close_btn = QPushButton("关闭")
-        self.close_btn.clicked.connect(self.close)
+        self.close_btn.clicked.connect(self.close)  # 在对话框中保持简单连接
         button_layout.addStretch()
         button_layout.addWidget(self.close_btn)
 

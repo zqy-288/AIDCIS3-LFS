@@ -24,6 +24,9 @@ class ReportGenerator:
     """报告生成器"""
     
     def __init__(self, data_root_path: str = "Data"):
+        self._workpiece_cache = {}  # 工件数据缓存
+        self._collection_in_progress = set()  # 正在收集的工件ID
+        
         self.data_root_path = Path(data_root_path)
         self.data_collector = ReportDataCollector()
         

@@ -193,7 +193,7 @@ class WorkpieceDiagram(QWidget):
         self.macro_view_btn.setChecked(True)  # 默认选中
         self.macro_view_btn.setStyleSheet("""
             QPushButton {
-                background-color: #4CAF50;
+                background-color: #2ECC71;
                 color: white;
                 border: none;
                 padding: 8px 16px;
@@ -215,7 +215,7 @@ class WorkpieceDiagram(QWidget):
         self.micro_view_btn.setCheckable(True)
         self.micro_view_btn.setStyleSheet("""
             QPushButton {
-                background-color: #2196F3;
+                background-color: #007ACC;
                 color: white;
                 border: none;
                 padding: 8px 16px;

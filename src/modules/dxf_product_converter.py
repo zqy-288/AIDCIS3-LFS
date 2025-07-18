@@ -14,8 +14,8 @@ from collections import Counter
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from aidcis2.dxf_parser import DXFParser
-from aidcis2.models.hole_data import HoleCollection
+from core_business.dxf_parser import DXFParser
+from core_business.models.hole_data import HoleCollection
 
 
 class DXFProductConverter:

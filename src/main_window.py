@@ -4,6 +4,13 @@
 包含：选项卡布局 + AIDCIS2检测功能 + 搜索功能 + 模拟进度 + 所有原有功能
 """
 
+import sys
+import os
+from pathlib import Path
+
+# 添加项目根目录到路径
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -18,31 +25,31 @@ from PySide6.QtCore import Qt, QTimer, Signal, QStringListModel
 from PySide6.QtGui import QAction, QFont, QPalette, QColor
 
 # 导入所有功能模块
-from modules.realtime_chart import RealtimeChart
-from modules.worker_thread import WorkerThread
-from modules.unified_history_viewer import UnifiedHistoryViewer
-from modules.report_output_interface import ReportOutputInterface
+from src.modules.realtime_chart import RealtimeChart
+from src.modules.worker_thread import WorkerThread
+from src.modules.unified_history_viewer import UnifiedHistoryViewer
+from src.modules.report_output_interface import ReportOutputInterface
 
 # 导入AIDCIS2核心组件
-from aidcis2.models.hole_data import HoleData, HoleCollection, HoleStatus
-from aidcis2.models.status_manager import StatusManager
-from aidcis2.dxf_parser import DXFParser
-from aidcis2.data_adapter import DataAdapter
-from aidcis2.graphics.graphics_view import OptimizedGraphicsView
+from src.core_business.models.hole_data import HoleData, HoleCollection, HoleStatus
+from src.core_business.models.status_manager import StatusManager
+from src.core_business.dxf_parser import DXFParser
+from src.core_business.data_adapter import DataAdapter
+from src.core_business.graphics.graphics_view import OptimizedGraphicsView
 
 # 导入产品管理模块
-from modules.product_selection import ProductSelectionDialog
+from src.modules.product_selection import ProductSelectionDialog
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'models'))
 from product_model import get_product_manager
 
 # 导入扇形区域管理组件
-from aidcis2.graphics.sector_manager import SectorManager
-from aidcis2.graphics.sector_view import SectorOverviewWidget, SectorDetailView
-from aidcis2.graphics.dynamic_sector_view import DynamicSectorDisplayWidget, CompletePanoramaWidget
-from aidcis2.graphics.sector_manager_adapter import SectorManagerAdapter
-from aidcis2.graphics.dynamic_sector_overview import DynamicSectorOverviewWidget, DynamicSectorDetailView
+from src.core_business.graphics.sector_manager import SectorManager
+from src.core_business.graphics.sector_view import SectorOverviewWidget, SectorDetailView
+from src.core_business.graphics.dynamic_sector_view import DynamicSectorDisplayWidget, CompletePanoramaWidget
+from src.core_business.graphics.sector_manager_adapter import SectorManagerAdapter
+from src.core_business.graphics.dynamic_sector_overview import DynamicSectorOverviewWidget, DynamicSectorDetailView
 
     
 class MainWindow(QMainWindow):
@@ -602,7 +609,7 @@ class MainWindow(QMainWindow):
 
         # 从图形组件获取状态颜色
         try:
-            from aidcis2.graphics.hole_graphics_item import HoleGraphicsItem
+            from src.core_business.graphics.hole_graphics_item import HoleGraphicsItem
             status_colors = HoleGraphicsItem.STATUS_COLORS
         except:
             # 默认颜色映射
@@ -1014,7 +1021,7 @@ class MainWindow(QMainWindow):
         if not self.hole_collection:
             return 0
 
-        from aidcis2.models.hole_data import HoleStatus
+        from src.core_business.models.hole_data import HoleStatus
         completed_count = 0
         for hole in self.hole_collection.holes.values():
             if hole.status in [HoleStatus.QUALIFIED, HoleStatus.DEFECTIVE, HoleStatus.BLIND, HoleStatus.TIE_ROD]:
@@ -1177,7 +1184,7 @@ class MainWindow(QMainWindow):
             
             # 获取孔位所属的扇形
             import math
-            from aidcis2.graphics.sector_manager import SectorQuadrant
+            from src.core_business.graphics.sector_manager import SectorQuadrant
             
             # 获取扇形管理器使用的中心点
             if hasattr(self.sector_manager, 'center_point') and self.sector_manager.center_point:
@@ -1585,7 +1592,7 @@ class MainWindow(QMainWindow):
                 self.log_message("已自动适应视图宽度")
                 
             # 确保选择了扇形1并更新扇形统计信息
-            from aidcis2.graphics.sector_manager import SectorQuadrant
+            from src.core_business.graphics.sector_manager import SectorQuadrant
             if hasattr(self, 'dynamic_sector_display') and self.dynamic_sector_display:
                 QTimer.singleShot(500, lambda: self._update_sector_stats_display(SectorQuadrant.SECTOR_1))
                 self.log_message(f"📊 将默认显示扇形1的统计信息")
@@ -1727,7 +1734,7 @@ class MainWindow(QMainWindow):
                             self.log_message("已自动适应视图宽度")
                             
                         # 确保选择了扇形1并更新扇形统计信息
-                        from aidcis2.graphics.sector_manager import SectorQuadrant
+                        from src.core_business.graphics.sector_manager import SectorQuadrant
                         if hasattr(self, 'dynamic_sector_display') and self.dynamic_sector_display:
                             QTimer.singleShot(500, lambda: self._update_sector_stats_display(SectorQuadrant.SECTOR_1))
                             self.log_message(f"📊 将默认显示扇形1的统计信息")
@@ -1816,7 +1823,7 @@ class MainWindow(QMainWindow):
                     self.log_message(f"📋 孔位ID格式示例: {sample_ids}")
                 
                 # 确保主视图显示第一个扇形（扇形专注显示）
-                from aidcis2.graphics.sector_manager import SectorQuadrant
+                from src.core_business.graphics.sector_manager import SectorQuadrant
                 self.dynamic_sector_display.switch_to_sector(SectorQuadrant.SECTOR_1)
                 self.log_message(f"✅ 主视图切换到扇形1专注显示")
                 
@@ -2398,7 +2405,7 @@ class MainWindow(QMainWindow):
     
     def on_sector_selected(self, sector):
         """处理扇形区域选择"""
-        from aidcis2.graphics.sector_manager import SectorQuadrant
+        from src.core_business.graphics.sector_manager import SectorQuadrant
         
         sector_names = {
             SectorQuadrant.SECTOR_1: "区域1 (右上)",
@@ -2422,7 +2429,7 @@ class MainWindow(QMainWindow):
     
     def on_sector_progress_updated(self, sector, progress):
         """处理区域划分进度更新"""
-        from aidcis2.graphics.sector_manager import SectorQuadrant
+        from src.core_business.graphics.sector_manager import SectorQuadrant
         
         sector_names = {
             SectorQuadrant.SECTOR_1: "区域1",
@@ -2821,7 +2828,7 @@ class MainWindow(QMainWindow):
         
         # 初始化当前显示的扇形（如果还没有设置）
         if not hasattr(self, 'current_displayed_sector') or not self.current_displayed_sector:
-            from aidcis2.graphics.sector_manager import SectorQuadrant
+            from src.core_business.graphics.sector_manager import SectorQuadrant
             self.current_displayed_sector = SectorQuadrant.SECTOR_1
         
         # 初始化扇形顺序模拟
@@ -2874,7 +2881,7 @@ class MainWindow(QMainWindow):
         # 重置模拟索引
         self.simulation_index_v2 = 0
         self.batch_render_index = 0
-        from aidcis2.graphics.sector_manager import SectorQuadrant
+        from src.core_business.graphics.sector_manager import SectorQuadrant
         
         # 确保扇形管理器存在
         if not hasattr(self, 'sector_manager') or not self.sector_manager:
@@ -3314,7 +3321,7 @@ class MainWindow(QMainWindow):
         
     def _start_next_sector_simulation(self):
         """开始下一个扇形的模拟"""
-        from aidcis2.graphics.sector_manager import SectorQuadrant
+        from src.core_business.graphics.sector_manager import SectorQuadrant
         
         if self.current_sector_index >= len(self.sector_order):
             # 所有扇形完成，结束模拟
@@ -3338,15 +3345,25 @@ class MainWindow(QMainWindow):
             self.dynamic_sector_display.switch_to_sector(current_sector)
             self.log_message(f"🔄 [模拟] 已调用切换到 {current_sector.value} 视图")
             
-            # 🔧 增加更多延迟，确保视图完全渲染
-            # 手动触发全景预览同步（确保同步）
-            QTimer.singleShot(100, lambda: self._manual_sync_panorama(current_sector))
+            # 🔧 FIX: 合并多个定时器为单一操作，防止视图变换竞态条件
+            # 使用单一定时器完成所有后续操作，避免扇形→圆形→扇形的显示异常
+            def complete_sector_switch():
+                try:
+                    # 手动触发全景预览同步
+                    self._manual_sync_panorama(current_sector)
+                    
+                    # 适应视图到当前扇形区域
+                    self._fit_view_to_current_sector(current_sector)
+                    
+                    # 确保所有图形项都完全准备好
+                    self._ensure_graphics_items_exist()
+                    
+                    self.log_message(f"✅ [模拟] 扇形 {current_sector.value} 切换完成")
+                except Exception as e:
+                    self.log_message(f"❌ [模拟] 扇形切换后续操作失败: {e}")
             
-            # 适应视图到当前扇形区域
-            QTimer.singleShot(200, lambda: self._fit_view_to_current_sector(current_sector))
-            
-            # 🔧 额外延迟，确保所有图形项都完全准备好
-            QTimer.singleShot(300, lambda: self._ensure_graphics_items_exist())
+            # 使用单一定时器，确保操作的原子性
+            QTimer.singleShot(300, complete_sector_switch)
         
         # 设置当前扇形的孔位列表用于模拟
         self.holes_list_v2 = sector_holes
@@ -3541,7 +3558,7 @@ class MainWindow(QMainWindow):
         hole_id = render_item.hole_id
         
         # 智能扇形切换
-        from aidcis2.graphics.sector_manager import SectorQuadrant
+        from src.core_business.graphics.sector_manager import SectorQuadrant
         try:
             current_sector = SectorQuadrant(render_item.sector)
             self._handle_sector_switching(current_sector)
@@ -3603,7 +3620,7 @@ class MainWindow(QMainWindow):
             
             # 更新在HoleCollection中的状态
             if self.hole_collection and hole_id in self.hole_collection.holes:
-                from aidcis2.models.hole_data import HoleStatus
+                from src.core_business.models.hole_data import HoleStatus
                 new_status = HoleStatus(render_item.status)
                 self.hole_collection.holes[hole_id].status = new_status
                 self.log_message(f"✅ 更新孔位状态: {hole_id} -> {render_item.status}")
@@ -3674,7 +3691,7 @@ class MainWindow(QMainWindow):
 
     def _get_hole_sector(self, hole):
         """获取孔位所属的扇形"""
-        from aidcis2.graphics.sector_manager import SectorQuadrant
+        from src.core_business.graphics.sector_manager import SectorQuadrant
         import math
         
         # 使用简单的坐标方式确定扇形，与sector_manager逻辑一致
@@ -3720,7 +3737,7 @@ class MainWindow(QMainWindow):
         
         try:
             # 将状态转换为HoleStatus
-            from aidcis2.models.hole_data import HoleStatus
+            from src.core_business.models.hole_data import HoleStatus
             
             status_mapping = {
                 "processing": HoleStatus.PROCESSING,
@@ -4141,7 +4158,7 @@ class MainWindow(QMainWindow):
         try:
             # 使用新的批量更新机制，而不是立即更新
             # 将状态变化转换为HoleStatus对象
-            from aidcis2.models.hole_data import HoleStatus
+            from src.core_business.models.hole_data import HoleStatus
             from PySide6.QtGui import QColor
             
             # 根据颜色推断状态（修复颜色映射）
@@ -4348,7 +4365,7 @@ class MainWindow(QMainWindow):
             return
         
         try:
-            from aidcis2.graphics.sector_manager import SectorQuadrant
+            from src.core_business.graphics.sector_manager import SectorQuadrant
             # DEBUG: 扇形统计信息详细调试
             print(f"🔍 [DEBUG MainWindow] 详细扇形统计调试:")
             print(f"  - 请求的扇形: {sector}")
@@ -4380,7 +4397,7 @@ class MainWindow(QMainWindow):
             if progress:
                 # 格式化显示扇形统计信息，改为两行紧凑布局
                 stats_text = f"""<div style='text-align: center;'>
-<h3 style='margin: 5px 0; color: #333;'>{sector_names.get(sector, sector.value)}</h3>
+<h3 style='margin: 5px 0; color: #D3D8E0;'>{sector_names.get(sector, sector.value)}</h3>
 <div style='margin: 8px 0; line-height: 1.3;'>
 <p style='margin: 2px 0;'><b>总孔位:</b> {progress.total_holes} | <b>已完成:</b> {progress.completed_holes}</p>
 <p style='margin: 2px 0;'><b>合格:</b> {progress.qualified_holes} | <b>异常:</b> {progress.defective_holes}</p>
@@ -4389,8 +4406,8 @@ class MainWindow(QMainWindow):
 </div>"""
             else:
                 stats_text = f"""<div style='text-align: center;'>
-<h3 style='margin: 5px 0; color: #333;'>{sector_names.get(sector, sector.value)}</h3>
-<p style='margin: 8px 0; color: #666;'>暂无统计数据</p>
+<h3 style='margin: 5px 0; color: #D3D8E0;'>{sector_names.get(sector, sector.value)}</h3>
+<p style='margin: 8px 0; color: #D3D8E0;'>暂无统计数据</p>
 </div>"""
             
             self.sector_stats_label.setTextFormat(Qt.RichText)  # 启用富文本格式
@@ -4540,12 +4557,13 @@ class MainWindow(QMainWindow):
     def switch_to_dark_theme(self):
         """切换到深色主题（默认主题）"""
         try:
-            from modules.theme_manager import theme_manager
+            from modules.theme_manager_unified import get_unified_theme_manager
+            theme_manager = get_unified_theme_manager()
             from PySide6.QtWidgets import QApplication
             
             app = QApplication.instance()
             if app:
-                theme_manager.apply_dark_theme(app)
+                theme_manager.apply_theme(app, "dark")
                 print("✅ 已切换到深色主题（默认主题）")
                 QMessageBox.information(self, "主题切换", "已切换到深色主题（默认主题）")
             
@@ -4556,12 +4574,13 @@ class MainWindow(QMainWindow):
     def switch_to_light_theme(self):
         """切换到浅色主题（可选主题）"""
         try:
-            from modules.theme_manager import theme_manager
+            from modules.theme_manager_unified import get_unified_theme_manager
+            theme_manager = get_unified_theme_manager()
             from PySide6.QtWidgets import QApplication
             
             app = QApplication.instance()
             if app:
-                theme_manager.apply_light_theme(app)
+                theme_manager.apply_theme(app, "light")
                 print("✅ 已切换到浅色主题")
                 QMessageBox.information(self, "主题切换", "已切换到浅色主题")
             
@@ -4582,25 +4601,151 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "错误", f"无法打开主题调试工具:\n{str(e)}")
 
 
-if __name__ == "__main__":
+def main():
+    """
+    统一的应用程序启动入口
+    集成了ApplicationCore架构和传统启动方式
+    """
     import sys
     from PySide6.QtWidgets import QApplication
-
+    from pathlib import Path
+    
+    # 检查Python版本兼容性
+    try:
+        from version import check_python_version, print_version_info
+        check_python_version()
+    except (ImportError, RuntimeError) as e:
+        print(f"❌ 版本检查失败: {e}")
+        # 继续运行，但给出警告
+        print("⚠️ 将使用传统启动方式")
+    
     # 设置日志
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
+    
+    # 尝试使用ApplicationCore架构
+    try:
+        from core.application import get_application
+        
+        print("🚀 启动 AIDCIS3-LFS 管孔检测系统...")
+        print("📋 功能特点:")
+        print("   ✅ 插件化架构 - 企业级插件系统")
+        print("   ✅ 依赖注入框架 - 模块化服务管理")
+        print("   ✅ 全局错误处理 - 统一异常管理")
+        print("   ✅ ApplicationCore - 应用程序生命周期管理")
+        print("   ✅ 扇形进度视图 - 智能区域管理")
+        print("   ✅ 完整孔位显示 - 实时状态监控")
+        print("")
+        
+        # 打印版本信息
+        try:
+            print_version_info()
+        except:
+            print("版本信息获取失败，使用默认版本")
+        
+        print("\n🚀 正在启动应用程序...")
+        
+        # 获取应用程序实例
+        app_core = get_application()
+        
+        # 初始化应用程序
+        if not app_core.initialize():
+            print("❌ 应用程序初始化失败，回退到传统启动方式")
+            raise ImportError("ApplicationCore initialization failed")
+        
+        print("✅ 应用程序初始化成功")
+        
+        # 应用现代科技蓝主题到ApplicationCore - 使用主题协调器
+        try:
+            from modules.theme_orchestrator import initialize_theme_system
+            qt_app = app_core.get_qt_application()
+            if qt_app:
+                orchestrator = initialize_theme_system(qt_app)
+                print("✅ 现代科技蓝主题已应用到ApplicationCore (使用协调器)")
+        except Exception as e:
+            print(f"⚠️ ApplicationCore主题应用失败: {e}")
+            # 回退到传统方式
+            try:
+                from modules.theme_manager_unified import get_unified_theme_manager
+                theme_manager = get_unified_theme_manager()
+                qt_app = app_core.get_qt_application()
+                if qt_app:
+                    theme_manager.apply_theme(qt_app, "dark")
+                    print("✅ 回退到传统主题应用方式")
+            except Exception as e2:
+                print(f"⚠️ 回退主题应用也失败: {e2}")
+        
+        # 运行应用程序
+        try:
+            exit_code = app_core.run()
+            print(f"应用程序已退出，退出码: {exit_code}")
+            return exit_code
+        except KeyboardInterrupt:
+            print("\n用户中断，正在关闭应用程序...")
+            app_core.shutdown()
+            return 0
+        except Exception as e:
+            print(f"❌ 应用程序运行时错误: {e}")
+            return 1
+            
+    except ImportError as e:
+        print(f"⚠️ ApplicationCore架构不可用: {e}")
+        print("🔄 回退到传统启动方式...")
+        
+        # 传统启动方式
+        app = QApplication(sys.argv)
+        
+        # 设置应用程序信息
+        app.setApplicationName("上位机软件")
+        app.setApplicationDisplayName("管孔检测系统")
+        app.setApplicationVersion("1.0.0")
+        app.setOrganizationName("检测系统开发团队")
+        app.setOrganizationDomain("detection-system.com")
+        
+        # 应用现代科技蓝主题 - 使用主题协调器
+        try:
+            from modules.theme_orchestrator import initialize_theme_system, get_theme_orchestrator
+            orchestrator = initialize_theme_system(app)
+            print("✅ 现代科技蓝主题已应用 (使用协调器)")
+        except Exception as e:
+            print(f"⚠️ 主题协调器初始化失败: {e}")
+            # 回退到传统方式
+            try:
+                from modules.theme_manager_unified import get_unified_theme_manager
+                theme_manager = get_unified_theme_manager()
+                theme_manager.apply_theme(app, "dark")
+                print("✅ 回退到传统主题应用方式")
+            except Exception as e2:
+                print(f"⚠️ 回退主题应用也失败: {e2}")
+        
+        # 创建并显示主窗口
+        window = MainWindow()
+        
+        # 使用主题协调器管理主窗口主题
+        try:
+            orchestrator = get_theme_orchestrator()
+            orchestrator.set_main_window(window)
+            orchestrator.mark_application_ready()
+            print("✅ 主窗口已注册到主题协调器")
+        except Exception as e:
+            print(f"⚠️ 主题协调器注册失败: {e}")
+            # 回退到传统方式
+            try:
+                from modules.theme_manager_unified import get_unified_theme_manager
+                theme_manager = get_unified_theme_manager()
+                theme_manager.apply_theme(app, "dark")
+                theme_manager.force_dark_theme(window)
+                print("✅ 回退到传统主窗口主题应用")
+            except Exception as e2:
+                print(f"⚠️ 回退主题应用也失败: {e2}")
+        
+        window.show()
+        
+        return app.exec()
 
-    app = QApplication(sys.argv)
-
-    # 设置应用程序信息
-    app.setApplicationName("上位机软件")
-    app.setApplicationVersion("1.0.0")
-    app.setOrganizationName("Tsinghua")
-
-    # 创建并显示主窗口
-    window = MainWindow()
-    window.show()
-
-    sys.exit(app.exec())
+if __name__ == "__main__":
+    import sys
+    exit_code = main()
+    sys.exit(exit_code)

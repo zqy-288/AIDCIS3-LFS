@@ -1,0 +1,530 @@
+"""
+孔位视图过滤器插件
+基于AI-1插件化架构和AI-2 UI组件系统实现的视图过滤功能
+"""
+
+from typing import Optional, Dict, Any, List, Callable
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox, 
+                               QLabel, QPushButton, QFrame, QSpacerItem, QSizePolicy)
+from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtGui import QFont, QIcon
+from enum import Enum
+import time
+
+# 基础架构导入
+from src.core.interfaces.plugin_interfaces import IUIPlugin, PluginMetadata, PluginVersion
+from src.core.dependency_injection import injectable, ServiceLifetime, get_container
+from src.modules.ui_component_base import UIComponentBase, ui_component
+
+# 业务逻辑导入
+from src.core_business.models.hole_data import HoleData, HoleCollection, HoleStatus
+from src.core_business.data_adapter import DataAdapter
+from src.core_business.business_cache import BusinessCacheManager, cached_business_operation
+from src.core_business.business_rules import BusinessRuleEngine
+
+
+class ViewFilterType(Enum):
+    """视图过滤器类型"""
+    ALL = "all"                    # 全部孔位
+    PENDING = "pending"            # 待检孔位
+    QUALIFIED = "qualified"        # 合格孔位
+    DEFECTIVE = "defective"        # 异常孔位
+    BLIND = "blind"                # 盲孔
+    TIE_ROD = "tie_rod"           # 拉杆孔
+    PROCESSING = "processing"      # 检测中
+
+
+@ui_component(name="HoleViewFilter", dependencies=["DataAdapter", "BusinessCacheManager"])
+@injectable(ServiceLifetime.SINGLETON)
+class HoleViewFilterComponent(UIComponentBase):
+    """孔位视图过滤器组件"""
+    
+    # 信号定义
+    filter_changed = Signal(str, list)  # 过滤器改变信号 (filter_type, filtered_holes)
+    status_updated = Signal(dict)       # 状态更新信号
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("HoleViewFilterComponent")
+        
+        # 声明依赖
+        self.declare_dependency("data_adapter", DataAdapter)
+        self.declare_dependency("cache_manager", BusinessCacheManager)
+        self.declare_dependency("rule_engine", BusinessRuleEngine, required=False)
+        
+        # 组件状态
+        self.current_filter = ViewFilterType.ALL
+        self.hole_collection: Optional[HoleCollection] = None
+        self.filtered_holes: List[HoleData] = []
+        self.filter_stats: Dict[str, int] = {}
+        
+        # 性能监控
+        self.last_filter_time = 0.0
+        self.filter_count = 0
+        
+        # UI组件
+        self.widget: Optional[QWidget] = None
+        self.filter_combo: Optional[QComboBox] = None
+        self.status_label: Optional[QLabel] = None
+        self.refresh_button: Optional[QPushButton] = None
+        
+        # 延迟更新计时器
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self._apply_filter)
+        self.update_timer.setSingleShot(True)
+    
+    def _do_initialize(self) -> bool:
+        """初始化组件"""
+        try:
+            # 获取依赖
+            self.data_adapter = self.get_dependency("data_adapter")
+            self.cache_manager = self.get_dependency("cache_manager")
+            self.rule_engine = self.get_dependency("rule_engine")
+            
+            # 创建UI
+            self._create_ui()
+            
+            # 初始化过滤器选项
+            self._setup_filter_options()
+            
+            # 连接信号
+            self._connect_signals()
+            
+            print(f"✅ 孔位视图过滤器组件初始化完成: {self.component_id}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ 孔位视图过滤器组件初始化失败: {self.component_id} -> {e}")
+            return False
+    
+    def _create_ui(self):
+        """创建用户界面"""
+        # 创建主widget
+        self.widget = QWidget()
+        self.widget.setObjectName("HoleViewFilterWidget")
+        
+        # 主布局 - 使用水平布局以适应顶部位置
+        main_layout = QHBoxLayout()
+        self.widget.setLayout(main_layout)
+        main_layout.setContentsMargins(10, 5, 10, 5)
+        main_layout.setSpacing(15)
+        
+        # 过滤器控制区域
+        filter_frame = QFrame()
+        filter_frame.setFrameStyle(QFrame.Box)
+        filter_frame.setLineWidth(1)
+        filter_layout = QHBoxLayout(filter_frame)
+        filter_layout.setContentsMargins(8, 4, 8, 4)
+        
+        # 视图标签
+        view_label = QLabel("视图:")
+        view_label.setMinimumWidth(40)
+        filter_layout.addWidget(view_label)
+        
+        # 过滤器下拉框
+        self.filter_combo = QComboBox()
+        self.filter_combo.setMinimumWidth(120)
+        self.filter_combo.setMaximumWidth(180)
+        filter_layout.addWidget(self.filter_combo)
+        
+        # 状态标签
+        self.status_label = QLabel("状态: 就绪")
+        self.status_label.setStyleSheet("color: #666;")
+        filter_layout.addWidget(self.status_label)
+        
+        # 刷新按钮
+        self.refresh_button = QPushButton("刷新")
+        self.refresh_button.setMaximumWidth(60)
+        filter_layout.addWidget(self.refresh_button)
+        
+        main_layout.addWidget(filter_frame)
+        
+        # 统计信息区域 - 水平布局
+        stats_frame = QFrame()
+        stats_frame.setFrameStyle(QFrame.Box)
+        stats_frame.setLineWidth(1)
+        stats_layout = QHBoxLayout(stats_frame)
+        stats_layout.setContentsMargins(8, 4, 8, 4)
+        
+        # 统计标签
+        self.stats_labels = {}
+        for filter_type in ViewFilterType:
+            if filter_type == ViewFilterType.ALL:
+                continue
+            label = QLabel(f"{self._get_filter_display_name(filter_type)}: 0")
+            label.setStyleSheet("color: #333; font-size: 10px;")
+            stats_layout.addWidget(label)
+            self.stats_labels[filter_type.value] = label
+        
+        main_layout.addWidget(stats_frame)
+        
+        # 添加弹性空间
+        main_layout.addItem(QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        
+        # 设置widget的最大高度以适应顶部位置
+        self.widget.setMaximumHeight(60)
+        
+        # 设置整体样式
+        self.widget.setStyleSheet("""
+            QFrame {
+                background-color: #f8f9fa;
+                border-radius: 4px;
+            }
+            QComboBox {
+                padding: 4px 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background-color: #313642;
+            }
+            QComboBox:hover {
+                border-color: #007bff;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iNiIgdmlld0JveD0iMCAwIDEwIDYiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNSA1TDkgMSIgc3Ryb2tlPSIjNjY2IiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPgo=);
+            }
+            QPushButton {
+                padding: 4px 12px;
+                border: 1px solid #007bff;
+                border-radius: 4px;
+                background-color: #007bff;
+                color: white;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
+            }
+            QPushButton:pressed {
+                background-color: #004085;
+            }
+        """)
+    
+    def _setup_filter_options(self):
+        """设置过滤器选项"""
+        # 清空现有选项
+        self.filter_combo.clear()
+        
+        # 添加过滤器选项
+        filter_options = [
+            (ViewFilterType.ALL, "全部孔位"),
+            (ViewFilterType.PENDING, "待检孔位"),
+            (ViewFilterType.QUALIFIED, "合格孔位"),
+            (ViewFilterType.DEFECTIVE, "异常孔位"),
+            (ViewFilterType.BLIND, "盲孔"),
+            (ViewFilterType.TIE_ROD, "拉杆孔"),
+            (ViewFilterType.PROCESSING, "检测中")
+        ]
+        
+        for filter_type, display_name in filter_options:
+            self.filter_combo.addItem(display_name, filter_type)
+        
+        # 设置默认选择
+        self.filter_combo.setCurrentIndex(0)
+    
+    def _connect_signals(self):
+        """连接信号"""
+        # 过滤器改变
+        self.filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        
+        # 刷新按钮
+        self.refresh_button.clicked.connect(self.refresh_data)
+    
+    def _get_filter_display_name(self, filter_type: ViewFilterType) -> str:
+        """获取过滤器显示名称"""
+        display_names = {
+            ViewFilterType.ALL: "全部孔位",
+            ViewFilterType.PENDING: "待检孔位",
+            ViewFilterType.QUALIFIED: "合格孔位",
+            ViewFilterType.DEFECTIVE: "异常孔位",
+            ViewFilterType.BLIND: "盲孔",
+            ViewFilterType.TIE_ROD: "拉杆孔",
+            ViewFilterType.PROCESSING: "检测中"
+        }
+        return display_names.get(filter_type, filter_type.value)
+    
+    def _on_filter_changed(self, index: int):
+        """过滤器改变处理"""
+        if self.filter_combo is None:
+            return
+        
+        filter_type = self.filter_combo.itemData(index)
+        if filter_type != self.current_filter:
+            self.current_filter = filter_type
+            print(f"🔄 过滤器改变为: {filter_type.value}")
+            
+            # 延迟应用过滤器（避免频繁更新）
+            self.update_timer.start(50)  # 50ms延迟
+    
+    def _apply_filter(self):
+        """应用过滤器"""
+        if not self.hole_collection:
+            return
+        
+        start_time = time.time()
+        
+        try:
+            # 更新状态
+            self.status_label.setText("状态: 过滤中...")
+            
+            # 应用过滤逻辑
+            if self.current_filter == ViewFilterType.ALL:
+                self.filtered_holes = list(self.hole_collection.holes.values())
+            else:
+                # 转换过滤器类型到HoleStatus
+                status_mapping = {
+                    ViewFilterType.PENDING: HoleStatus.PENDING,
+                    ViewFilterType.QUALIFIED: HoleStatus.QUALIFIED,
+                    ViewFilterType.DEFECTIVE: HoleStatus.DEFECTIVE,
+                    ViewFilterType.BLIND: HoleStatus.BLIND,
+                    ViewFilterType.TIE_ROD: HoleStatus.TIE_ROD,
+                    ViewFilterType.PROCESSING: HoleStatus.PROCESSING
+                }
+                
+                target_status = status_mapping.get(self.current_filter)
+                if target_status:
+                    self.filtered_holes = self.hole_collection.get_holes_by_status(target_status)
+                else:
+                    self.filtered_holes = []
+            
+            # 计算过滤时间
+            filter_time = (time.time() - start_time) * 1000  # 毫秒
+            self.last_filter_time = filter_time
+            self.filter_count += 1
+            
+            # 更新状态
+            self.status_label.setText(f"状态: 已过滤 {len(self.filtered_holes)} 个孔位 ({filter_time:.1f}ms)")
+            
+            # 发送过滤结果信号
+            self.filter_changed.emit(self.current_filter.value, self.filtered_holes)
+            
+            # 更新统计信息
+            self._update_statistics()
+            
+            print(f"✅ 过滤完成: {self.current_filter.value}, 结果: {len(self.filtered_holes)} 个孔位, 耗时: {filter_time:.1f}ms")
+            
+        except Exception as e:
+            print(f"❌ 过滤器应用失败: {e}")
+            self.status_label.setText("状态: 过滤失败")
+    
+    def _update_statistics(self):
+        """更新统计信息"""
+        if not self.hole_collection:
+            return
+        
+        # 计算各状态的统计数据
+        status_counts = self.hole_collection.get_status_counts()
+        
+        # 更新统计标签
+        status_mapping = {
+            HoleStatus.PENDING: "pending",
+            HoleStatus.QUALIFIED: "qualified",
+            HoleStatus.DEFECTIVE: "defective",
+            HoleStatus.BLIND: "blind",
+            HoleStatus.TIE_ROD: "tie_rod",
+            HoleStatus.PROCESSING: "processing"
+        }
+        
+        for status, key in status_mapping.items():
+            count = status_counts.get(status, 0)
+            if key in self.stats_labels:
+                filter_type = ViewFilterType(key)
+                display_name = self._get_filter_display_name(filter_type)
+                self.stats_labels[key].setText(f"{display_name}: {count}")
+        
+        # 发送统计信息更新信号
+        stats_dict = {key: status_counts.get(status, 0) for status, key in status_mapping.items()}
+        stats_dict['total'] = len(self.hole_collection.holes)
+        self.status_updated.emit(stats_dict)
+    
+    def set_hole_collection(self, hole_collection: HoleCollection):
+        """设置孔位集合"""
+        self.hole_collection = hole_collection
+        print(f"📊 设置孔位集合: {len(hole_collection.holes) if hole_collection else 0} 个孔位")
+        
+        # 重新应用当前过滤器
+        self._apply_filter()
+    
+    def refresh_data(self):
+        """刷新数据"""
+        print("🔄 刷新过滤器数据")
+        self.status_label.setText("状态: 刷新中...")
+        
+        # 清空缓存
+        if self.cache_manager:
+            self.cache_manager.invalidate_pattern("hole_view_filter")
+        
+        # 重新应用过滤器
+        self._apply_filter()
+    
+    def get_filtered_holes(self) -> List[HoleData]:
+        """获取过滤后的孔位列表"""
+        return self.filtered_holes.copy()
+    
+    def get_current_filter(self) -> ViewFilterType:
+        """获取当前过滤器类型"""
+        return self.current_filter
+    
+    def set_filter(self, filter_type: ViewFilterType):
+        """设置过滤器类型"""
+        if filter_type != self.current_filter:
+            for i in range(self.filter_combo.count()):
+                if self.filter_combo.itemData(i) == filter_type:
+                    self.filter_combo.setCurrentIndex(i)
+                    break
+    
+    def get_performance_info(self) -> Dict[str, Any]:
+        """获取性能信息"""
+        return {
+            'last_filter_time_ms': self.last_filter_time,
+            'filter_count': self.filter_count,
+            'average_filter_time_ms': self.last_filter_time / max(1, self.filter_count),
+            'current_filter': self.current_filter.value,
+            'filtered_count': len(self.filtered_holes),
+            'total_count': len(self.hole_collection.holes) if self.hole_collection else 0
+        }
+    
+    def get_widget(self) -> Optional[QWidget]:
+        """获取UI widget"""
+        return self.widget
+    
+    def _do_cleanup(self):
+        """清理资源"""
+        # 停止计时器
+        if self.update_timer.isActive():
+            self.update_timer.stop()
+        
+        # 清空数据
+        self.hole_collection = None
+        self.filtered_holes.clear()
+        
+        print(f"🧹 孔位视图过滤器组件清理完成: {self.component_id}")
+
+
+@injectable(ServiceLifetime.SINGLETON)
+class HoleViewFilterPlugin(IUIPlugin):
+    """孔位视图过滤器插件"""
+    
+    def __init__(self):
+        self.metadata = PluginMetadata(
+            id="hole_view_filter",
+            name="HoleViewFilter",
+            version=PluginVersion(1, 0, 0),
+            description="孔位视图过滤器插件 - 支持按状态过滤孔位显示",
+            author="AIDCIS3-LFS Team",
+            dependencies=["DataAdapter", "BusinessCacheManager"],
+            tags=["ui", "filter", "hole_data"]
+        )
+        
+        self.component: Optional[HoleViewFilterComponent] = None
+        self.is_loaded = False
+    
+    def get_metadata(self) -> PluginMetadata:
+        """获取插件元数据"""
+        return self.metadata
+    
+    def initialize(self, config: Dict[str, Any] = None) -> bool:
+        """初始化插件"""
+        try:
+            # 创建UI组件
+            self.component = HoleViewFilterComponent()
+            
+            # 初始化组件
+            if self.component.initialize():
+                self.is_loaded = True
+                return True
+            else:
+                return False
+                
+        except Exception as e:
+            print(f"HoleViewFilterPlugin初始化失败: {e}")
+            return False
+    
+    def start(self) -> bool:
+        """启动插件"""
+        if self.component and self.is_loaded:
+            try:
+                self.component.start()
+                return True
+            except Exception as e:
+                print(f"HoleViewFilterPlugin启动失败: {e}")
+                return False
+        return False
+    
+    def stop(self) -> bool:
+        """停止插件"""
+        if self.component:
+            try:
+                self.component.stop()
+                return True
+            except Exception as e:
+                print(f"HoleViewFilterPlugin停止失败: {e}")
+                return False
+        return True
+    
+    def cleanup(self) -> bool:
+        """清理插件"""
+        if self.component:
+            try:
+                self.component.cleanup()
+                self.component = None
+                self.is_loaded = False
+                return True
+            except Exception as e:
+                print(f"HoleViewFilterPlugin清理失败: {e}")
+                return False
+        return True
+    
+    def get_component(self) -> Optional[HoleViewFilterComponent]:
+        """获取UI组件"""
+        return self.component
+    
+    def is_compatible(self, version: str) -> bool:
+        """检查版本兼容性"""
+        return True  # 简化实现，实际应该检查版本
+    
+    def get_required_permissions(self) -> List[str]:
+        """获取所需权限"""
+        return ["ui.create_widget", "data.read_holes"]
+    
+    def validate_configuration(self, config: Dict[str, Any]) -> bool:
+        """验证配置"""
+        return True  # 简化实现
+    
+    def create_widget(self, parent=None):
+        """创建UI组件"""
+        if not self.component:
+            return None
+        widget = self.component.get_widget()
+        if widget and parent:
+            widget.setParent(parent)
+        return widget
+    
+    def get_widget_info(self) -> Dict[str, Any]:
+        """获取组件信息"""
+        return {
+            'name': 'HoleViewFilter',
+            'title': '孔位视图过滤器',
+            'description': '支持按状态过滤孔位显示',
+            'version': '1.0.0',
+            'widget_type': 'filter_panel'
+        }
+    
+    def handle_ui_event(self, event_type: str, data: Any) -> bool:
+        """处理UI事件"""
+        if not self.component:
+            return False
+        
+        if event_type == 'set_hole_collection':
+            self.component.set_hole_collection(data)
+            return True
+        elif event_type == 'refresh':
+            self.component.refresh_data()
+            return True
+        elif event_type == 'set_filter':
+            self.component.set_filter(data)
+            return True
+        
+        return False

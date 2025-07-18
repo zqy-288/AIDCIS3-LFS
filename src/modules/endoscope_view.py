@@ -3,6 +3,8 @@
 (此部分已留白，用于集成外部图像处理算法)
 """
 
+import weakref
+import gc
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QHBoxLayout, QToolButton,
     QGraphicsView, QGraphicsScene, QGraphicsTextItem
@@ -16,7 +18,21 @@ class EndoscopeView(QWidget):
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        
+        # 内存管理相关
+        self._cleanup_called = False
+        self._signal_connections = []
+        self._widget_refs = weakref.WeakSet()
+        self.placeholder_text = None
+        
         self.setup_ui()
+        
+        # 注册到内存监控
+        try:
+            from .memory_monitor import register_widget_for_monitoring
+            register_widget_for_monitoring(self)
+        except ImportError:
+            pass
         
     def setup_ui(self):
         """设置用户界面"""
@@ -68,10 +84,10 @@ class EndoscopeView(QWidget):
         # 设置对齐方式 - 图像左对齐以增强动感
         self.graphics_view.setAlignment(Qt.AlignLeft | Qt.AlignTop)
 
-        # # 添加提示信息
-        # self.placeholder_text = QGraphicsTextItem("等待外部算法图像输入...")
-        # self.placeholder_text.setFont(QFont("Arial", 12))
-        # self.graphics_scene.addItem(self.placeholder_text)
+        # 添加提示信息
+        self.placeholder_text = QGraphicsTextItem("等待外部算法图像输入...")
+        self.placeholder_text.setFont(QFont("Arial", 12))
+        self.graphics_scene.addItem(self.placeholder_text)
         
         layout.addWidget(self.graphics_view)
         
@@ -79,6 +95,71 @@ class EndoscopeView(QWidget):
         # 不再显示控制面板按钮
         
 
+
+    def _connect_signal(self, signal, slot):
+        """安全地连接信号和槽，并跟踪连接"""
+        connection = signal.connect(slot)
+        self._signal_connections.append((signal, slot, connection))
+        return connection
+        
+    def _disconnect_all_signals(self):
+        """断开所有信号连接"""
+        for signal, slot, connection in self._signal_connections:
+            try:
+                signal.disconnect(slot)
+            except:
+                pass
+        self._signal_connections.clear()
+        
+    def cleanup(self):
+        """清理资源"""
+        if self._cleanup_called:
+            return
+        self._cleanup_called = True
+        
+        try:
+            # 断开所有信号连接
+            self._disconnect_all_signals()
+            
+            # 清理QGraphicsScene和QGraphicsView
+            if hasattr(self, 'graphics_scene') and self.graphics_scene:
+                self.graphics_scene.clear()
+                self.graphics_scene.deleteLater()
+                self.graphics_scene = None
+                
+            if hasattr(self, 'graphics_view') and self.graphics_view:
+                self.graphics_view.setScene(None)
+                self.graphics_view.deleteLater()
+                self.graphics_view = None
+                
+            # 清理占位符文本
+            if hasattr(self, 'placeholder_text') and self.placeholder_text:
+                self.placeholder_text = None
+                
+            # 清理弱引用
+            self._widget_refs.clear()
+            
+            # 从内存监控中移除
+            try:
+                from .memory_monitor import unregister_widget_from_monitoring
+                unregister_widget_from_monitoring(self)
+            except ImportError:
+                pass
+                
+            # 强制垃圾回收
+            gc.collect()
+            
+        except Exception as e:
+            print(f"清理EndoscopeView资源时出错: {e}")
+            
+    def __del__(self):
+        """析构函数"""
+        self.cleanup()
+        
+    def closeEvent(self, event):
+        """窗口关闭事件"""
+        self.cleanup()
+        super().closeEvent(event)
 
     def update_image(self, image_data):
         """
@@ -88,8 +169,12 @@ class EndoscopeView(QWidget):
         Args:
             image_data: 图像数据 (例如, QPixmap, QImage, or a numpy array).
         """
+        # 检查资源状态
+        if self._cleanup_called or not hasattr(self, 'graphics_scene') or not self.graphics_scene:
+            return
+            
         # 清除占位符文本
-        if self.placeholder_text.scene() == self.graphics_scene:
+        if self.placeholder_text and self.placeholder_text.scene() == self.graphics_scene:
             self.graphics_scene.removeItem(self.placeholder_text)
 
         # 处理和显示图像数据
@@ -108,8 +193,9 @@ class EndoscopeView(QWidget):
                 return
 
             if not pixmap.isNull():
-                # 清除场景并添加新图像
-                self.graphics_scene.clear()
+                # 清除场景并添加新图像(保持内存清洁)
+                if self.graphics_scene:
+                    self.graphics_scene.clear()
 
                 # 缩放图像以获得更好的显示效果
                 view_size = self.graphics_view.size()
@@ -149,8 +235,11 @@ class EndoscopeView(QWidget):
         
     def clear_image(self):
         """清除图像并恢复占位符"""
+        if self._cleanup_called or not hasattr(self, 'graphics_scene') or not self.graphics_scene:
+            return
+            
         self.graphics_scene.clear()
-        self.placeholder_text = QGraphicsTextItem("")
+        self.placeholder_text = QGraphicsTextItem("等待外部算法图像输入...")
         self.placeholder_text.setFont(QFont("Arial", 12))
         self.graphics_scene.addItem(self.placeholder_text)
 

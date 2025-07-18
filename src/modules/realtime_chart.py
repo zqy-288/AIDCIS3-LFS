@@ -3,12 +3,15 @@
 面板A使用matplotlib实现稳定的误差线显示，其他功能保持不变
 """
 
+import os
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib
 import numpy as np
+import weakref
+import gc
 
 # 设置matplotlib支持中文显示 - 安全版本
 def setup_safe_chinese_font():
@@ -53,10 +56,32 @@ class RealtimeChart(QWidget):
         super().__init__(parent)
         self.current_hole_id = None
         self.is_data_loaded = False  # 标记是否已加载数据
+        
+        # 内存管理相关
+        self._cleanup_called = False
+        self._widget_refs = weakref.WeakSet()
+        self._timers = []
+        self._signal_connections = []
+        
         self.setup_ui()
         self.setup_chart()
         self.init_data_buffers()
         self.setup_waiting_state()  # 设置等待状态
+        
+    def _connect_signal(self, signal, slot):
+        """安全地连接信号和槽，并跟踪连接"""
+        connection = signal.connect(slot)
+        self._signal_connections.append((signal, slot, connection))
+        return connection
+        
+    def _disconnect_all_signals(self):
+        """断开所有信号连接"""
+        for signal, slot, connection in self._signal_connections:
+            try:
+                signal.disconnect(slot)
+            except:
+                pass
+        self._signal_connections.clear()
         
     def setup_ui(self):
         """设置用户界面布局 - 双面板设计"""
@@ -243,7 +268,7 @@ class RealtimeChart(QWidget):
 
         # 添加【查看下一个样品】按钮 - 使用主题样式
         self.next_sample_button = QPushButton("查看下一个样品")
-        self.next_sample_button.clicked.connect(self.view_next_sample)
+        self._connect_signal(self.next_sample_button.clicked, self.view_next_sample)
         self.next_sample_button.setObjectName("next_sample_button")
         from PySide6.QtWidgets import QSizePolicy
         self.next_sample_button.setSizePolicy(
@@ -278,9 +303,9 @@ class RealtimeChart(QWidget):
         self.init_hole_data_mapping()
 
         # 连接按钮信号（按钮已在状态栏中创建）
-        self.start_button.clicked.connect(self.start_csv_data_import)
-        self.stop_button.clicked.connect(self.stop_csv_data_import)
-        self.clear_button.clicked.connect(self.clear_data)
+        self._connect_signal(self.start_button.clicked, self.start_csv_data_import)
+        self._connect_signal(self.stop_button.clicked, self.stop_csv_data_import)
+        self._connect_signal(self.clear_button.clicked, self.clear_data)
 
         # 初始状态下禁用按钮，等待从主检测界面跳转
         self.start_button.setEnabled(False)
@@ -334,26 +359,26 @@ class RealtimeChart(QWidget):
 
     def init_hole_data_mapping(self):
         """初始化孔位数据映射"""
-        import os
-
-        # 获取当前工作目录
-        base_dir = os.getcwd()
-
-        # AI员工1号修改开始 - 2025-01-14
-        # 修改目的：将孔位ID从H格式转换为C{col}R{row}格式
-        # 使用绝对路径确保路径解析正确
-        self.hole_to_csv_map = {
-            "C001R001": os.path.join(base_dir, "Data/C001R001/CCIDM"),  # 原H00001
-            "C002R001": os.path.join(base_dir, "Data/C002R001/CCIDM"),  # 原H00002
-            "C003R001": os.path.join(base_dir, "Data/C003R001/CCIDM")   # 原H00003
-        }
-
-        self.hole_to_image_map = {
-            "C001R001": os.path.join(base_dir, "Data/C001R001/BISDM/result"),  # 原H00001
-            "C002R001": os.path.join(base_dir, "Data/C002R001/BISDM/result"),  # 原H00002
-            "C003R001": os.path.join(base_dir, "Data/C003R001/BISDM/result")   # 原H00003
-        }
-        # AI员工1号修改结束
+        from src.utils.path_config import get_path_config
+        
+        # 使用统一路径配置
+        path_config = get_path_config()
+        
+        # 获取所有孔位ID
+        hole_ids = path_config.get_all_hole_ids()
+        
+        # 动态构建路径映射
+        self.hole_to_csv_map = {}
+        self.hole_to_image_map = {}
+        
+        for hole_id in hole_ids:
+            # 获取CSV路径
+            csv_path = path_config.get_csv_path(hole_id)
+            self.hole_to_csv_map[hole_id] = str(csv_path)
+            
+            # 获取图像路径
+            image_path = path_config.get_image_path(hole_id)
+            self.hole_to_image_map[hole_id] = str(image_path)
 
         # 打印路径信息用于调试
         print("🔧 孔位数据映射初始化:")
@@ -362,8 +387,6 @@ class RealtimeChart(QWidget):
             print(f"  {hole_id}:")
             print(f"    📄 CSV: {csv_path}")
             print(f"    🖼️ 图像: {image_path}")
-            print(f"    📂 CSV目录存在: {os.path.exists(csv_path)}")
-            print(f"    📂 图像目录存在: {os.path.exists(image_path)}")
 
             # 检查CSV目录中的文件
             if os.path.exists(csv_path):
@@ -371,6 +394,12 @@ class RealtimeChart(QWidget):
                 print(f"    📄 找到CSV文件: {csv_files}")
             else:
                 print(f"    ❌ CSV目录不存在: {csv_path}")
+            
+            # 检查图像目录
+            if os.path.exists(image_path):
+                print(f"    🖼️ 图像目录存在")
+            else:
+                print(f"    ❌ 图像目录不存在: {image_path}")
 
     def set_current_hole_display(self, hole_id):
         """设置当前孔位显示"""
@@ -796,6 +825,7 @@ class RealtimeChart(QWidget):
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.update_plot)
         self.update_timer.start(200)  # 每1秒更新一次，更加安全
+        self._timers.append(self.update_timer)
 
         # 初始化缩放参数
         self.zoom_factor = 1.0
@@ -862,13 +892,53 @@ class RealtimeChart(QWidget):
 
     def cleanup(self):
         """清理资源，停止定时器"""
+        if self._cleanup_called:
+            return
+        self._cleanup_called = True
+        
         try:
-            if hasattr(self, 'update_timer') and self.update_timer:
-                self.update_timer.stop()
-            if hasattr(self, 'csv_timer') and self.csv_timer:
-                self.csv_timer.stop()
-        except Exception:
-            pass
+            # 断开所有信号连接
+            self._disconnect_all_signals()
+            
+            # 停止所有定时器
+            for timer in self._timers:
+                if timer and timer.isActive():
+                    timer.stop()
+                    timer.deleteLater()
+            self._timers.clear()
+            
+            # 清理matplotlib资源
+            if hasattr(self, 'canvas') and self.canvas:
+                self.canvas.close()
+                
+            if hasattr(self, 'figure') and self.figure:
+                plt.close(self.figure)
+                self.figure = None
+                
+            # 清理数据缓冲区
+            if hasattr(self, 'depth_data'):
+                self.depth_data.clear()
+            if hasattr(self, 'diameter_data'):
+                self.diameter_data.clear()
+            if hasattr(self, 'anomaly_data'):
+                self.anomaly_data.clear()
+            if hasattr(self, 'csv_data'):
+                self.csv_data.clear()
+            if hasattr(self, 'current_images'):
+                self.current_images.clear()
+                
+            # 清理弱引用
+            self._widget_refs.clear()
+            
+            # 强制垃圾回收
+            gc.collect()
+            
+        except Exception as e:
+            print(f"清理资源时出错: {e}")
+            
+    def __del__(self):
+        """析构函数"""
+        self.cleanup()
 
     def closeEvent(self, event):
         """窗口关闭事件"""
@@ -1045,10 +1115,17 @@ class RealtimeChart(QWidget):
         # 多文件管理（向后兼容，但主要使用新的孔位映射）
         self.csv_file_list = []
         self.current_file_index = 0  # 当前文件索引
-        # AI员工1号修改开始 - 2025-01-14
-        # 修改目的：将孔位ID从H格式转换为C{col}R{row}格式  
-        self.csv_base_path = "Data/C001R001/CCIDM"  # 使用相对路径，原H00001
-        # AI员工1号修改结束
+        # 使用统一路径配置获取默认CSV路径
+        from src.utils.path_config import get_path_config
+        path_config = get_path_config()
+        hole_ids = path_config.get_all_hole_ids()
+        if hole_ids:
+            # 使用第一个可用的孔位作为默认
+            default_hole_id = hole_ids[0]
+            self.csv_base_path = str(path_config.get_csv_path(default_hole_id))
+        else:
+            # 如果没有找到孔位，使用空路径
+            self.csv_base_path = ""
         
     @Slot(float, float)
     def update_data(self, depth, diameter):
@@ -1499,6 +1576,7 @@ class RealtimeChart(QWidget):
         self.csv_timer = QTimer()
         self.csv_timer.timeout.connect(self.update_csv_data_point)
         self.csv_timer.start(50)  # 每100ms更新一个数据点，提高稳定性
+        self._timers.append(self.csv_timer)
 
         # 更新按钮状态
         self.start_button.setText("测量中...")

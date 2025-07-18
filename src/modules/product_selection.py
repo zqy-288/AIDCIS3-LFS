@@ -140,8 +140,8 @@ class ProductSelectionDialog(QDialog):
             btn.setMinimumHeight(35)
             btn.setMinimumWidth(100)
         
-        self.select_btn.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; }")
-        self.cancel_btn.setStyleSheet("QPushButton { background-color: #f44336; color: white; }")
+        self.select_btn.setStyleSheet("QPushButton { background-color: #2ECC71; color: white; font-weight: bold; }")
+        self.cancel_btn.setStyleSheet("QPushButton { background-color: #313642; color: white; }")
         
         # 添加按钮到布局
         button_layout.addWidget(self.manage_btn)

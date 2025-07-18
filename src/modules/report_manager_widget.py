@@ -73,18 +73,18 @@ class ReportManagerWidget(QWidget):
             QGroupBox {
                 font-weight: bold;
                 font-size: 14px;
-                border: 2px solid #4CAF50;
+                border: 2px solid #2ECC71;
                 border-radius: 8px;
                 margin-top: 10px;
                 padding-top: 10px;
-                background-color: #f8fff8;
+                background-color: #313642;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 15px;
                 padding: 0 8px 0 8px;
                 color: #2E7D32;
-                background-color: white;
+                background-color: #313642;
             }
         """)
         workpiece_layout = QGridLayout(workpiece_group)
@@ -112,18 +112,18 @@ class ReportManagerWidget(QWidget):
             QGroupBox {
                 font-weight: bold;
                 font-size: 14px;
-                border: 2px solid #2196F3;
+                border: 2px solid #007ACC;
                 border-radius: 8px;
                 margin-top: 10px;
                 padding-top: 10px;
-                background-color: #f0f8ff;
+                background-color: #313642;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 15px;
                 padding: 0 8px 0 8px;
                 color: #1976D2;
-                background-color: white;
+                background-color: #313642;
             }
         """)
         report_type_layout = QVBoxLayout(report_type_group)
@@ -134,7 +134,7 @@ class ReportManagerWidget(QWidget):
         self.pdf_report_btn = QPushButton("📄 生成PDF报告")
         self.pdf_report_btn.setStyleSheet("""
             QPushButton {
-                background-color: #4CAF50;
+                background-color: #2ECC71;
                 color: white;
                 border: none;
                 padding: 12px 20px;
@@ -158,7 +158,7 @@ class ReportManagerWidget(QWidget):
         self.web_report_btn = QPushButton("🌐 生成Web报告")
         self.web_report_btn.setStyleSheet("""
             QPushButton {
-                background-color: #2196F3;
+                background-color: #007ACC;
                 color: white;
                 border: none;
                 padding: 12px 20px;
@@ -214,14 +214,14 @@ class ReportManagerWidget(QWidget):
                 border-radius: 8px;
                 margin-top: 10px;
                 padding-top: 10px;
-                background-color: #fff8e1;
+                background-color: #313642;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 15px;
                 padding: 0 8px 0 8px;
                 color: #F57C00;
-                background-color: white;
+                background-color: #313642;
             }
         """)
         progress_layout = QVBoxLayout(progress_group)
@@ -256,14 +256,14 @@ class ReportManagerWidget(QWidget):
                 border-radius: 8px;
                 margin-top: 10px;
                 padding-top: 10px;
-                background-color: #f3e5f5;
+                background-color: #313642;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 15px;
                 padding: 0 8px 0 8px;
                 color: #7B1FA2;
-                background-color: white;
+                background-color: #313642;
             }
         """)
         format_layout = QHBoxLayout(format_group)
@@ -271,7 +271,7 @@ class ReportManagerWidget(QWidget):
         self.excel_export_btn = QPushButton("📊 导出Excel")
         self.excel_export_btn.setStyleSheet("""
             QPushButton {
-                background-color: #4CAF50;
+                background-color: #2ECC71;
                 color: white;
                 border: none;
                 padding: 12px 20px;
@@ -288,7 +288,7 @@ class ReportManagerWidget(QWidget):
         self.csv_export_btn = QPushButton("📄 导出CSV")
         self.csv_export_btn.setStyleSheet("""
             QPushButton {
-                background-color: #FF9800;
+                background-color: #313642;
                 color: white;
                 border: none;
                 padding: 12px 20px;
@@ -298,7 +298,7 @@ class ReportManagerWidget(QWidget):
                 min-height: 40px;
             }
             QPushButton:hover {
-                background-color: #F57C00;
+                background-color: #313642;
             }
         """)
         
@@ -318,14 +318,14 @@ class ReportManagerWidget(QWidget):
                 border-radius: 8px;
                 margin-top: 10px;
                 padding-top: 10px;
-                background-color: #eceff1;
+                background-color: #313642;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 15px;
                 padding: 0 8px 0 8px;
                 color: #455A64;
-                background-color: white;
+                background-color: #313642;
             }
         """)
         range_layout = QGridLayout(range_group)
@@ -366,14 +366,14 @@ class ReportManagerWidget(QWidget):
                 border-radius: 8px;
                 margin-top: 10px;
                 padding-top: 10px;
-                background-color: #efebe9;
+                background-color: #313642;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 15px;
                 padding: 0 8px 0 8px;
                 color: #5D4037;
-                background-color: white;
+                background-color: #313642;
             }
         """)
         options_layout = QVBoxLayout(options_group)
@@ -414,14 +414,14 @@ class ReportManagerWidget(QWidget):
                 border-radius: 8px;
                 margin-top: 10px;
                 padding-top: 10px;
-                background-color: #fce4ec;
+                background-color: #313642;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 15px;
                 padding: 0 8px 0 8px;
                 color: #C2185B;
-                background-color: white;
+                background-color: #313642;
             }
         """)
         search_layout = QHBoxLayout(search_group)
@@ -450,14 +450,14 @@ class ReportManagerWidget(QWidget):
         # 设置表格样式
         self.reports_table.setStyleSheet("""
             QTableWidget {
-                gridline-color: #ddd;
-                selection-background-color: #e3f2fd;
+                gridline-color: #404552;
+                selection-background-color: #313642;
             }
             QTableWidget::item {
                 padding: 8px;
             }
             QHeaderView::section {
-                background-color: #f5f5f5;
+                background-color: #313642;
                 padding: 8px;
                 border: none;
                 font-weight: bold;

@@ -212,8 +212,8 @@ class DXFRenderDialog(QDialog):
         main_layout.addLayout(bottom_layout)
         
         # 设置按钮样式
-        self.render_btn.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; }")
-        self.export_btn.setStyleSheet("QPushButton { background-color: #2196F3; color: white; }")
+        self.render_btn.setStyleSheet("QPushButton { background-color: #2ECC71; color: white; font-weight: bold; }")
+        self.export_btn.setStyleSheet("QPushButton { background-color: #007ACC; color: white; }")
         
         for btn in [self.render_btn, self.preview_btn, self.export_btn, self.close_btn]:
             btn.setMinimumHeight(35)
