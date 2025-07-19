@@ -3637,3 +3637,31 @@ class CompletePanoramaWidget(QWidget):
         """释放锁"""
         if hasattr(self, '_creation_locks'):
             self._creation_locks[lock_type] = False
+
+
+class DynamicSectorView(QGraphicsView):
+    """动态扇形视图类 - 修复缺失的类定义"""
+    
+    sector_clicked = Signal(int)
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.current_sector = None
+        self.sector_items = {}
+    
+    def set_sector(self, sector_id: int):
+        """设置当前扇形"""
+        self.current_sector = sector_id
+    
+    def add_sector_item(self, sector_id: int, item: QGraphicsItem):
+        """添加扇形项"""
+        self.sector_items[sector_id] = item
+        if self.scene():
+            self.scene().addItem(item)
+    
+    def clear_sectors(self):
+        """清理所有扇形"""
+        if self.scene():
+            for item in self.sector_items.values():
+                self.scene().removeItem(item)
+        self.sector_items.clear()

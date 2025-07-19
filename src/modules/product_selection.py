@@ -243,8 +243,13 @@ class ProductSelectionDialog(QDialog):
             return
         
         # 使用最新的产品数据
+        self.selected_product = existing_product
         self.product_selected.emit(existing_product)
         self.accept()
+    
+    def get_selected_product(self):
+        """获取选中的产品"""
+        return self.selected_product
     
     def open_product_management(self):
         """打开产品信息维护界面"""

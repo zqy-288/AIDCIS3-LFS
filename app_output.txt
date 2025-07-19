@@ -1,0 +1,190 @@
+🔄 重定向到修复后的启动入口...
+📍 使用统一的ApplicationCore启动方式
+🔧 避免重复初始化问题
+
+🚀 启动AIDCIS3-LFS (修复版)
+🔧 使用单例模式避免重复初始化
+2025-07-19 14:41:42,502 - core.singleton_manager - INFO - 清除所有单例
+2025-07-19 14:41:42,655 - core.application - INFO - 配置管理器初始化成功: DefaultConfigurationManager
+2025-07-19 14:41:42,655 - core.application - INFO - ApplicationCore initialized
+2025-07-19 14:41:42,655 - core.application - INFO - Application state changed: uninitialized -> initializing
+2025-07-19 14:41:43,268 - core.error_recovery - INFO - ErrorRecoveryManager initialized
+2025-07-19 14:41:43,268 - core.application - INFO - ErrorRecoveryManager registered successfully
+✅ 安全字体配置完成
+2025-07-19 14:41:44,065 - modules.theme_manager_unified - INFO - 统一主题管理器已初始化
+2025-07-19 14:41:44,095 - modules.theme_manager_unified - INFO - 深色主题应用成功
+2025-07-19 14:41:44,095 - modules.theme_manager_unified - INFO - 主题应用成功: dark
+2025-07-19 14:41:44,095 - modules.theme_orchestrator - INFO - 应用程序实例已设置: QApplication
+2025-07-19 14:41:44,096 - modules.theme_orchestrator - INFO - 主题管理器已设置
+2025-07-19 14:41:44,122 - modules.theme_manager_unified - INFO - 深色主题应用成功
+2025-07-19 14:41:44,122 - modules.theme_manager_unified - INFO - 主题应用成功: dark
+2025-07-19 14:41:44,122 - modules.theme_orchestrator - INFO - ✅ 早期主题应用成功
+✅ 主题系统初始化成功
+2025-07-19 14:41:44,122 - core.application - INFO - 主题样式表已应用成功 (长度: 4740)
+2025-07-19 14:41:44,122 - core.application - INFO - Application state changed: initializing -> running
+2025-07-19 14:41:44,122 - core.application - INFO - Application initialized successfully in 1.47s
+2025-07-19 14:41:44,122 - startup_fixed - INFO - ✅ 应用程序初始化成功
+✅ 安全字体配置完成
+添加字体: /System/Library/Fonts/PingFang.ttc
+添加字体: /System/Library/Fonts/Hiragino Sans GB.ttc
+添加字体: /System/Library/Fonts/STHeiti Light.ttc
+使用中文字体: Arial Unicode MS
+2025-07-19 14:41:49,154 - matplotlib.font_manager - WARNING - Matplotlib is building the font cache; this may take a moment.
+2025-07-19 14:41:56,461 - matplotlib.font_manager - INFO - Failed to extract font properties from /System/Library/Fonts/LastResort.otf: tuple indices must be integers or slices, not str
+2025-07-19 14:41:56,519 - matplotlib.font_manager - INFO - Failed to extract font properties from /System/Library/Fonts/Supplemental/NISC18030.ttf: In FT2Font: Could not set the fontsize (invalid pixel size; error code 0x17)
+2025-07-19 14:41:56,520 - matplotlib.font_manager - INFO - Failed to extract font properties from /System/Library/Fonts/Apple Color Emoji.ttc: In FT2Font: Could not set the fontsize (invalid pixel size; error code 0x17)
+添加字体: /System/Library/Fonts/PingFang.ttc
+添加字体: /System/Library/Fonts/Hiragino Sans GB.ttc
+添加字体: /System/Library/Fonts/STHeiti Light.ttc
+使用中文字体: Arial Unicode MS
+2025-07-19 14:41:56,696 - matplotlib.font_manager - INFO - Failed to extract font properties from /System/Library/Fonts/LastResort.otf: tuple indices must be integers or slices, not str
+2025-07-19 14:41:56,736 - matplotlib.font_manager - INFO - Failed to extract font properties from /System/Library/Fonts/Supplemental/NISC18030.ttf: In FT2Font: Could not set the fontsize (invalid pixel size; error code 0x17)
+2025-07-19 14:41:56,737 - matplotlib.font_manager - INFO - Failed to extract font properties from /System/Library/Fonts/Apple Color Emoji.ttc: In FT2Font: Could not set the fontsize (invalid pixel size; error code 0x17)
+2025-07-19 14:41:57,068 - src.data.config_manager - INFO - 成功加载配置文件: /Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/config/config.json
+2025-07-19 14:41:57,070 - src.data.config_manager - INFO - 配置文件监听已启动
+2025-07-19 14:41:57,076 - models.application_model - INFO - ApplicationModel initialized
+2025-07-19 14:41:57,076 - core.singleton_manager - INFO - 创建新单例: ApplicationModel
+2025-07-19 14:41:57,076 - core.singleton_manager - INFO - 创建新单例: DetectionStateManager
+2025-07-19 14:41:57,076 - ui.tab_manager - INFO - 选项卡管理器初始化完成
+2025-07-19 14:41:57,076 - core.singleton_manager - INFO - 创建新单例: TabManager
+2025-07-19 14:41:57,076 - managers.ui_state_manager - INFO - UI状态管理器初始化完成
+2025-07-19 14:41:57,076 - core.singleton_manager - INFO - 创建新单例: UIStateManager
+2025-07-19 14:41:57,077 - src.core.application - INFO - 配置管理器初始化成功: ConfigManager
+2025-07-19 14:41:57,077 - src.core.application - INFO - ApplicationCore initialized
+2025-07-19 14:41:57,077 - src.core.error_recovery - INFO - ErrorRecoveryManager initialized
+2025-07-19 14:41:57,078 - ErrorHandler - INFO - ErrorRecoveryManager integration successful
+2025-07-19 14:41:57,078 - ErrorHandler - INFO - Category handler registered for: system
+2025-07-19 14:41:57,078 - ErrorHandler - INFO - Category handler registered for: application
+2025-07-19 14:41:57,078 - ErrorHandler - INFO - Category handler registered for: ui
+2025-07-19 14:41:57,078 - ErrorHandler - INFO - Category handler registered for: data
+2025-07-19 14:41:57,078 - ErrorHandler - INFO - Category handler registered for: network
+2025-07-19 14:41:57,078 - ErrorHandler - INFO - Category handler registered for: file
+2025-07-19 14:41:57,078 - ErrorHandler - INFO - Category handler registered for: security
+2025-07-19 14:41:57,078 - ErrorHandler - INFO - Category handler registered for: performance
+2025-07-19 14:41:57,078 - ErrorHandler - INFO - Category handler registered for: validation
+2025-07-19 14:41:57,078 - ErrorHandler - INFO - Category handler registered for: business
+2025-07-19 14:41:57,078 - ErrorHandler - INFO - ErrorHandler initialized
+2025-07-19 14:41:57,079 - ui.tab_manager - INFO - 🔍 [DIAGNOSTIC] 开始创建主检测视图
+2025-07-19 14:41:57,079 - ui.tab_manager - INFO - 🔍 [DIAGNOSTIC] Parent对象: <src.main_window.MainWindow(0x10d54c6b0) at 0x1559c1580>, 类型: <class 'src.main_window.MainWindow'>
+2025-07-19 14:41:57,080 - ui.tab_manager - INFO - 🔍 [DIAGNOSTIC] 使用Parent的容器: <core.dependency_injection.DependencyContainer object at 0x103185e80>
+2025-07-19 14:41:57,080 - ui.tab_manager - INFO - 🔍 [DIAGNOSTIC] 使用Parent的事件总线: <core.application.EventBus(0x1546297d0) at 0x102547900>
+2025-07-19 14:41:57,080 - ui.tab_manager - INFO - 🔍 [DIAGNOSTIC] 创建MainDetectionCoordinator参数 - event_bus: <core.application.EventBus(0x1546297d0) at 0x102547900>, container: <core.dependency_injection.DependencyContainer object at 0x103185e80>, parent: <src.main_window.MainWindow(0x10d54c6b0) at 0x1559c1580>
+2025-07-19 14:41:57,080 - src.controllers.sidebar_controller - INFO - 侧边栏控制器初始化完成
+2025-07-19 14:41:57,081 - src.controllers.detection_controller - INFO - 检测控制器初始化完成
+2025-07-19 14:41:57,081 - src.controllers.main_detection_coordinator - INFO - 所有子控制器创建完成
+2025-07-19 14:41:57,081 - src.controllers.main_detection_coordinator - INFO - 主检测协调器初始化完成
+2025-07-19 14:41:57,081 - ui.tab_manager - INFO - 🔍 [DIAGNOSTIC] 创建新的MainDetectionCoordinator实例成功: <src.controllers.main_detection_coordinator.MainDetectionCoordinator(0x155ff9410) at 0x157a0ee00>
+2025-07-19 14:41:57,081 - ui.tab_manager - INFO - 🔍 [DIAGNOSTIC] 即将调用coordinator.get_view(), coordinator: <src.controllers.main_detection_coordinator.MainDetectionCoordinator(0x155ff9410) at 0x157a0ee00>
+2025-07-19 14:41:57,081 - src.controllers.main_detection_coordinator - INFO - 🔍 [DIAGNOSTIC] MainDetectionCoordinator.get_view() 被调用
+2025-07-19 14:41:57,081 - src.controllers.main_detection_coordinator - INFO - 🔍 [DIAGNOSTIC] 检查依赖 - event_bus: <core.application.EventBus(0x1546297d0) at 0x102547900>, container: <core.dependency_injection.DependencyContainer object at 0x103185e80>
+2025-07-19 14:41:57,081 - src.controllers.main_detection_coordinator - INFO - 🔍 [DIAGNOSTIC] 检查子控制器 - sidebar_controller: <src.controllers.sidebar_controller.SidebarController(0x155ffa7a0) at 0x157a1f9c0>, detection_controller: <src.controllers.detection_controller.DetectionController(0x155ffbc10) at 0x157a0eac0>
+2025-07-19 14:41:57,081 - src.controllers.main_detection_coordinator - INFO - 🔍 [DIAGNOSTIC] 开始创建主视图容器
+2025-07-19 14:41:57,081 - src.controllers.main_detection_coordinator - INFO - 🔍 [DIAGNOSTIC] 主视图容器创建成功: <PySide6.QtWidgets.QWidget(0x155fff0d0) at 0x157a25900>
+2025-07-19 14:41:57,081 - src.controllers.main_detection_coordinator - INFO - 🔍 [DIAGNOSTIC] 即将导入MainDetectionView模块
+2025-07-19 14:41:57,081 - src.controllers.main_detection_coordinator - INFO - 🔍 [DIAGNOSTIC] MainDetectionView模块导入成功，即将实例化
+2025-07-19 14:41:57,082 - src.modules.main_detection_view - INFO - 🔍 [DIAGNOSTIC] MainDetectionView.__init__ 开始
+2025-07-19 14:41:57,082 - src.modules.main_detection_view - INFO - 🔍 [DIAGNOSTIC] 开始setup_ui()
+2025-07-19 14:41:57,241 - src.modules.main_detection_view - INFO - 🔍 [DIAGNOSTIC] 开始setup_connections()
+2025-07-19 14:41:57,241 - src.modules.main_detection_view - INFO - 🔍 [DIAGNOSTIC] 开始initialize_data()
+2025-07-19 14:41:57,241 - src.modules.main_detection_view - INFO - 🔍 [DIAGNOSTIC] MainDetectionView.__init__ 完成
+2025-07-19 14:41:57,241 - src.controllers.main_detection_coordinator - INFO - 🔍 [DIAGNOSTIC] MainDetectionView 实例创建成功: <src.modules.main_detection_view.MainDetectionView(0x157b04970) at 0x157a259c0>
+2025-07-19 14:41:57,242 - src.controllers.main_detection_coordinator - INFO - 🔍 [DIAGNOSTIC] MainDetectionView已成功添加到布局
+2025-07-19 14:41:57,242 - src.controllers.main_detection_coordinator - INFO - 🔍 [DIAGNOSTIC] 主检测协调器视图创建完成，最终视图: <PySide6.QtWidgets.QWidget(0x155fff0d0, name="MainDetectionCoordinatorView") at 0x157a25900>
+2025-07-19 14:41:57,242 - ui.tab_manager - INFO - 🔍 [DIAGNOSTIC] 成功获取主检测视图: <PySide6.QtWidgets.QWidget(0x155fff0d0, name="MainDetectionCoordinatorView") at 0x157a25900>, 类型: <class 'PySide6.QtWidgets.QWidget'>
+qt.qpa.fonts: Populating font family aliases took 111 ms. Replace uses of missing font family "-apple-system" with one that exists to avoid this cost. 
+2025-07-19 14:41:57,365 - ui.tab_manager - INFO - 选项卡已添加: main_detection_1 (主检测)
+2025-07-19 14:41:57,365 - src.controllers.realtime_controller - INFO - 实时预览控制器初始化完成
+🔧 孔位数据映射初始化:
+  C001R001:
+    📄 CSV: /Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/Data/C001R001/CCIDM
+    🖼️ 图像: /Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/Data/C001R001/BISDM/result
+    📄 找到CSV文件: ['measurement_data_Fri_Jul__4_18_40_29_2025.csv']
+    🖼️ 图像目录存在
+  C002R001:
+    📄 CSV: /Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/Data/C002R001/CCIDM
+    🖼️ 图像: /Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/Data/C002R001/BISDM/result
+    📄 找到CSV文件: ['measurement_data_Sat_Jul__5_15_18_46_2025.csv']
+    🖼️ 图像目录存在
+  C003R001:
+    📄 CSV: /Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/Data/C003R001/CCIDM
+    🖼️ 图像: /Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/Data/C003R001/BISDM/result
+    📄 找到CSV文件: ['measurement_data_Fri_Jul__4_18_40_29_2025.csv']
+    ❌ 图像目录不存在: /Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/Data/C003R001/BISDM/result
+  H00004:
+    📄 CSV: /Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/Data/H00004/CCIDM
+    🖼️ 图像: /Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/Data/H00004/BISDM/result
+    📄 找到CSV文件: ['measurement_data_H00004.csv']
+    ❌ 图像目录不存在: /Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/Data/H00004/BISDM/result
+  H00005:
+    📄 CSV: /Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/Data/H00005/CCIDM
+    🖼️ 图像: /Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/Data/H00005/BISDM/result
+    📄 找到CSV文件: ['measurement_data_H00005.csv']
+    ❌ 图像目录不存在: /Users/vsiyo/Desktop/AIDCIS/AIDCIS3-LFS/Data/H00005/BISDM/result
+移除误差线，恢复默认Y轴范围: 16.5 - 20.5mm
+matplotlib误差线绘制成功:
+  上误差线: y = 17.650mm
+  下误差线: y = 17.530mm
+  Y轴范围: 17.45 ~ 17.75mm
+✅ 自动设置标准直径为: 17.6mm
+⏳ 实时监控界面等待状态 - 请从主检测界面选择孔位后跳转
+2025-07-19 14:41:57,562 - src.controllers.realtime_controller - INFO - 实时预览UI设置完成
+2025-07-19 14:41:57,562 - src.controllers.realtime_controller - INFO - 实时预览界面创建完成
+2025-07-19 14:41:57,569 - ui.tab_manager - INFO - 选项卡已添加: realtime_preview_2 (实时预览)
+2025-07-19 14:41:57,569 - src.controllers.history_controller - INFO - 历史查看控制器初始化完成
+🔧 初始化历史数据查看器...
+🔍 加载工件 WP-2025-001 的孔位列表...
+📁 从文件系统扫描到 2 个孔位目录
+为孔ID H00004 选择文件: Data/H00004/CCIDM/measurement_data_H00004.csv
+成功使用编码 utf-8 读取文件
+CSV文件列头: ['序号', '通道1值(um)', '通道2值(um)', '通道3值(um)', '孔径直径(mm)']
+成功读取 20 条测量数据
+📊 孔位 H00004 合格率: 0.0% (0/20)
+为孔ID H00005 选择文件: Data/H00005/CCIDM/measurement_data_H00005.csv
+成功使用编码 utf-8 读取文件
+CSV文件列头: ['序号', '通道1值(um)', '通道2值(um)', '通道3值(um)', '孔径直径(mm)']
+成功读取 20 条测量数据
+📊 孔位 H00005 合格率: 0.0% (0/20)
+✅ 加载了 2 个不合格孔位: H00004, H00005
+✅ 总计加载了 2 个孔位
+🔍 加载工件 WP-2025-001 的孔位列表...
+📁 从文件系统扫描到 2 个孔位目录
+为孔ID H00004 选择文件: Data/H00004/CCIDM/measurement_data_H00004.csv
+成功使用编码 utf-8 读取文件
+CSV文件列头: ['序号', '通道1值(um)', '通道2值(um)', '通道3值(um)', '孔径直径(mm)']
+成功读取 20 条测量数据
+📊 孔位 H00004 合格率: 0.0% (0/20)
+为孔ID H00005 选择文件: Data/H00005/CCIDM/measurement_data_H00005.csv
+成功使用编码 utf-8 读取文件
+CSV文件列头: ['序号', '通道1值(um)', '通道2值(um)', '通道3值(um)', '孔径直径(mm)']
+成功读取 20 条测量数据
+📊 孔位 H00005 合格率: 0.0% (0/20)
+✅ 加载了 2 个不合格孔位: H00004, H00005
+✅ 总计加载了 2 个孔位
+✅ 历史数据查看器初始化完成
+🔧 初始化缺陷标注工具...
+从配置文件加载了 6 个缺陷类别
+归档索引文件不存在，创建新索引
+2025-07-19 14:41:57,811 - src.modules.theme_manager_unified - INFO - 统一主题管理器已初始化
+扫描完成: 找到 0 个孔位，0 张图像
+✅ 缺陷标注工具初始化完成
+✅ 统一历史数据查看器初始化完成
+2025-07-19 14:41:57,893 - src.controllers.history_controller - INFO - 历史查看UI设置完成
+2025-07-19 14:41:57,894 - src.controllers.history_controller - INFO - 历史查看界面创建完成
+2025-07-19 14:41:57,916 - ui.tab_manager - INFO - 选项卡已添加: history_view_3 (历史查看)
+2025-07-19 14:41:57,916 - src.controllers.report_controller - INFO - 报告输出控制器初始化完成
+2025-07-19 14:41:57,945 - src.controllers.report_controller - INFO - 报告输出UI设置完成
+2025-07-19 14:41:57,945 - src.controllers.report_controller - INFO - 报告输出界面创建完成
+2025-07-19 14:41:57,954 - ui.tab_manager - INFO - 选项卡已添加: report_output_4 (报告输出)
+2025-07-19 14:41:57,955 - ui.tab_manager - INFO - 选项卡已切换: None -> main_detection_1
+2025-07-19 14:41:57,955 - ui.tab_manager - INFO - 默认选项卡创建完成
+2025-07-19 14:41:57,955 - ui.tab_manager - INFO - 选项卡组件创建完成
+2025-07-19 14:41:58,055 - src.main_window - INFO - 事件订阅设置完成
+2025-07-19 14:41:58,055 - managers.ui_state_manager - INFO - 窗口状态已恢复: main
+2025-07-19 14:41:58,056 - managers.ui_state_manager - INFO - 所有状态已恢复
+2025-07-19 14:41:58,056 - src.main_window - INFO - 主窗口初始化完成
+2025-07-19 14:41:58,100 - modules.theme_manager_unified - INFO - 强制深色主题应用到: MainWindow
+2025-07-19 14:41:58,100 - core.application - INFO - 主题已强制应用到主窗口
+2025-07-19 14:41:58,101 - modules.theme_orchestrator - INFO - 主窗口已设置: MainWindow
+2025-07-19 14:41:58,101 - modules.theme_orchestrator - INFO - 应用程序已标记为准备就绪
+2025-07-19 14:41:58,101 - core.application - INFO - 主窗口已注册到主题协调器
+2025-07-19 14:41:58,111 - core.application - INFO - Main window shown

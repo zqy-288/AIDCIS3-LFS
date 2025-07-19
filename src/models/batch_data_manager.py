@@ -12,7 +12,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 
 # AI员工3号修改开始
-from core_business.models.hole_data import HoleData, HoleStatus
+from src.core_business.models.hole_data import HoleData, HoleStatus
 import re  # 用于孔位ID格式验证和转换
 # AI员工3号修改结束
 
@@ -371,6 +371,27 @@ class BatchDataManager:
             print(f"🎲 [批量数据] 设置随机种子: {seed}")
         else:
             print(f"🎲 [批量数据] 使用真随机模式")
+    
+    def get_current_batch(self) -> Optional[Dict[str, Any]]:
+        """
+        获取当前活动的批次对象
+        
+        Returns:
+            Optional[Dict[str, Any]]: 当前批次的字典表示，包含holes等信息；
+                                      如果当前没有活动批次则返回None
+        """
+        if self.current_batch is None:
+            return None
+        
+        # 将DataBatch对象转换为字典格式，以兼容SidebarController的期望
+        return {
+            "batch_id": self.current_batch.batch_id,
+            "timestamp": self.current_batch.timestamp,
+            "total_holes": self.current_batch.total_holes,
+            "holes": [asdict(hole) for hole in self.current_batch.holes],
+            "file_path": None,  # 批次数据没有单一文件路径
+            "created_time": self.current_batch.timestamp
+        }
     
     def generate_simulation_batch(self, holes: List[HoleData], sector: str) -> DataBatch:
         """生成模拟数据批次（包含1000ms写入的模拟）"""

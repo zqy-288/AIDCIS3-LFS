@@ -22,6 +22,8 @@ class UnifiedHistoryViewer(QWidget):
     
     # 信号定义
     view_mode_changed = Signal(str)  # 视图模式改变信号
+    selection_changed = Signal(dict)  # 选择改变信号，携带选中项的数据
+    item_double_clicked = Signal(dict)  # 项目双击信号
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -167,6 +169,18 @@ class UnifiedHistoryViewer(QWidget):
             self.history_viewer = HistoryViewer()
             self._widget_refs.add(self.history_viewer)
             self.stacked_widget.addWidget(self.history_viewer)
+            
+            # 连接历史数据查看器的选择事件
+            if hasattr(self.history_viewer, 'data_table'):
+                self._connect_signal(
+                    self.history_viewer.data_table.cellClicked, 
+                    self._on_history_table_selection_changed
+                )
+                self._connect_signal(
+                    self.history_viewer.data_table.cellDoubleClicked, 
+                    self._on_history_table_item_activated
+                )
+            
             print("✅ 历史数据查看器初始化完成")
             
             # 创建缺陷标注工具（3.2界面）
@@ -174,6 +188,14 @@ class UnifiedHistoryViewer(QWidget):
             self.annotation_tool = DefectAnnotationTool()
             self._widget_refs.add(self.annotation_tool)
             self.stacked_widget.addWidget(self.annotation_tool)
+            
+            # 连接缺陷标注工具的选择事件
+            if hasattr(self.annotation_tool, 'image_list'):
+                self._connect_signal(
+                    self.annotation_tool.image_list.itemClicked,
+                    self._on_annotation_image_selection_changed
+                )
+            
             print("✅ 缺陷标注工具初始化完成")
             
             # 设置默认显示历史数据查看器
@@ -266,3 +288,149 @@ class UnifiedHistoryViewer(QWidget):
     def get_annotation_tool(self):
         """获取缺陷标注工具实例"""
         return self.annotation_tool
+    
+    # ==================== 选择事件处理方法 ====================
+    
+    def _on_history_table_selection_changed(self, row, column):
+        """处理历史数据表格选择改变事件"""
+        try:
+            if self.history_viewer and hasattr(self.history_viewer, 'data_table'):
+                # 获取选中行的数据
+                table = self.history_viewer.data_table
+                if row < table.rowCount():
+                    # 构造选择数据字典
+                    selection_data = {
+                        'type': 'history_measurement',
+                        'mode': '管孔直径',
+                        'row': row,
+                        'column': column,
+                        'data': {}
+                    }
+                    
+                    # 提取表格行数据
+                    for col in range(table.columnCount()):
+                        if table.horizontalHeaderItem(col):
+                            header = table.horizontalHeaderItem(col).text()
+                            item = table.item(row, col)
+                            value = item.text() if item else ""
+                            selection_data['data'][header] = value
+                    
+                    # 添加孔位ID信息（如果可用）
+                    if hasattr(self.history_viewer, 'current_hole_data') and self.history_viewer.current_hole_data:
+                        selection_data['hole_id'] = self.history_viewer.current_hole_data.get('hole_id', '')
+                        selection_data['workpiece_id'] = self.history_viewer.current_hole_data.get('workpiece_id', '')
+                    
+                    print(f"📊 历史数据表格选择: 行{row}, 列{column}")
+                    print(f"🔍 选择数据: {selection_data.get('hole_id', 'Unknown')} - {list(selection_data['data'].keys())}")
+                    
+                    # 发射选择改变信号
+                    self.selection_changed.emit(selection_data)
+                    
+        except Exception as e:
+            print(f"❌ 处理历史数据表格选择失败: {e}")
+    
+    def _on_history_table_item_activated(self, row, column):
+        """处理历史数据表格项目激活事件（双击）"""
+        try:
+            if self.history_viewer and hasattr(self.history_viewer, 'data_table'):
+                # 获取激活行的数据
+                table = self.history_viewer.data_table
+                if row < table.rowCount():
+                    # 构造激活数据字典
+                    activation_data = {
+                        'type': 'history_measurement_activated',
+                        'mode': '管孔直径',
+                        'row': row,
+                        'column': column,
+                        'action': 'double_click',
+                        'data': {}
+                    }
+                    
+                    # 提取表格行数据
+                    for col in range(table.columnCount()):
+                        if table.horizontalHeaderItem(col):
+                            header = table.horizontalHeaderItem(col).text()
+                            item = table.item(row, col)
+                            value = item.text() if item else ""
+                            activation_data['data'][header] = value
+                    
+                    # 添加孔位ID信息（如果可用）
+                    if hasattr(self.history_viewer, 'current_hole_data') and self.history_viewer.current_hole_data:
+                        activation_data['hole_id'] = self.history_viewer.current_hole_data.get('hole_id', '')
+                        activation_data['workpiece_id'] = self.history_viewer.current_hole_data.get('workpiece_id', '')
+                    
+                    print(f"🎯 历史数据表格激活: 行{row}, 列{column} (双击)")
+                    print(f"🔍 激活数据: {activation_data.get('hole_id', 'Unknown')} - 触发详细分析")
+                    
+                    # 发射选择改变信号（激活也算一种特殊的选择）
+                    self.selection_changed.emit(activation_data)
+                    # 同时发射双击信号
+                    self.item_double_clicked.emit(activation_data)
+                    
+        except Exception as e:
+            print(f"❌ 处理历史数据表格激活失败: {e}")
+    
+    def _on_annotation_image_selection_changed(self, item):
+        """处理缺陷标注工具图像选择改变事件"""
+        try:
+            if item and self.annotation_tool:
+                # 构造选择数据字典
+                selection_data = {
+                    'type': 'defect_image',
+                    'mode': '缺陷标注',
+                    'item_text': item.text(),
+                    'data': {
+                        'image_name': item.text(),
+                        'item_data': item.data(Qt.UserRole) if item.data(Qt.UserRole) else {}
+                    }
+                }
+                
+                # 尝试获取当前孔位信息
+                if hasattr(self.annotation_tool, 'current_hole_id'):
+                    selection_data['hole_id'] = getattr(self.annotation_tool, 'current_hole_id', '')
+                
+                print(f"🖼️ 缺陷标注图像选择: {item.text()}")
+                print(f"🔍 选择数据: {selection_data.get('hole_id', 'Unknown')} - {selection_data['data']['image_name']}")
+                
+                # 发射选择改变信号
+                self.selection_changed.emit(selection_data)
+                
+        except Exception as e:
+            print(f"❌ 处理缺陷标注图像选择失败: {e}")
+    
+    def get_current_selection(self):
+        """获取当前选择状态"""
+        current_selection = {
+            'mode': self.current_mode,
+            'active_widget': None,
+            'selection_info': None
+        }
+        
+        try:
+            if self.current_mode == "管孔直径" and self.history_viewer:
+                current_selection['active_widget'] = 'history_viewer'
+                if hasattr(self.history_viewer, 'data_table'):
+                    table = self.history_viewer.data_table
+                    current_row = table.currentRow()
+                    current_column = table.currentColumn()
+                    if current_row >= 0 and current_column >= 0:
+                        current_selection['selection_info'] = {
+                            'row': current_row,
+                            'column': current_column,
+                            'type': 'table_cell'
+                        }
+                        
+            elif self.current_mode == "缺陷标注" and self.annotation_tool:
+                current_selection['active_widget'] = 'annotation_tool'
+                if hasattr(self.annotation_tool, 'image_list'):
+                    current_item = self.annotation_tool.image_list.currentItem()
+                    if current_item:
+                        current_selection['selection_info'] = {
+                            'item_text': current_item.text(),
+                            'type': 'image_item'
+                        }
+                        
+        except Exception as e:
+            print(f"❌ 获取当前选择状态失败: {e}")
+            
+        return current_selection

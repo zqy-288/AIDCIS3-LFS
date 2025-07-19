@@ -472,14 +472,8 @@ class ApplicationCore(QObject):
             # 导入MainWindowAdapter
             from .main_window_adapter import MainWindowAdapter
             
-            # 通过DI容器创建适配器
-            adapter = self._container.resolve(MainWindowAdapter)
-            if not adapter:
-                # 手动创建适配器实例
-                adapter = MainWindowAdapter(
-                    app_core=self,
-                    config_manager=self._config_manager
-                )
+            # 手动创建适配器实例，因为DI容器可能没有正确解析参数
+            adapter = MainWindowAdapter(app_core=self)
             
             # 通过适配器创建主窗口
             self._main_window = adapter.create_window()

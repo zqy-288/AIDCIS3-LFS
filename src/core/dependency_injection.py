@@ -311,6 +311,10 @@ class DependencyContainer:
         finally:
             self._resolution_stack.remove(registration.service_type)
     
+    def get(self, service_type: Type[T], scope_id: Optional[int] = None) -> T:
+        """获取服务 - resolve方法的别名，保持API兼容性"""
+        return self.resolve(service_type, scope_id)
+    
     def is_registered(self, service_type: Type) -> bool:
         """检查服务是否已注册"""
         return service_type in self._registrations

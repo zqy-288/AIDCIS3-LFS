@@ -435,6 +435,257 @@ class WorkpieceDiagram(QWidget):
         # 刷新视图
         self.graphics_scene.update()
 
+    def load_product_data(self, product_obj, dxf_file_path=None):
+        """加载产品数据并更新工件图显示
+        
+        Args:
+            product_obj: 产品对象，包含产品信息
+            dxf_file_path: DXF文件路径（可选）
+        """
+        try:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"开始加载产品数据: {product_obj.model_name if product_obj else 'Unknown'}")
+            
+            # 清除现有数据
+            self.clear_workpiece_data()
+            
+            if product_obj:
+                # 更新产品信息显示
+                self.current_product = product_obj
+                logger.info(f"产品信息: 直径={product_obj.standard_diameter}mm, 公差={product_obj.tolerance_range}")
+                
+                # 如果有DXF文件，解析并加载孔位数据
+                if dxf_file_path and self.load_dxf_file(dxf_file_path):
+                    logger.info(f"DXF文件加载成功: {dxf_file_path}")
+                else:
+                    # 如果没有DXF文件，生成示例工件
+                    logger.info("生成示例工件数据")
+                    self.create_sample_workpiece_for_product(product_obj)
+                    
+            else:
+                # 回退到默认示例工件
+                logger.info("使用默认示例工件")
+                self.create_sample_workpiece()
+                
+            # 刷新显示
+            self.update_view_display()
+            logger.info("产品数据加载完成")
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"加载产品数据失败: {e}")
+            # 回退到示例工件
+            self.create_sample_workpiece()
+    
+    def load_dxf_file(self, dxf_file_path):
+        """加载DXF文件并解析孔位数据
+        
+        Args:
+            dxf_file_path: DXF文件路径
+            
+        Returns:
+            bool: 加载是否成功
+        """
+        try:
+            import os
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            if not os.path.exists(dxf_file_path):
+                logger.warning(f"DXF文件不存在: {dxf_file_path}")
+                return False
+                
+            logger.info(f"开始解析DXF文件: {dxf_file_path}")
+            
+            # 尝试导入DXF解析器
+            try:
+                from ..core_business.dxf_parser import DXFParser
+                parser = DXFParser()
+                hole_collection = parser.parse_file(dxf_file_path)
+                
+                if hole_collection and hole_collection.holes:
+                    self.load_hole_collection(hole_collection)
+                    logger.info(f"成功加载 {len(hole_collection.holes)} 个孔位")
+                    return True
+                else:
+                    logger.warning("DXF文件中未找到孔位数据")
+                    return False
+                    
+            except ImportError as e:
+                logger.warning(f"无法导入DXF解析器: {e}")
+                return False
+                
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"DXF文件加载失败: {e}")
+            return False
+    
+    def load_hole_collection(self, hole_collection):
+        """从HoleCollection加载孔位数据
+        
+        Args:
+            hole_collection: 孔位数据集合
+        """
+        try:
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            # 清除现有检测点
+            self.graphics_scene.clear()
+            self.detection_points.clear()
+            
+            # 计算合适的显示区域
+            min_x = min_y = float('inf')
+            max_x = max_y = float('-inf')
+            
+            for hole in hole_collection.holes:
+                min_x = min(min_x, hole.x)
+                max_x = max(max_x, hole.x)
+                min_y = min(min_y, hole.y)
+                max_y = max(max_y, hole.y)
+            
+            # 添加边距
+            margin = 50
+            width = max_x - min_x + 2 * margin
+            height = max_y - min_y + 2 * margin
+            
+            # 绘制工件轮廓（矩形）
+            from PySide6.QtGui import QPen, QBrush, QColor
+            outline_pen = QPen(QColor(100, 100, 100), 2)
+            outline_brush = QBrush(QColor(240, 240, 240))
+            
+            workpiece_rect = self.graphics_scene.addRect(
+                min_x - margin, min_y - margin, width, height,
+                outline_pen, outline_brush
+            )
+            
+            # 添加检测点
+            for hole in hole_collection.holes:
+                # 转换坐标系（DXF坐标可能需要调整）
+                display_x = hole.x
+                display_y = -hole.y  # 反转Y轴以适应显示坐标系
+                
+                # 创建检测点
+                point = DetectionPoint(hole.hole_id, display_x, display_y, radius=8)
+                
+                # 根据孔位状态设置初始状态
+                if hasattr(hole, 'status') and hole.status:
+                    # 将HoleStatus转换为DetectionStatus
+                    status_map = {
+                        'not_detected': DetectionStatus.NOT_DETECTED,
+                        'qualified': DetectionStatus.QUALIFIED,
+                        'unqualified': DetectionStatus.UNQUALIFIED,
+                        'detecting': DetectionStatus.DETECTING,
+                        'real_data': DetectionStatus.REAL_DATA
+                    }
+                    status = status_map.get(hole.status.value, DetectionStatus.NOT_DETECTED)
+                    point.set_status(status)
+                
+                self.graphics_scene.addItem(point)
+                self.detection_points[hole.hole_id] = point
+            
+            # 设置场景矩形
+            self.graphics_scene.setSceneRect(min_x - margin, min_y - margin, width, height)
+            
+            # 将视图调整到适合所有内容
+            self.graphics_view.fitInView(self.graphics_scene.sceneRect(), Qt.KeepAspectRatio)
+            
+            logger.info(f"成功加载 {len(hole_collection.holes)} 个孔位到图形显示")
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"加载孔位集合失败: {e}")
+    
+    def create_sample_workpiece_for_product(self, product_obj):
+        """为特定产品创建示例工件
+        
+        Args:
+            product_obj: 产品对象
+        """
+        try:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"为产品 {product_obj.model_name} 生成示例工件")
+            
+            # 清除现有内容
+            self.graphics_scene.clear()
+            self.detection_points.clear()
+            
+            # 根据产品信息调整工件参数
+            sector_count = getattr(product_obj, 'sector_count', 4)
+            hole_diameter = getattr(product_obj, 'standard_diameter', 17.730)
+            
+            # 生成基于产品参数的孔位布局
+            from PySide6.QtGui import QPen, QBrush, QColor
+            
+            # 工件尺寸（基于孔径调整）
+            workpiece_radius = max(200, hole_diameter * 8)  
+            
+            # 绘制工件轮廓（圆形管板）
+            outline_pen = QPen(QColor(100, 100, 100), 3)
+            outline_brush = QBrush(QColor(245, 245, 245))
+            
+            self.graphics_scene.addEllipse(
+                -workpiece_radius, -workpiece_radius, 
+                workpiece_radius * 2, workpiece_radius * 2,
+                outline_pen, outline_brush
+            )
+            
+            # 根据扇形数量生成孔位
+            holes_per_ring = [8, 16, 24, 32]  # 不同环的孔数
+            ring_radii = [60, 120, 180, 240]  # 不同环的半径
+            
+            hole_count = 0
+            for ring_idx, (count, radius) in enumerate(zip(holes_per_ring, ring_radii)):
+                if radius > workpiece_radius - 30:  # 确保孔不超出工件边界
+                    break
+                    
+                for i in range(count):
+                    angle = (2 * math.pi * i) / count
+                    x = radius * math.cos(angle)
+                    y = radius * math.sin(angle)
+                    
+                    hole_count += 1
+                    hole_id = f"{product_obj.model_code or 'P'}{hole_count:03d}"
+                    
+                    # 创建检测点，尺寸基于孔径
+                    point_radius = max(6, hole_diameter / 3)
+                    point = DetectionPoint(hole_id, x, y, radius=point_radius)
+                    
+                    self.graphics_scene.addItem(point)
+                    self.detection_points[hole_id] = point
+            
+            # 设置场景范围
+            scene_size = workpiece_radius + 50
+            self.graphics_scene.setSceneRect(-scene_size, -scene_size, scene_size * 2, scene_size * 2)
+            
+            # 调整视图
+            self.graphics_view.fitInView(self.graphics_scene.sceneRect(), Qt.KeepAspectRatio)
+            
+            logger.info(f"为产品 {product_obj.model_name} 生成了 {hole_count} 个示例孔位")
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"生成产品示例工件失败: {e}")
+            # 回退到默认示例
+            self.create_sample_workpiece()
+    
+    def clear_workpiece_data(self):
+        """清除当前工件数据"""
+        self.graphics_scene.clear()
+        self.detection_points.clear()
+        self.highlighted_hole = None
+        self.current_product = None
+    
+    def get_current_product(self):
+        """获取当前产品对象"""
+        return getattr(self, 'current_product', None)
+
 
 if __name__ == "__main__":
     import sys

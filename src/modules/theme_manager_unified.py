@@ -122,7 +122,7 @@ class UnifiedThemeManager(QObject):
 QWidget {{
     background-color: {self.COLORS['background_primary']} !important;
     color: {self.COLORS['text_primary']} !important;
-    font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC";
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
     font-size: 15px;
 }}
 
@@ -440,7 +440,7 @@ QListView, QTreeView {{
 QWidget {{
     background-color: #2C313C;
     color: #D3D8E0;
-    font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC";
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
     font-size: 15px;
 }}
 

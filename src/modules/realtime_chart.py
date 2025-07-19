@@ -31,7 +31,7 @@ def setup_safe_chinese_font():
 setup_safe_chinese_font()
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                QPushButton, QSplitter, QGroupBox, QLineEdit, QMessageBox, QComboBox)
-from PySide6.QtCore import Qt, Slot, QTimer
+from PySide6.QtCore import Qt, Slot, QTimer, Signal
 from PySide6.QtGui import QPixmap, QIcon
 from collections import deque
 from .endoscope_view import EndoscopeView
@@ -46,6 +46,10 @@ except ImportError:
 
 
 class RealtimeChart(QWidget):
+    
+    # 信号定义
+    data_point_selected = Signal(dict)  # 数据点选择信号
+
     """
     实时图表组件 - 二级页面双面板设计
     面板A: 管孔直径数据实时折线图
