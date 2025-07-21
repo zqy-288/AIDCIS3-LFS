@@ -805,8 +805,8 @@ class MainWindow(QMainWindow):
         self.pause_detection_btn.clicked.connect(self.pause_detection)
         self.stop_detection_btn.clicked.connect(self.stop_detection)
 
-        # 模拟功能连接
-        self.simulate_btn.clicked.connect(self._start_simulation_progress_v2)
+        # 模拟功能连接 - 使用蛇形双孔模拟
+        self.simulate_btn.clicked.connect(self._start_snake_simulation)
 
         # 视图控制连接
         self.zoom_in_btn.clicked.connect(self.zoom_in)
