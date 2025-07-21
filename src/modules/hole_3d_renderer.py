@@ -14,9 +14,6 @@ import matplotlib.patches as patches
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox
 from PySide6.QtCore import Qt
 import math
-import os
-import tempfile
-from datetime import datetime
 
 class Hole3DRenderer(FigureCanvas):
     """管孔三维模型渲染器"""
@@ -283,16 +280,16 @@ class Hole3DRenderer(FigureCanvas):
 
         # 添加图例信息（文本框形式），使用更清晰的颜色说明
         legend_text = f"""模型说明:
-* 深红色半透明: 上公差 (+{upper_tolerance:.2f}mm)
-* 蓝色半透明: 下公差 (-{lower_tolerance:.2f}mm)
-* 彩色表面: 实测管径
+• 深红色半透明: 上公差 (+{upper_tolerance:.2f}mm)
+• 蓝色半透明: 下公差 (-{lower_tolerance:.2f}mm)
+• 彩色表面: 实测管径
   - 红色区域: 超上公差
   - 明亮绿色区域: 合格范围
   - 蓝色区域: 超下公差
 
 误差统计:
-* 最大正误差: +{max_positive_error:.3f}mm
-* 最小负误差: {min_negative_error:.3f}mm"""
+• 最大正误差: +{max_positive_error:.3f}mm
+• 最小负误差: {min_negative_error:.3f}mm"""
 
         # 将图例移动到右上角位置，增大字体
         # 对于3D坐标轴，使用text2D方法在2D平面上显示文本
@@ -305,7 +302,7 @@ class Hole3DRenderer(FigureCanvas):
                                                      linewidth=1),
                                              verticalalignment='top',
                                              horizontalalignment='left',
-                                             fontsize=12, fontweight='heavy',
+                                             fontsize=10, fontweight='bold',
                                              color='#D3D8E0')  # 深色主题文字颜色
 
         # 设置网格，增强可见性
@@ -361,23 +358,6 @@ class Hole3DRenderer(FigureCanvas):
 
         # 重新绘制
         self.draw()
-    
-    def save_screenshot(self, file_path=None):
-        """保存三维模型的截图"""
-        if file_path is None:
-            # 生成临时文件路径
-            temp_dir = tempfile.gettempdir()
-            file_path = os.path.join(temp_dir, f"3d_model_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
-        
-        try:
-            # 保存当前三维模型为PNG文件
-            self.figure.savefig(file_path, dpi=300, bbox_inches='tight', 
-                               facecolor='#2C313C', edgecolor='none')
-            print(f"✅ 三维模型截图已保存: {file_path}")
-            return file_path
-        except Exception as e:
-            print(f"❌ 保存三维模型截图失败: {e}")
-            return None
 
 
 

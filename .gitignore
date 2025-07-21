@@ -187,13 +187,6 @@ tmp/
 temp_removed_files/
 Archive/
 
-# BatchDataManager generated files (too many, temporary simulation data)
-data_batches/
-**/data_batches/
-*/data_batches/
-Data/**/data_batches/
-src/data/
-
 # Test files
 test_*.py
 verify_*.py
@@ -337,22 +330,3 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-# Documentation organization - prevent scattered docs
-# All documentation should be in docs/ directory
-/*界面美化*.md
-/*完成报告*.md
-/*分析报告*.md
-/第*级*.md
-/异常*.md
-/按钮*.md
-src/*.md
-src/*界面*.md
-
-# Prevent duplicate database files
-/detection_system.db
-src/detection_system.db
-
-# Prevent duplicate directories
-src/Archive/
-src/reports/

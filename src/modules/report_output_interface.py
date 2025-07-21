@@ -25,7 +25,6 @@ from .report_models import (
 from .report_generator import ReportGenerator
 from .report_history_manager import ReportHistoryManager
 from .report_templates import ReportTemplateManager
-from .data_monitor import get_data_monitor
 
 try:
     from .pdf_report_generator import PDFReportGenerator
@@ -159,18 +158,11 @@ class ReportOutputInterface(QWidget):
         self.report_generator = ReportGenerator()
         self.history_manager = ReportHistoryManager()
         self.template_manager = ReportTemplateManager()
-
-        # 数据监控器
-        self.data_monitor = get_data_monitor()
-        self.setup_data_monitor_connections()
         self.generation_worker = None
         
         self.setup_ui()
         self.setup_connections()
         self.load_workpiece_list()
-
-        # 启动数据监控
-        self.start_data_monitoring()
     
     def setup_ui(self):
         """设置用户界面"""
@@ -780,63 +772,6 @@ class ReportOutputInterface(QWidget):
         # 从孔位ID推断工件ID
         # 这里需要根据实际的数据结构来实现
         pass
-
-    def setup_data_monitor_connections(self):
-        """设置数据监控器连接"""
-        self.data_monitor.new_hole_detected.connect(self.on_new_hole_detected)
-        self.data_monitor.hole_data_updated.connect(self.on_hole_data_updated)
-        self.data_monitor.monitoring_status_changed.connect(self.on_monitoring_status_changed)
-
-    def start_data_monitoring(self):
-        """启动数据监控"""
-        self.data_monitor.start_monitoring()
-
-    def stop_data_monitoring(self):
-        """停止数据监控"""
-        self.data_monitor.stop_monitoring()
-
-    def on_new_hole_detected(self, hole_id: str, quality_data: dict):
-        """处理新孔位检测事件"""
-        # 更新数据汇总显示
-        self.update_data_summary()
-
-        # 发送状态更新信号
-        status = "合格" if quality_data['is_qualified'] else "不合格"
-        self.status_updated.emit(f"检测到新孔位 {hole_id}: {status} (合格率: {quality_data['qualification_rate']:.1f}%)")
-
-    def on_hole_data_updated(self, hole_id: str, quality_data: dict):
-        """处理孔位数据更新事件"""
-        # 更新数据汇总显示
-        self.update_data_summary()
-
-        # 发送状态更新信号
-        status = "合格" if quality_data['is_qualified'] else "不合格"
-        self.status_updated.emit(f"孔位 {hole_id} 数据已更新: {status} (合格率: {quality_data['qualification_rate']:.1f}%)")
-
-    def on_monitoring_status_changed(self, is_monitoring: bool):
-        """处理监控状态变化事件"""
-        status = "已启动" if is_monitoring else "已停止"
-        self.status_updated.emit(f"数据监控 {status}")
-
-    def update_data_summary(self):
-        """更新数据汇总显示"""
-        try:
-            summary = self.data_monitor.get_current_summary()
-
-            # 更新仪表盘显示
-            if hasattr(self, 'db_total_holes_label'):
-                self.db_total_holes_label.setText(str(summary['total_holes']))
-            if hasattr(self, 'db_qualified_holes_label'):
-                self.db_qualified_holes_label.setText(str(summary['qualified_holes']))
-            if hasattr(self, 'db_unqualified_holes_label'):
-                self.db_unqualified_holes_label.setText(str(summary['unqualified_holes']))
-            if hasattr(self, 'db_qualification_rate_bar'):
-                self.db_qualification_rate_bar.setValue(int(summary['qualification_rate']))
-            if hasattr(self, 'db_qualification_rate_label'):
-                self.db_qualification_rate_label.setText(f"{summary['qualification_rate']:.1f}%")
-
-        except Exception as e:
-            print(f"❌ 更新数据汇总失败: {e}")
 
     def load_data_for_workpiece(self, workpiece_id: str):
         """为指定工件加载数据"""

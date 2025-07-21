@@ -28,20 +28,11 @@ class DefectAnnotationTool(QWidget):
         super().__init__(parent)
         
         # 初始化数据
-        # 检查孔位数据目录，优先使用CAP1000项目目录
-        data_path = "Data"
-        cap1000_path = "Data/CAP1000"
-        if os.path.exists(cap1000_path):
-            data_path = cap1000_path
-            print(f"🔍 使用CAP1000项目目录: {cap1000_path}")
-        else:
-            print(f"🔍 使用默认数据目录: {data_path}")
-
-        self.image_scanner = ImageScanner(data_path)
+        self.image_scanner = ImageScanner("Data")
         self.yolo_manager = YOLOFileManager()
         self.category_manager = DefectCategoryManager()
         # 创建ArchiveManager时传入ImageScanner实例，确保使用相同的扫描结果
-        self.archive_manager = ArchiveManager(data_path, "Archive", self.image_scanner)
+        self.archive_manager = ArchiveManager("Data", "Archive", self.image_scanner)
         self.current_hole_id: Optional[str] = None
         self.current_image: Optional[ImageInfo] = None
         self.archived_holes: List[str] = []

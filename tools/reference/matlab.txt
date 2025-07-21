@@ -1,0 +1,108 @@
+clc; clear; close all;
+
+% 测量值
+measure_list = [0.713960, 0.095010, 0.664220];  % 三个测量值
+
+% 参数定义
+probe_r = 8.305;              % 探头主圆半径
+probe_small_r = 2;           % 子探头小圆半径
+theta_list = [0, 2*pi/3, 4*pi/3];  % 三个子探头方向
+
+
+
+p1 = [probe_r + measure_list(1), theta_list(1)];
+p2 = [probe_r + measure_list(2), theta_list(2)];
+p3 = [probe_r + measure_list(3), theta_list(3)];
+
+[xc, yc, D_target] = circle_from_polar(p1, p2, p3);
+R_target = D_target / 2;
+
+fprintf('圆心坐标： (%.4f, %.4f)\n', xc, yc);
+fprintf('圆的直径： %.4f\n', D_target);
+
+
+
+%%% 可视化
+
+% 图像初始化
+figure; hold on; axis equal;
+title('探头与待测圆示意图');
+xlabel('X'); ylabel('Y');
+
+% 可选美化配色
+probe_color = [0.2, 0.5, 0.8];     % 蓝色
+measure_color = [0, 0, 0];         % 黑色
+target_color = [0.8, 0.2, 0.2];    % 深红
+radial_color = [0.6, 0.6, 0.6];    % 浅灰
+
+theta = linspace(0, 2*pi, 300);
+
+% 1. 探头主圆（蓝虚线）
+x_probe = probe_r * cos(theta);
+y_probe = probe_r * sin(theta);
+plot(x_probe, y_probe, '--', 'Color', probe_color, 'LineWidth', 1.2);
+text(0, 0, ' 探头中心', 'FontSize', 9);
+
+% 2. 子探头小圆（蓝实线）+ 径向灰虚线
+for i = 1:3
+    theta_i = theta_list(i);
+
+    % 子探头圆心
+    [x_small, y_small] = pol2cart(theta_i, probe_r - probe_small_r);
+    x_c = x_small + probe_small_r * cos(theta);
+    y_c = y_small + probe_small_r * sin(theta);
+    plot(x_c, y_c, '-', 'Color', probe_color, 'LineWidth', 1.8);
+    
+    % 标注子探头
+    plot(x_small, y_small, 'o', 'MarkerSize', 6, 'MarkerFaceColor', probe_color, 'MarkerEdgeColor', probe_color);
+    text(x_small, y_small, sprintf('  T%d', i), 'FontSize', 9, 'Color', probe_color);
+
+    % 径向虚线
+    [x0, y0] = pol2cart(theta_i, 0);
+    [x_end, y_end] = pol2cart(theta_i, probe_r + measure_list(i));
+    plot([x0, x_end], [y0, y_end], '--', 'Color', radial_color, 'LineWidth', 1);
+
+    % 3. 测量段（黑色实线）
+    r_start = probe_r;
+    r_end = probe_r + measure_list(i);
+    [x1, y1] = pol2cart(theta_i, r_start);
+    [x2, y2] = pol2cart(theta_i, r_end);
+
+    plot([x1, x2], [y1, y2], '-', 'Color', measure_color, 'LineWidth', 2);
+    plot(x2, y2, 'ko', 'MarkerFaceColor', 'k', 'MarkerSize', 5);
+    text(x2, y2, sprintf(' P%d', i), 'FontSize', 9);
+    
+end
+
+
+% 4. 待测圆（深红）
+x_target = xc + R_target * cos(theta);
+y_target = yc + R_target * sin(theta);
+plot(x_target, y_target, '-', 'Color', target_color, 'LineWidth', 2.5);
+plot(xc, yc, 'o', 'MarkerSize', 7, 'MarkerFaceColor', target_color, 'MarkerEdgeColor', target_color);
+text(xc, yc, '  待测圆心', 'FontSize', 9, 'Color', target_color);
+
+% legend({'探头主圆', '子探头', '径向方向', '测量段', '测量点', '待测圆'}, 'Location', 'best');
+
+
+function [xc, yc, D] = circle_from_polar(p1, p2, p3)
+    [x1, y1] = pol2cart(p1(2), p1(1));
+    [x2, y2] = pol2cart(p2(2), p2(1));
+    [x3, y3] = pol2cart(p3(2), p3(1));
+
+    D = 2 * (x1*(y2 - y3) + x2*(y3 - y1) + x3*(y1 - y2));
+
+    if D == 0
+        error('三点共线');
+    end
+
+    x1s = x1^2 + y1^2;
+    x2s = x2^2 + y2^2;
+    x3s = x3^2 + y3^2;
+
+    xc = (x1s*(y2 - y3) + x2s*(y3 - y1) + x3s*(y1 - y2)) / D;
+    yc = (x1s*(x3 - x2) + x2s*(x1 - x3) + x3s*(x2 - x1)) / D;
+
+    R = sqrt((x1 - xc)^2 + (y1 - yc)^2);
+    D = 2 * R;
+end

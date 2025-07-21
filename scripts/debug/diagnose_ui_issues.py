@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""
+UI问题诊断和修复脚本
+"""
+
+import sys
+from pathlib import Path
+
+# 添加项目路径
+sys.path.insert(0, str(Path(__file__).parent))
+
+def main():
+    print("🔍 UI问题诊断报告")
+    print("=" * 80)
+    
+    print("📋 问题分析:")
+    print()
+    
+    print("1️⃣ **孔位信息无法更新的问题**")
+    print("   🔍 根本原因: 您当前在实时监控界面，不是主检测界面")
+    print("   📍 孔位信息显示区域只在主检测界面有效")
+    print("   🎯 解决方案: 需要切换到'主检测视图'选项卡")
+    print()
+    
+    print("2️⃣ **面板A和面板B的逻辑**")
+    print("   📊 面板A: 光纤传感器数据 (BISDM)")
+    print("   📊 面板B: 内窥镜图像数据 (CCIDM)")
+    print("   🔄 启动条件: 需要先在主检测界面选择孔位")
+    print("   📂 数据要求: 只有H00001和H00002有完整数据")
+    print()
+    
+    print("3️⃣ **界面导航逻辑**")
+    print("   🏠 主检测视图 (选项卡1): DXF显示 + 孔位搜索 + 孔位信息")
+    print("   📈 实时监控 (选项卡2): 面板A + 面板B + 实时数据")
+    print("   📊 历史数据 (选项卡3): 历史记录查看")
+    print("   🏷️ 缺陷标注 (选项卡4): 标注工具")
+    print()
+    
+    print("🎯 **正确的操作流程**")
+    print("=" * 50)
+    print("步骤1: 切换到'主检测视图'选项卡")
+    print("步骤2: 按Ctrl+T加载DXF文件")
+    print("步骤3: 在搜索框输入'H00001'并点击搜索")
+    print("步骤4: 观察左下角孔位信息是否显示")
+    print("步骤5: 点击'实时监控'按钮跳转到实时监控界面")
+    print("步骤6: 在实时监控界面查看面板A和面板B")
+    print()
+    
+    print("🔧 **面板A和面板B启动条件**")
+    print("=" * 50)
+    print("面板A (光纤传感器):")
+    print("  📂 数据路径: data/H00001/CCIDM/ 或 data/H00002/CCIDM/")
+    print("  📊 数据格式: CSV文件包含测量数据")
+    print("  🎮 启动方式: 选择H00001或H00002后点击'实时监控'")
+    print()
+    print("面板B (内窥镜图像):")
+    print("  📂 图像路径: cache/result/ 或 cache/result2/")
+    print("  🖼️ 图像格式: JPG/PNG文件")
+    print("  🎮 启动方式: 与面板A同时启动")
+    print("  ⏱️ 同步逻辑: 根据CSV时间戳显示对应图像")
+    print()
+    
+    print("📊 **数据可用性**")
+    print("=" * 50)
+    print("✅ H00001: 有完整的CSV数据 + 内窥镜图像")
+    print("✅ H00002: 有完整的CSV数据 + 内窥镜图像")
+    print("❌ H00003及以上: 仅有孔位坐标，无测量数据")
+    print()
+    
+    print("🚨 **常见问题排查**")
+    print("=" * 50)
+    print("问题1: 孔位信息不显示")
+    print("  ✅ 确认在'主检测视图'选项卡")
+    print("  ✅ 确认已加载DXF文件")
+    print("  ✅ 确认搜索找到了孔位")
+    print("  ✅ 检查右下角日志是否有错误")
+    print()
+    print("问题2: 实时监控按钮不可点击")
+    print("  ✅ 确认选择的是H00001或H00002")
+    print("  ✅ 确认孔位信息已正确显示")
+    print("  ✅ 检查按钮状态和工具提示")
+    print()
+    print("问题3: 面板A/B无数据")
+    print("  ✅ 确认数据文件存在:")
+    print("     - data/H00001/CCIDM/*.csv")
+    print("     - cache/result/*.jpg")
+    print("  ✅ 确认文件格式正确")
+    print("  ✅ 检查文件权限")
+    print()
+    
+    print("💡 **技术细节**")
+    print("=" * 50)
+    print("界面架构:")
+    print("  🏗️ QTabWidget: 4个选项卡的容器")
+    print("  📋 主检测视图: 包含DXF显示和孔位操作")
+    print("  📈 实时监控: RealtimeChart组件")
+    print("  📊 历史数据: HistoryViewer组件")
+    print("  🏷️ 缺陷标注: AnnotationTool组件")
+    print()
+    print("数据流:")
+    print("  1. 主检测界面选择孔位 → 设置selected_hole")
+    print("  2. 点击实时监控按钮 → 发射navigate_to_realtime信号")
+    print("  3. 切换到实时监控选项卡 → 调用load_data_for_hole")
+    print("  4. 实时监控组件加载数据 → 显示面板A和面板B")
+    print()
+    
+    print("🎉 **总结**")
+    print("=" * 50)
+    print("您当前看到的是实时监控界面，这是正确的。")
+    print("但要更新孔位信息，需要:")
+    print("1. 回到'主检测视图'选项卡")
+    print("2. 在那里进行孔位搜索和选择")
+    print("3. 然后再跳转回实时监控查看数据")
+    print()
+    print("面板A和面板B的启动需要:")
+    print("1. 先在主检测界面选择H00001或H00002")
+    print("2. 点击实时监控按钮")
+    print("3. 系统会自动加载对应的数据到面板A和B")
+
+if __name__ == "__main__":
+    main()
