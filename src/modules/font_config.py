@@ -123,15 +123,10 @@ def configure_matplotlib_for_chinese():
     """配置matplotlib以支持中文显示"""
     # 设置后端 - 只在需要时设置
     try:
-        # 检查是否在主线程中
-        import threading
+        # 检查是否在GUI环境中
         import os
-        
-        # 如果不是主线程，强制使用Agg后端
-        if threading.current_thread() != threading.main_thread():
-            matplotlib.use('Agg')
-        elif 'DISPLAY' in os.environ or platform.system() == 'Darwin' or platform.system() == 'Windows':
-            # 在主线程中尝试设置Qt后端
+        if 'DISPLAY' in os.environ or platform.system() == 'Darwin' or platform.system() == 'Windows':
+            # 尝试设置Qt后端
             try:
                 import PySide6
                 matplotlib.use('Qt5Agg')

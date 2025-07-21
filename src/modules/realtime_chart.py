@@ -3,15 +3,15 @@
 面板A使用matplotlib实现稳定的误差线显示，其他功能保持不变
 """
 
-import os
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib
 import numpy as np
-import weakref
-import gc
+import os
+import sys
+import traceback
 
 # 设置matplotlib支持中文显示 - 安全版本
 def setup_safe_chinese_font():
@@ -56,32 +56,10 @@ class RealtimeChart(QWidget):
         super().__init__(parent)
         self.current_hole_id = None
         self.is_data_loaded = False  # 标记是否已加载数据
-        
-        # 内存管理相关
-        self._cleanup_called = False
-        self._widget_refs = weakref.WeakSet()
-        self._timers = []
-        self._signal_connections = []
-        
         self.setup_ui()
         self.setup_chart()
         self.init_data_buffers()
         self.setup_waiting_state()  # 设置等待状态
-        
-    def _connect_signal(self, signal, slot):
-        """安全地连接信号和槽，并跟踪连接"""
-        connection = signal.connect(slot)
-        self._signal_connections.append((signal, slot, connection))
-        return connection
-        
-    def _disconnect_all_signals(self):
-        """断开所有信号连接"""
-        for signal, slot, connection in self._signal_connections:
-            try:
-                signal.disconnect(slot)
-            except:
-                pass
-        self._signal_connections.clear()
         
     def setup_ui(self):
         """设置用户界面布局 - 双面板设计"""
@@ -99,17 +77,17 @@ class RealtimeChart(QWidget):
         # 当前孔位显示 - 改为文本显示，增大字体
         self.current_hole_label = QLabel("当前孔位：未选择")
         self.current_hole_label.setObjectName("InfoLabel")
-        self.current_hole_label.setMinimumWidth(140)
+        self.current_hole_label.setMinimumWidth(180)  # 从140增加到180
 
         # 通信状态显示 - 强化关键状态，准备添加图标
         self.comm_status_label = QLabel("通信状态: 等待连接")
         self.comm_status_label.setObjectName("CommStatusLabel")
-        self.comm_status_label.setMinimumWidth(150)
+        self.comm_status_label.setMinimumWidth(200)  # 从150增加到200
 
         # 标准直径显示 - 弱化静态信息
         self.standard_diameter_label = QLabel("标准直径：17.6mm")
         self.standard_diameter_label.setObjectName("StaticInfoLabel")
-        self.standard_diameter_label.setMinimumWidth(140)
+        self.standard_diameter_label.setMinimumWidth(180)  # 从140增加到180
 
         status_info_layout.addWidget(self.current_hole_label)
         status_info_layout.addWidget(self.comm_status_label)
@@ -130,6 +108,11 @@ class RealtimeChart(QWidget):
         self.depth_label.setObjectName("StatusLabel")
         self.max_diameter_label.setObjectName("StatusLabel")
         self.min_diameter_label.setObjectName("StatusLabel")
+
+        # 设置最小宽度，让文本窗口适当放长
+        self.depth_label.setMinimumWidth(180)
+        self.max_diameter_label.setMinimumWidth(180)
+        self.min_diameter_label.setMinimumWidth(180)
 
         realtime_info_layout.addWidget(self.depth_label)
         realtime_info_layout.addWidget(self.max_diameter_label)
@@ -268,7 +251,7 @@ class RealtimeChart(QWidget):
 
         # 添加【查看下一个样品】按钮 - 使用主题样式
         self.next_sample_button = QPushButton("查看下一个样品")
-        self._connect_signal(self.next_sample_button.clicked, self.view_next_sample)
+        self.next_sample_button.clicked.connect(self.view_next_sample)
         self.next_sample_button.setObjectName("next_sample_button")
         from PySide6.QtWidgets import QSizePolicy
         self.next_sample_button.setSizePolicy(
@@ -303,19 +286,48 @@ class RealtimeChart(QWidget):
         self.init_hole_data_mapping()
 
         # 连接按钮信号（按钮已在状态栏中创建）
-        self._connect_signal(self.start_button.clicked, self.start_csv_data_import)
-        self._connect_signal(self.stop_button.clicked, self.stop_csv_data_import)
-        self._connect_signal(self.clear_button.clicked, self.clear_data)
+        self.start_button.clicked.connect(self.start_measurement_process)
+        self.stop_button.clicked.connect(self.stop_measurement_process)
+        self.clear_button.clicked.connect(self.clear_data)
 
-        # 初始状态下禁用按钮，等待从主检测界面跳转
-        self.start_button.setEnabled(False)
+        # 初始状态下启用开始按钮，支持直接启动采集程序
+        self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
-        self.clear_button.setEnabled(False)
+        self.clear_button.setEnabled(True)
 
         # 设置按钮提示
-        self.start_button.setToolTip("请先从主检测界面选择孔位")
-        self.stop_button.setToolTip("请先从主检测界面选择孔位")
-        self.clear_button.setToolTip("请先从主检测界面选择孔位")
+        self.start_button.setToolTip("启动采集控制程序 (LEConfocalDemo.exe)")
+        self.stop_button.setToolTip("停止采集控制程序")
+        self.clear_button.setToolTip("清除当前数据")
+
+        # 采集程序相关属性
+        self.acquisition_process = None
+        # 使用项目内的采集程序路径
+        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.acquisition_program_path = os.path.join(current_dir, "hardware", "Release", "LEConfocalDemo.exe")
+        self.csv_output_folder = os.path.join(current_dir, "hardware", "Release")  # CSV输出文件夹
+        self.csv_archive_folder = r"C:\Users\Administrator\Desktop\data"  # CSV归档文件夹
+
+        # 实时CSV监控相关属性
+        self.csv_monitor = None
+        self.is_realtime_monitoring = False
+        self.last_csv_file = None
+        self.csv_file_monitor_timer = None
+        self.last_file_size = 0  # 用于检测文件增量更新
+        self.csv_completion_timer = None  # CSV完成检测定时器
+        self.csv_stable_time = 0  # CSV文件稳定时间计数
+        self.csv_stable_threshold = 5  # 文件稳定阈值（5秒无变化认为完成）
+
+        # 加载实时监控配置
+        try:
+            from config.realtime_config import realtime_config
+            self.realtime_config = realtime_config
+            # 使用项目内的CSV输出文件夹
+            self.csv_watch_folder = self.csv_output_folder
+        except ImportError:
+            # 如果配置文件不存在，使用项目内的默认配置
+            self.csv_watch_folder = self.csv_output_folder
+            self.realtime_config = None
 
     def create_panel_a_controls(self, parent_layout):
         """创建面板A专用控制按钮"""
@@ -359,26 +371,25 @@ class RealtimeChart(QWidget):
 
     def init_hole_data_mapping(self):
         """初始化孔位数据映射"""
-        from src.utils.path_config import get_path_config
-        
-        # 使用统一路径配置
-        path_config = get_path_config()
-        
-        # 获取所有孔位ID
-        hole_ids = path_config.get_all_hole_ids()
-        
-        # 动态构建路径映射
-        self.hole_to_csv_map = {}
-        self.hole_to_image_map = {}
-        
-        for hole_id in hole_ids:
-            # 获取CSV路径
-            csv_path = path_config.get_csv_path(hole_id)
-            self.hole_to_csv_map[hole_id] = str(csv_path)
-            
-            # 获取图像路径
-            image_path = path_config.get_image_path(hole_id)
-            self.hole_to_image_map[hole_id] = str(image_path)
+        import os
+
+        # 获取当前工作目录
+        base_dir = os.getcwd()
+
+        # 使用绝对路径确保路径解析正确，更新为CAP1000子目录
+        self.hole_to_csv_map = {
+            "R001C001": os.path.join(base_dir, "Data/CAP1000/R001C001/CCIDM"),
+            "R001C002": os.path.join(base_dir, "Data/CAP1000/R001C002/CCIDM"),
+            "R001C003": os.path.join(base_dir, "Data/CAP1000/R001C003/CCIDM"),
+            "R001C004": os.path.join(base_dir, "Data/CAP1000/R001C004/CCIDM")
+        }
+
+        self.hole_to_image_map = {
+            "R001C001": os.path.join(base_dir, "Data/CAP1000/R001C001/BISDM/result"),
+            "R001C002": os.path.join(base_dir, "Data/CAP1000/R001C002/BISDM/result"),
+            "R001C003": os.path.join(base_dir, "Data/CAP1000/R001C003/BISDM/result"),
+            "R001C004": os.path.join(base_dir, "Data/CAP1000/R001C004/BISDM/result")
+        }
 
         # 打印路径信息用于调试
         print("🔧 孔位数据映射初始化:")
@@ -387,6 +398,8 @@ class RealtimeChart(QWidget):
             print(f"  {hole_id}:")
             print(f"    📄 CSV: {csv_path}")
             print(f"    🖼️ 图像: {image_path}")
+            print(f"    📂 CSV目录存在: {os.path.exists(csv_path)}")
+            print(f"    📂 图像目录存在: {os.path.exists(image_path)}")
 
             # 检查CSV目录中的文件
             if os.path.exists(csv_path):
@@ -394,12 +407,6 @@ class RealtimeChart(QWidget):
                 print(f"    📄 找到CSV文件: {csv_files}")
             else:
                 print(f"    ❌ CSV目录不存在: {csv_path}")
-            
-            # 检查图像目录
-            if os.path.exists(image_path):
-                print(f"    🖼️ 图像目录存在")
-            else:
-                print(f"    ❌ 图像目录不存在: {image_path}")
 
     def set_current_hole_display(self, hole_id):
         """设置当前孔位显示"""
@@ -407,12 +414,9 @@ class RealtimeChart(QWidget):
             self.current_hole_label.setText(f"当前孔位：{hole_id}")
             self.current_hole_id = hole_id
             print(f"🔄 设置当前孔位显示: {hole_id}")
-            # AI员工1号修改开始 - 2025-01-14  
-            # 修改目的：将孔位ID从H格式转换为C{col}R{row}格式
             # 如果有对应的数据文件，自动加载
-            if hole_id in ["C001R001", "C002R001", "C003R001"]:
+            if hole_id in ["R001C001", "R001C002", "R001C003", "R001C004"]:
                 self.load_data_for_hole(hole_id)
-            # AI员工1号修改结束
         else:
             self.current_hole_label.setText("当前孔位：未选择")
             self.current_hole_id = None
@@ -825,7 +829,6 @@ class RealtimeChart(QWidget):
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.update_plot)
         self.update_timer.start(200)  # 每1秒更新一次，更加安全
-        self._timers.append(self.update_timer)
 
         # 初始化缩放参数
         self.zoom_factor = 1.0
@@ -892,53 +895,13 @@ class RealtimeChart(QWidget):
 
     def cleanup(self):
         """清理资源，停止定时器"""
-        if self._cleanup_called:
-            return
-        self._cleanup_called = True
-        
         try:
-            # 断开所有信号连接
-            self._disconnect_all_signals()
-            
-            # 停止所有定时器
-            for timer in self._timers:
-                if timer and timer.isActive():
-                    timer.stop()
-                    timer.deleteLater()
-            self._timers.clear()
-            
-            # 清理matplotlib资源
-            if hasattr(self, 'canvas') and self.canvas:
-                self.canvas.close()
-                
-            if hasattr(self, 'figure') and self.figure:
-                plt.close(self.figure)
-                self.figure = None
-                
-            # 清理数据缓冲区
-            if hasattr(self, 'depth_data'):
-                self.depth_data.clear()
-            if hasattr(self, 'diameter_data'):
-                self.diameter_data.clear()
-            if hasattr(self, 'anomaly_data'):
-                self.anomaly_data.clear()
-            if hasattr(self, 'csv_data'):
-                self.csv_data.clear()
-            if hasattr(self, 'current_images'):
-                self.current_images.clear()
-                
-            # 清理弱引用
-            self._widget_refs.clear()
-            
-            # 强制垃圾回收
-            gc.collect()
-            
-        except Exception as e:
-            print(f"清理资源时出错: {e}")
-            
-    def __del__(self):
-        """析构函数"""
-        self.cleanup()
+            if hasattr(self, 'update_timer') and self.update_timer:
+                self.update_timer.stop()
+            if hasattr(self, 'csv_timer') and self.csv_timer:
+                self.csv_timer.stop()
+        except Exception:
+            pass
 
     def closeEvent(self, event):
         """窗口关闭事件"""
@@ -1115,17 +1078,7 @@ class RealtimeChart(QWidget):
         # 多文件管理（向后兼容，但主要使用新的孔位映射）
         self.csv_file_list = []
         self.current_file_index = 0  # 当前文件索引
-        # 使用统一路径配置获取默认CSV路径
-        from src.utils.path_config import get_path_config
-        path_config = get_path_config()
-        hole_ids = path_config.get_all_hole_ids()
-        if hole_ids:
-            # 使用第一个可用的孔位作为默认
-            default_hole_id = hole_ids[0]
-            self.csv_base_path = str(path_config.get_csv_path(default_hole_id))
-        else:
-            # 如果没有找到孔位，使用空路径
-            self.csv_base_path = ""
+        self.csv_base_path = "Data/R001C001/CCIDM"  # 使用相对路径
         
     @Slot(float, float)
     def update_data(self, depth, diameter):
@@ -1228,10 +1181,13 @@ class RealtimeChart(QWidget):
         self.current_hole_id = None
         self.is_data_loaded = False
 
-        # 禁用按钮
-        self.start_button.setEnabled(False)
+        # 保持开始按钮启用状态，支持直接启动采集程序
+        self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
-        self.clear_button.setEnabled(False)
+        self.clear_button.setEnabled(True)
+
+        # 更新按钮提示
+        self.start_button.setToolTip("启动采集控制程序 (LEConfocalDemo.exe)")
 
         # 显示等待状态
         self.setup_waiting_state()
@@ -1346,16 +1302,13 @@ class RealtimeChart(QWidget):
             })
 
     def view_next_sample(self):
-        """查看下一个样品 - 基于孔位ID切换（H00001 → H00002 → H00001...）"""
+        """查看下一个样品 - 基于孔位ID切换（R001C001 → R001C002 → R001C003...）"""
         # 停止当前播放
         if self.is_csv_playing:
             self.stop_csv_data_import()
 
-        # AI员工1号修改开始 - 2025-01-14
-        # 修改目的：将孔位ID从H格式转换为C{col}R{row}格式
         # 定义孔位切换顺序
-        hole_sequence = ["C001R001", "C002R001"]  # 原H00001, H00002
-        # AI员工1号修改结束
+        hole_sequence = ["R001C001", "R001C002"]
 
         # 获取当前孔位ID
         current_hole = self.current_hole_id
@@ -1576,7 +1529,6 @@ class RealtimeChart(QWidget):
         self.csv_timer = QTimer()
         self.csv_timer.timeout.connect(self.update_csv_data_point)
         self.csv_timer.start(50)  # 每100ms更新一个数据点，提高稳定性
-        self._timers.append(self.csv_timer)
 
         # 更新按钮状态
         self.start_button.setText("测量中...")
@@ -1953,6 +1905,532 @@ class RealtimeChart(QWidget):
             print(f"❌ 显示内窥镜图片失败: {e}")
             import traceback
             print(f"🔍 详细错误信息: {traceback.format_exc()}")
+
+    def start_measurement_process(self):
+        """启动测量过程 - 支持外部采集程序和CSV数据播放"""
+        import subprocess
+        import os
+        from PySide6.QtWidgets import QMessageBox
+
+        # 检查外部采集程序是否存在
+        if os.path.exists(self.acquisition_program_path):
+            try:
+                print(f"🚀 启动外部采集控制程序: {self.acquisition_program_path}")
+
+                # 启动外部程序 - 确保显示命令行窗口
+                self.acquisition_process = subprocess.Popen(
+                    [self.acquisition_program_path],
+                    cwd=os.path.dirname(self.acquisition_program_path),
+                    creationflags=subprocess.CREATE_NEW_CONSOLE,  # 创建新的控制台窗口
+                    shell=False  # 不使用shell，直接执行程序
+                )
+
+                # 更新按钮状态
+                self.start_button.setText("采集程序运行中...")
+                self.start_button.setEnabled(False)
+                self.stop_button.setEnabled(True)
+
+                # 更新状态显示
+                self.update_comm_status("connected", "外部采集程序已启动")
+
+                print(f"✅ 外部采集程序启动成功，进程ID: {self.acquisition_process.pid}")
+
+                # 启动进程监控
+                self.start_process_monitor()
+
+                # 启动实时CSV监控
+                self.start_realtime_csv_monitoring()
+
+            except Exception as e:
+                error_msg = f"启动外部采集程序失败: {str(e)}"
+                print(f"❌ {error_msg}")
+                QMessageBox.warning(self, "启动失败", error_msg)
+
+                # 恢复按钮状态
+                self.start_button.setText("▶️ 开始监测")
+                self.start_button.setEnabled(True)
+                self.stop_button.setEnabled(False)
+        else:
+            # 外部程序不存在，回退到CSV数据播放模式
+            print(f"⚠️ 外部采集程序不存在: {self.acquisition_program_path}")
+            print("🔄 回退到CSV数据播放模式")
+
+            QMessageBox.information(
+                self,
+                "程序不存在",
+                f"外部采集程序不存在:\n{self.acquisition_program_path}\n\n将使用CSV数据播放模式"
+            )
+
+            # 调用原有的CSV数据导入功能
+            self.start_csv_data_import()
+
+    def stop_measurement_process(self):
+        """停止测量过程"""
+        if self.acquisition_process and self.acquisition_process.poll() is None:
+            try:
+                print(f"⏹️ 停止外部采集程序，进程ID: {self.acquisition_process.pid}")
+
+                # 终止外部程序
+                self.acquisition_process.terminate()
+
+                # 等待程序结束（最多等待5秒）
+                try:
+                    self.acquisition_process.wait(timeout=5)
+                    print("✅ 外部采集程序已正常结束")
+                except subprocess.TimeoutExpired:
+                    # 如果5秒内没有结束，强制杀死
+                    print("⚠️ 程序未在5秒内结束，强制终止")
+                    self.acquisition_process.kill()
+                    self.acquisition_process.wait()
+                    print("✅ 外部采集程序已强制终止")
+
+                self.acquisition_process = None
+
+            except Exception as e:
+                print(f"❌ 停止外部采集程序失败: {e}")
+        else:
+            # 如果没有外部程序在运行，停止CSV播放
+            self.stop_csv_data_import()
+
+        # 更新按钮状态
+        self.start_button.setText("▶️ 开始监测")
+        self.start_button.setEnabled(True)
+        self.stop_button.setEnabled(False)
+
+        # 更新状态显示
+        self.update_comm_status("disconnected", "采集程序已停止")
+
+        # 停止进程监控
+        self.stop_process_monitor()
+
+        # 停止实时CSV监控
+        self.stop_realtime_csv_monitoring()
+
+        # 停止CSV完成监控
+        self.stop_csv_completion_monitoring()
+
+    def start_process_monitor(self):
+        """启动进程监控定时器"""
+        if not hasattr(self, 'process_monitor_timer'):
+            from PySide6.QtCore import QTimer
+            self.process_monitor_timer = QTimer()
+            self.process_monitor_timer.timeout.connect(self.check_process_status)
+
+        self.process_monitor_timer.start(2000)  # 每2秒检查一次
+        print("🔍 进程监控已启动")
+
+    def stop_process_monitor(self):
+        """停止进程监控定时器"""
+        if hasattr(self, 'process_monitor_timer') and self.process_monitor_timer.isActive():
+            self.process_monitor_timer.stop()
+            print("⏹️ 进程监控已停止")
+
+    def check_process_status(self):
+        """检查外部程序进程状态"""
+        if self.acquisition_process:
+            poll_result = self.acquisition_process.poll()
+            if poll_result is not None:
+                # 程序已结束
+                print(f"📋 外部采集程序已结束，退出码: {poll_result}")
+
+                # 自动恢复按钮状态
+                self.start_button.setText("▶️ 开始监测")
+                self.start_button.setEnabled(True)
+                self.stop_button.setEnabled(False)
+
+                # 更新状态显示
+                if poll_result == 0:
+                    self.update_comm_status("disconnected", "采集程序正常结束")
+                else:
+                    self.update_comm_status("error", f"采集程序异常结束 (退出码: {poll_result})")
+
+                self.acquisition_process = None
+                self.stop_process_monitor()
+
+    def start_realtime_csv_monitoring(self):
+        """启动实时CSV文件监控"""
+        import os
+        try:
+            # 尝试导入watchdog库
+            from watchdog.observers import Observer
+            from watchdog.events import FileSystemEventHandler
+
+            class CSVFileHandler(FileSystemEventHandler):
+                def __init__(self, chart_instance):
+                    self.chart = chart_instance
+
+                def on_created(self, event):
+                    """文件创建事件"""
+                    if not event.is_directory and event.src_path.endswith('.csv'):
+                        print(f"🆕 检测到新CSV文件: {event.src_path}")
+                        self.chart.process_new_csv_file(event.src_path)
+
+                def on_modified(self, event):
+                    """文件修改事件"""
+                    if not event.is_directory and event.src_path.endswith('.csv'):
+                        print(f"📝 检测到CSV文件更新: {event.src_path}")
+                        self.chart.process_updated_csv_file(event.src_path)
+
+            # 创建监控器
+            self.csv_monitor = Observer()
+            event_handler = CSVFileHandler(self)
+
+            # 监控指定文件夹
+            if os.path.exists(self.csv_watch_folder):
+                self.csv_monitor.schedule(event_handler, self.csv_watch_folder, recursive=True)
+                self.csv_monitor.start()
+                self.is_realtime_monitoring = True
+                print(f"✅ 开始监控CSV文件夹: {self.csv_watch_folder}")
+                return True
+            else:
+                print(f"❌ 监控文件夹不存在: {self.csv_watch_folder}")
+                return False
+
+        except ImportError:
+            print("⚠️ watchdog库未安装，使用定时器轮询方案")
+            return self.start_polling_csv_monitoring()
+        except Exception as e:
+            print(f"❌ 启动文件监控失败: {e}")
+            return self.start_polling_csv_monitoring()
+
+    def start_polling_csv_monitoring(self):
+        """启动定时器轮询CSV文件监控（备选方案）"""
+        import os
+        if not os.path.exists(self.csv_watch_folder):
+            print(f"❌ 监控文件夹不存在: {self.csv_watch_folder}")
+            return False
+
+        # 创建定时器，每1秒检查一次
+        self.csv_file_monitor_timer = QTimer()
+        self.csv_file_monitor_timer.timeout.connect(self.check_for_new_csv_files)
+        self.csv_file_monitor_timer.start(1000)  # 1秒间隔
+
+        self.is_realtime_monitoring = True
+        print(f"✅ 开始轮询监控CSV文件夹: {self.csv_watch_folder}")
+        return True
+
+    def check_for_new_csv_files(self):
+        """检查新的CSV文件（轮询方式）"""
+        import os
+        try:
+            # 查找最新的CSV文件
+            csv_files = []
+            for root, dirs, files in os.walk(self.csv_watch_folder):
+                for file in files:
+                    if file.endswith('.csv'):
+                        file_path = os.path.join(root, file)
+                        csv_files.append((file_path, os.path.getmtime(file_path)))
+
+            if csv_files:
+                # 按修改时间排序，获取最新文件
+                csv_files.sort(key=lambda x: x[1], reverse=True)
+                latest_file = csv_files[0][0]
+
+                # 检查是否是新文件
+                if latest_file != self.last_csv_file:
+                    print(f"🆕 发现新CSV文件: {latest_file}")
+                    self.last_csv_file = latest_file
+                    self.process_new_csv_file(latest_file)
+
+        except Exception as e:
+            print(f"❌ 检查CSV文件失败: {e}")
+
+    def closeEvent(self, event):
+        """窗口关闭事件 - 确保清理外部程序"""
+        self.stop_measurement_process()
+        self.stop_realtime_csv_monitoring()
+        self.stop_csv_completion_monitoring()
+        try:
+            super().closeEvent(event)
+        except AttributeError:
+            # 如果父类没有closeEvent方法，直接接受事件
+            event.accept()
+
+    def process_new_csv_file(self, file_path):
+        """处理新的CSV文件"""
+        print(f"📄 开始处理新CSV文件: {file_path}")
+
+        # 等待文件写入完成（避免读取不完整的文件）
+        import time
+        time.sleep(0.5)
+
+        # 清除当前数据
+        self.clear_data()
+
+        # 开始监控文件完成状态
+        self.start_csv_completion_monitoring(file_path)
+
+        # 加载新CSV文件
+        if self.load_realtime_csv_data(file_path):
+            # 开始实时播放
+            self.start_realtime_csv_playback()
+        else:
+            print(f"❌ 加载CSV文件失败: {file_path}")
+
+    def process_updated_csv_file(self, file_path):
+        """处理更新的CSV文件（增量数据）"""
+        if file_path == self.last_csv_file:
+            print(f"📝 处理CSV文件更新: {file_path}")
+            # 读取新增的数据行
+            self.load_incremental_csv_data(file_path)
+
+    def load_realtime_csv_data(self, file_path):
+        """加载实时CSV数据"""
+        import csv
+
+        try:
+            self.csv_data = []
+            encodings = ['gbk', 'gb2312', 'utf-8', 'latin-1']
+
+            for encoding in encodings:
+                try:
+                    with open(file_path, 'r', encoding=encoding) as file:
+                        reader = csv.reader(file)
+
+                        # 跳过标题行（如果有）
+                        first_row = next(reader, None)
+                        if first_row and not self.is_numeric_row(first_row):
+                            print(f"📋 跳过标题行: {first_row}")
+                        else:
+                            # 第一行就是数据，重新处理
+                            if first_row and self.is_numeric_row(first_row):
+                                depth, diameter = self.extract_depth_diameter(first_row)
+                                if depth is not None and diameter is not None:
+                                    self.csv_data.append((depth, diameter))
+
+                        # 读取数据行
+                        for row in reader:
+                            if len(row) >= 2 and self.is_numeric_row(row):
+                                try:
+                                    depth, diameter = self.extract_depth_diameter(row)
+                                    if depth is not None and diameter is not None:
+                                        self.csv_data.append((depth, diameter))
+                                except ValueError:
+                                    continue
+
+                    print(f"✅ 成功加载实时CSV数据: {len(self.csv_data)} 个数据点")
+
+                    # 显示数据统计
+                    if self.csv_data:
+                        depths = [d[0] for d in self.csv_data]
+                        diameters = [d[1] for d in self.csv_data]
+                        print(f"📊 深度范围: {min(depths):.1f} - {max(depths):.1f}")
+                        print(f"📊 直径范围: {min(diameters):.3f} - {max(diameters):.3f} mm")
+                        print(f"📊 平均直径: {sum(diameters)/len(diameters):.3f} mm")
+
+                    return True
+
+                except UnicodeDecodeError:
+                    continue
+                except Exception as e:
+                    print(f"❌ 加载CSV失败 (编码: {encoding}): {e}")
+                    continue
+
+            return False
+
+        except Exception as e:
+            print(f"❌ 加载实时CSV数据失败: {e}")
+            return False
+
+    def extract_depth_diameter(self, row):
+        """从CSV行中提取深度和直径数据"""
+        try:
+            # 检查不同的CSV格式
+            if len(row) >= 5:
+                # R0_C0.csv格式: 测量序号,通道1值,通道2值,通道3值,管孔直径
+                sequence = float(row[0])  # 测量序号作为深度
+                diameter = float(row[4])  # 管孔直径(mm)
+
+                # 将序号转换为深度（假设每个测量点间隔2mm）
+                depth = sequence * 2.0
+
+                return depth, diameter
+
+            elif len(row) >= 2:
+                # 标准格式: 深度,直径
+                depth = float(row[0])
+                diameter = float(row[1])
+                return depth, diameter
+            else:
+                return None, None
+
+        except (ValueError, IndexError):
+            return None, None
+
+    def is_numeric_row(self, row):
+        """检查行是否为数值数据"""
+        if len(row) < 2:
+            return False
+        try:
+            float(row[0])
+            float(row[1])
+            return True
+        except ValueError:
+            return False
+
+    def start_realtime_csv_playback(self):
+        """开始实时CSV数据播放"""
+        if not self.csv_data:
+            print("❌ 没有CSV数据可播放")
+            return
+
+        # 重置播放位置
+        self.csv_data_index = 0
+
+        # 设置标准直径
+        self.set_standard_diameter_for_csv()
+
+        # 开始播放
+        self.is_csv_playing = True
+        if self.csv_timer:
+            self.csv_timer.stop()
+
+        self.csv_timer = QTimer()
+        self.csv_timer.timeout.connect(self.update_csv_data_point)
+        self.csv_timer.start(100)  # 100ms间隔，比较快的播放速度
+
+        # 更新按钮状态
+        self.start_button.setText("实时采集中...")
+        self.start_button.setEnabled(False)
+        self.stop_button.setEnabled(True)
+
+        print(f"🎬 开始实时播放CSV数据，共 {len(self.csv_data)} 个数据点")
+
+    def stop_realtime_csv_monitoring(self):
+        """停止实时CSV监控"""
+        if self.csv_monitor:
+            try:
+                self.csv_monitor.stop()
+                self.csv_monitor.join()
+                self.csv_monitor = None
+                print("⏹️ 文件监控已停止")
+            except Exception as e:
+                print(f"❌ 停止文件监控失败: {e}")
+
+        if self.csv_file_monitor_timer:
+            self.csv_file_monitor_timer.stop()
+            self.csv_file_monitor_timer = None
+            print("⏹️ 轮询监控已停止")
+
+        self.is_realtime_monitoring = False
+
+    def start_csv_completion_monitoring(self, csv_file_path):
+        """开始监控CSV文件完成状态"""
+        self.last_csv_file = csv_file_path
+        self.last_file_size = os.path.getsize(csv_file_path) if os.path.exists(csv_file_path) else 0
+        self.csv_stable_time = 0
+
+        # 创建完成检测定时器
+        if self.csv_completion_timer:
+            self.csv_completion_timer.stop()
+
+        self.csv_completion_timer = QTimer()
+        self.csv_completion_timer.timeout.connect(self.check_csv_completion)
+        self.csv_completion_timer.start(1000)  # 每秒检查一次
+
+        print(f"🔍 开始监控CSV文件完成状态: {csv_file_path}")
+
+    def check_csv_completion(self):
+        """检查CSV文件是否完成写入"""
+        if not self.last_csv_file or not os.path.exists(self.last_csv_file):
+            return
+
+        try:
+            current_size = os.path.getsize(self.last_csv_file)
+
+            if current_size == self.last_file_size:
+                # 文件大小没有变化
+                self.csv_stable_time += 1
+                print(f"📊 CSV文件稳定时间: {self.csv_stable_time}秒 (文件大小: {current_size} bytes)")
+
+                if self.csv_stable_time >= self.csv_stable_threshold:
+                    # 文件已稳定足够时间，认为采集完成
+                    print(f"✅ CSV文件采集完成: {self.last_csv_file}")
+                    self.on_csv_acquisition_completed()
+            else:
+                # 文件大小有变化，重置稳定时间
+                self.csv_stable_time = 0
+                self.last_file_size = current_size
+                print(f"📝 CSV文件仍在更新: {current_size} bytes")
+
+        except Exception as e:
+            print(f"❌ 检查CSV文件状态失败: {e}")
+
+    def on_csv_acquisition_completed(self):
+        """CSV采集完成后的处理"""
+        # 停止完成监控
+        if self.csv_completion_timer:
+            self.csv_completion_timer.stop()
+            self.csv_completion_timer = None
+
+        # 转移CSV文件
+        if self.last_csv_file:
+            self.transfer_csv_file(self.last_csv_file)
+
+        # 更新UI状态
+        self.update_comm_status("completed", "CSV采集完成，文件已转移")
+
+    def transfer_csv_file(self, source_file):
+        """转移CSV文件到归档文件夹"""
+        import shutil
+        import datetime
+
+        try:
+            # 确保归档文件夹存在
+            os.makedirs(self.csv_archive_folder, exist_ok=True)
+
+            # 生成目标文件名（添加时间戳避免重名）
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            original_name = os.path.basename(source_file)
+            name_without_ext = os.path.splitext(original_name)[0]
+            ext = os.path.splitext(original_name)[1]
+
+            target_filename = f"{name_without_ext}_{timestamp}{ext}"
+            target_path = os.path.join(self.csv_archive_folder, target_filename)
+
+            # 复制文件
+            shutil.copy2(source_file, target_path)
+            print(f"📁 CSV文件已复制到: {target_path}")
+
+            # 验证复制是否成功
+            if os.path.exists(target_path):
+                source_size = os.path.getsize(source_file)
+                target_size = os.path.getsize(target_path)
+
+                if source_size == target_size:
+                    # 复制成功，删除原文件
+                    os.remove(source_file)
+                    print(f"✅ CSV文件转移完成: {original_name} -> {target_filename}")
+                    print(f"📊 文件大小: {source_size} bytes")
+
+                    # 显示成功消息
+                    from PySide6.QtWidgets import QMessageBox
+                    QMessageBox.information(
+                        self,
+                        "文件转移完成",
+                        f"CSV文件已成功转移到:\n{target_path}\n\n文件大小: {source_size} bytes"
+                    )
+                else:
+                    print(f"❌ 文件大小不匹配，转移失败")
+                    os.remove(target_path)  # 删除不完整的文件
+            else:
+                print(f"❌ 目标文件不存在，转移失败")
+
+        except Exception as e:
+            print(f"❌ 转移CSV文件失败: {e}")
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self,
+                "文件转移失败",
+                f"无法转移CSV文件:\n{source_file}\n\n错误: {str(e)}"
+            )
+
+    def stop_csv_completion_monitoring(self):
+        """停止CSV完成监控"""
+        if self.csv_completion_timer:
+            self.csv_completion_timer.stop()
+            self.csv_completion_timer = None
+            print("⏹️ CSV完成监控已停止")
 
 
 if __name__ == "__main__":

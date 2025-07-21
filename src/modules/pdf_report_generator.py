@@ -87,6 +87,10 @@ class PDFReportGenerator:
         if config.include_defect_analysis and report_data.defect_data:
             self._add_defect_analysis(report_data.defect_data)
         
+        # 添加图表截图
+        if report_data.images_data:
+            self._add_ui_screenshots(report_data.images_data)
+        
         # 添加附录
         self._add_appendix(report_data)
         
@@ -507,6 +511,75 @@ class PDFReportGenerator:
         
         self.story.append(stats_table)
         self.story.append(Spacer(1, 0.3*inch))
+    
+    def _add_ui_screenshots(self, images_data):
+        """添加UI界面截图"""
+        self.story.append(PageBreak())
+        self.story.append(Paragraph("界面截图", self.styles['CustomHeading1']))
+        self.story.append(Spacer(1, 0.2*inch))
+        
+        # 添加二维公差带包络图
+        if '2d_tolerance_plot' in images_data:
+            self.story.append(Paragraph("3.1 二维公差带包络图", self.styles['CustomHeading2']))
+            self.story.append(Spacer(1, 0.1*inch))
+            
+            try:
+                img_path = images_data['2d_tolerance_plot']
+                if os.path.exists(img_path):
+                    # 调整图片大小以适应页面
+                    img = Image(img_path, width=6*inch, height=4*inch)
+                    self.story.append(img)
+                    self.story.append(Spacer(1, 0.1*inch))
+                    self.story.append(Paragraph("图：二维公差带包络图显示了测量点的直径变化趋势", 
+                                               self.styles['ChineseNormal']))
+                    self.story.append(Spacer(1, 0.2*inch))
+            except Exception as e:
+                print(f"❌ 添加二维公差带包络图失败: {e}")
+                self.story.append(Paragraph("二维公差带包络图：图片加载失败", 
+                                           self.styles['ChineseNormal']))
+                self.story.append(Spacer(1, 0.2*inch))
+        
+        # 添加三维模型渲染
+        if '3d_model' in images_data:
+            self.story.append(Paragraph("3.2 三维模型渲染", self.styles['CustomHeading2']))
+            self.story.append(Spacer(1, 0.1*inch))
+            
+            try:
+                img_path = images_data['3d_model']
+                if os.path.exists(img_path):
+                    # 调整图片大小以适应页面
+                    img = Image(img_path, width=6*inch, height=4*inch)
+                    self.story.append(img)
+                    self.story.append(Spacer(1, 0.1*inch))
+                    self.story.append(Paragraph("图：三维模型渲染显示了管孔的立体形状和测量数据", 
+                                               self.styles['ChineseNormal']))
+                    self.story.append(Spacer(1, 0.2*inch))
+            except Exception as e:
+                print(f"❌ 添加三维模型渲染失败: {e}")
+                self.story.append(Paragraph("三维模型渲染：图片加载失败", 
+                                           self.styles['ChineseNormal']))
+                self.story.append(Spacer(1, 0.2*inch))
+        
+        # 添加缺陷标注图
+        if 'defect_annotation' in images_data:
+            self.story.append(Paragraph("3.3 缺陷标注图", self.styles['CustomHeading2']))
+            self.story.append(Spacer(1, 0.1*inch))
+            
+            try:
+                img_path = images_data['defect_annotation']
+                if os.path.exists(img_path):
+                    # 调整图片大小以适应页面
+                    img = Image(img_path, width=6*inch, height=4*inch)
+                    self.story.append(img)
+                    self.story.append(Spacer(1, 0.1*inch))
+                    self.story.append(Paragraph("图：缺陷标注图显示了检测到的缺陷位置和类型", 
+                                               self.styles['ChineseNormal']))
+                    self.story.append(Spacer(1, 0.2*inch))
+            except Exception as e:
+                print(f"❌ 添加缺陷标注图失败: {e}")
+                self.story.append(Paragraph("缺陷标注图：图片加载失败", 
+                                           self.styles['ChineseNormal']))
+                self.story.append(Spacer(1, 0.2*inch))
     
     def _add_appendix(self, report_data):
         """添加附录"""

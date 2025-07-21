@@ -4,8 +4,6 @@
 """
 
 import os
-import gc
-import weakref
 from typing import List, Optional, Dict
 from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QGridLayout,
                                QLabel, QPushButton, QComboBox, QListWidget,
@@ -29,17 +27,21 @@ class DefectAnnotationTool(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         
-        # 内存管理相关
-        self._cleanup_called = False
-        self._signal_connections = []
-        self._widget_refs = weakref.WeakSet()
-        
         # 初始化数据
-        self.image_scanner = ImageScanner("Data")
+        # 检查孔位数据目录，优先使用CAP1000项目目录
+        data_path = "Data"
+        cap1000_path = "Data/CAP1000"
+        if os.path.exists(cap1000_path):
+            data_path = cap1000_path
+            print(f"🔍 使用CAP1000项目目录: {cap1000_path}")
+        else:
+            print(f"🔍 使用默认数据目录: {data_path}")
+
+        self.image_scanner = ImageScanner(data_path)
         self.yolo_manager = YOLOFileManager()
         self.category_manager = DefectCategoryManager()
         # 创建ArchiveManager时传入ImageScanner实例，确保使用相同的扫描结果
-        self.archive_manager = ArchiveManager("Data", "Archive", self.image_scanner)
+        self.archive_manager = ArchiveManager(data_path, "Archive", self.image_scanner)
         self.current_hole_id: Optional[str] = None
         self.current_image: Optional[ImageInfo] = None
         self.archived_holes: List[str] = []
@@ -49,13 +51,6 @@ class DefectAnnotationTool(QWidget):
         
         # 扫描图像
         self.scan_images()
-        
-        # 注册到内存监控
-        try:
-            from .memory_monitor import register_widget_for_monitoring
-            register_widget_for_monitoring(self)
-        except ImportError:
-            pass
         
     def init_ui(self):
         """初始化用户界面"""
@@ -97,7 +92,7 @@ class DefectAnnotationTool(QWidget):
 
         # 只保留适应视图按钮，删除放大和缩小按钮
         self.fit_view_btn = QPushButton("适应视图")
-        self._connect_signal(self.fit_view_btn.clicked, self.fit_in_view)
+        self.fit_view_btn.clicked.connect(self.fit_in_view)
 
         toolbar_layout.addWidget(self.fit_view_btn)
         toolbar_layout.addStretch()
@@ -107,13 +102,12 @@ class DefectAnnotationTool(QWidget):
         # 创建图形视图
         self.graphics_view = AnnotationGraphicsView()
         self.graphics_view.set_category_manager(self.category_manager)  # 设置类别管理器
-        self._widget_refs.add(self.graphics_view)
         layout.addWidget(self.graphics_view)
 
         # 连接信号
-        self._connect_signal(self.graphics_view.annotation_created, self.on_annotation_created)
-        self._connect_signal(self.graphics_view.annotation_selected, self.on_annotation_selected)
-        self._connect_signal(self.graphics_view.annotation_deleted, self.on_annotation_deleted)
+        self.graphics_view.annotation_created.connect(self.on_annotation_created)
+        self.graphics_view.annotation_selected.connect(self.on_annotation_selected)
+        self.graphics_view.annotation_deleted.connect(self.on_annotation_deleted)
         
     def create_tool_area(self):
         """创建右侧工具信息区"""
@@ -150,20 +144,14 @@ class DefectAnnotationTool(QWidget):
         hole_layout.addWidget(QLabel("孔ID:"))
         
         self.hole_combo = QComboBox()
-        self._connect_signal(self.hole_combo.currentTextChanged, self.on_hole_changed)
+        self.hole_combo.currentTextChanged.connect(self.on_hole_changed)
         hole_layout.addWidget(self.hole_combo)
         
         layout.addLayout(hole_layout)
 
         # 孔位信息显示
         self.hole_info_label = QLabel("选择孔位查看信息")
-        # 使用主题管理器的颜色
-        try:
-            from .theme_manager import theme_manager
-            colors = theme_manager.COLORS
-            self.hole_info_label.setStyleSheet(f"color: {colors['text_disabled']}; font-size: 11px;")
-        except ImportError:
-            self.hole_info_label.setStyleSheet("color: #666; font-size: 11px;")
+        self.hole_info_label.setStyleSheet("color: #666; font-size: 11px;")
         layout.addWidget(self.hole_info_label)
 
         # 图像文件列表
@@ -171,18 +159,12 @@ class DefectAnnotationTool(QWidget):
 
         # 添加提示信息
         tip_label = QLabel("💡 建议：每个孔位只标注最大的图像文件")
-        # 使用主题管理器的颜色
-        try:
-            from .theme_manager import theme_manager
-            colors = theme_manager.COLORS
-            tip_label.setStyleSheet(f"color: {colors['text_disabled']}; font-size: 11px; font-style: italic;")
-        except ImportError:
-            tip_label.setStyleSheet("color: #666; font-size: 11px; font-style: italic;")
+        tip_label.setStyleSheet("color: #666; font-size: 11px; font-style: italic;")
         layout.addWidget(tip_label)
 
         self.image_list = QListWidget()
         self.image_list.setMaximumHeight(150)
-        self._connect_signal(self.image_list.itemClicked, self.on_image_selected)
+        self.image_list.itemClicked.connect(self.on_image_selected)
         layout.addWidget(self.image_list)
         
     def create_annotation_tools_group(self):
@@ -209,7 +191,7 @@ class DefectAnnotationTool(QWidget):
         self.mode_button_group.addButton(self.annotate_btn, 1)
         self.mode_button_group.addButton(self.edit_btn, 2)
         
-        self._connect_signal(self.mode_button_group.buttonClicked, self.on_mode_changed)
+        self.mode_button_group.buttonClicked.connect(self.on_mode_changed)
         
         mode_layout.addWidget(self.pan_btn)
         mode_layout.addWidget(self.annotate_btn)
@@ -223,7 +205,7 @@ class DefectAnnotationTool(QWidget):
         
         self.defect_combo = QComboBox()
         self.populate_defect_categories()
-        self._connect_signal(self.defect_combo.currentIndexChanged, self.on_defect_class_changed)
+        self.defect_combo.currentIndexChanged.connect(self.on_defect_class_changed)
         defect_layout.addWidget(self.defect_combo)
         
         layout.addLayout(defect_layout)
@@ -231,11 +213,11 @@ class DefectAnnotationTool(QWidget):
         # 保存按钮
         save_layout = QHBoxLayout()
         self.save_btn = QPushButton("保存标注")
-        self._connect_signal(self.save_btn.clicked, self.save_annotations)
+        self.save_btn.clicked.connect(self.save_annotations)
         save_layout.addWidget(self.save_btn)
         
         self.load_btn = QPushButton("加载归档")
-        self._connect_signal(self.load_btn.clicked, self.load_from_archive)
+        self.load_btn.clicked.connect(self.load_from_archive)
         save_layout.addWidget(self.load_btn)
         
         layout.addLayout(save_layout)
@@ -263,11 +245,11 @@ class DefectAnnotationTool(QWidget):
         # 删除按钮
         delete_layout = QHBoxLayout()
         self.delete_btn = QPushButton("删除选中")
-        self._connect_signal(self.delete_btn.clicked, self.delete_selected_annotation)
+        self.delete_btn.clicked.connect(self.delete_selected_annotation)
         delete_layout.addWidget(self.delete_btn)
         
         self.clear_btn = QPushButton("清除所有")
-        self._connect_signal(self.clear_btn.clicked, self.clear_all_annotations)
+        self.clear_btn.clicked.connect(self.clear_all_annotations)
         delete_layout.addWidget(self.clear_btn)
         
         layout.addLayout(delete_layout)
@@ -276,79 +258,9 @@ class DefectAnnotationTool(QWidget):
         layout.addWidget(QLabel("已归档标注:"))
 
         self.archive_combo = QComboBox()
-        self._connect_signal(self.archive_combo.currentTextChanged, self.on_archive_selected)
+        self.archive_combo.currentTextChanged.connect(self.on_archive_selected)
         layout.addWidget(self.archive_combo)
         
-    def _connect_signal(self, signal, slot):
-        """安全地连接信号和槽，并跟踪连接"""
-        try:
-            connection = signal.connect(slot)
-            self._signal_connections.append((signal, slot, connection))
-            return connection
-        except Exception as e:
-            print(f"连接信号失败: {e}")
-            return None
-        
-    def _disconnect_all_signals(self):
-        """断开所有信号连接"""
-        for signal, slot, connection in self._signal_connections:
-            try:
-                signal.disconnect(slot)
-            except:
-                pass
-        self._signal_connections.clear()
-        
-    def cleanup(self):
-        """清理资源"""
-        if self._cleanup_called:
-            return
-        self._cleanup_called = True
-        
-        try:
-            # 断开所有信号连接
-            self._disconnect_all_signals()
-            
-            # 清理子组件
-            if hasattr(self, 'graphics_view') and self.graphics_view:
-                if hasattr(self.graphics_view, 'cleanup'):
-                    self.graphics_view.cleanup()
-                self.graphics_view = None
-                
-            # 清理管理器
-            if hasattr(self, 'image_scanner'):
-                self.image_scanner = None
-            if hasattr(self, 'yolo_manager'):
-                self.yolo_manager = None
-            if hasattr(self, 'category_manager'):
-                self.category_manager = None
-            if hasattr(self, 'archive_manager'):
-                self.archive_manager = None
-                
-            # 清理弱引用
-            self._widget_refs.clear()
-            
-            # 从内存监控中移除
-            try:
-                from .memory_monitor import unregister_widget_from_monitoring
-                unregister_widget_from_monitoring(self)
-            except ImportError:
-                pass
-                
-            # 强制垃圾回收
-            gc.collect()
-            
-        except Exception as e:
-            print(f"清理DefectAnnotationTool资源时出错: {e}")
-            
-    def __del__(self):
-        """析构函数"""
-        self.cleanup()
-        
-    def closeEvent(self, event):
-        """窗口关闭事件"""
-        self.cleanup()
-        super().closeEvent(event)
-
     def populate_defect_categories(self):
         """填充缺陷类别下拉菜单"""
         ui_items = self.category_manager.create_ui_combo_items()
@@ -655,11 +567,7 @@ class DefectAnnotationTool(QWidget):
                 self.hole_combo.setCurrentText(hole_id)
 
                 # 使用QTimer延迟执行图像选择，确保孔位切换完成
-                try:
-                    timer = QTimer()
-                    timer.singleShot(100, lambda: self.auto_select_annotated_image(hole_id))
-                except Exception as e:
-                    print(f"设置定时器失败: {e}")
+                QTimer.singleShot(100, lambda: self.auto_select_annotated_image(hole_id))
 
                 QMessageBox.information(self, "成功", f"已从归档恢复孔位 {hole_id} 的数据")
             else:
@@ -774,46 +682,28 @@ class DefectAnnotationTool(QWidget):
         """适应视图"""
         self.graphics_view.fit_in_view()
 
-    def load_data_for_hole(self, hole_id: str):
-        """为指定孔位加载数据"""
-        try:
-            if hole_id in [self.hole_combo.itemText(i) for i in range(self.hole_combo.count())]:
-                self.hole_combo.setCurrentText(hole_id)
-                print(f"缺陷标注工具已加载孔位 {hole_id} 的数据")
-            else:
-                print(f"孔位 {hole_id} 不存在于缺陷标注工具中")
-        except Exception as e:
-            print(f"加载孔位 {hole_id} 数据失败: {e}")
-
     def get_statistics(self) -> Dict:
         """获取统计信息"""
-        if self._cleanup_called or not hasattr(self, 'image_scanner') or not self.image_scanner:
-            return {}
-            
-        try:
-            stats = self.image_scanner.get_statistics()
+        stats = self.image_scanner.get_statistics()
 
-            # 添加标注统计
-            total_annotations = 0
-            annotated_images = 0
+        # 添加标注统计
+        total_annotations = 0
+        annotated_images = 0
 
-            for hole_id in self.image_scanner.get_hole_ids():
-                images = self.image_scanner.get_images_for_hole(hole_id)
-                for image_info in images:
-                    if self.yolo_manager.has_annotations(image_info.file_path):
-                        annotated_images += 1
-                        annotations = self.yolo_manager.load_annotations(
-                            self.yolo_manager.get_annotation_file_path(image_info.file_path)
-                        )
-                        total_annotations += len(annotations)
+        for hole_id in self.image_scanner.get_hole_ids():
+            images = self.image_scanner.get_images_for_hole(hole_id)
+            for image_info in images:
+                if self.yolo_manager.has_annotations(image_info.file_path):
+                    annotated_images += 1
+                    annotations = self.yolo_manager.load_annotations(
+                        self.yolo_manager.get_annotation_file_path(image_info.file_path)
+                    )
+                    total_annotations += len(annotations)
 
-            stats.update({
-                'total_annotations': total_annotations,
-                'annotated_images': annotated_images,
-                'annotation_rate': round(annotated_images / max(stats['total_images'], 1) * 100, 1)
-            })
+        stats.update({
+            'total_annotations': total_annotations,
+            'annotated_images': annotated_images,
+            'annotation_rate': round(annotated_images / max(stats['total_images'], 1) * 100, 1)
+        })
 
-            return stats
-        except Exception as e:
-            print(f"获取统计信息失败: {e}")
-            return {}
+        return stats

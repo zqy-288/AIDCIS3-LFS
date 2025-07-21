@@ -11,11 +11,8 @@ from pathlib import Path
 from typing import List, Dict, Optional, Set, Tuple
 from dataclasses import dataclass, asdict
 
-# AI员工3号修改开始
 from .yolo_file_manager import YOLOFileManager
 from .image_scanner import ImageScanner
-import re  # 用于孔位ID格式验证和转换
-# AI员工3号修改结束
 
 
 @dataclass
@@ -42,51 +39,6 @@ class ArchiveRecord:
 
 class ArchiveManager:
     """归档管理器"""
-    
-    # AI员工3号修改开始 - 孔位ID格式转换支持
-    @staticmethod
-    def validate_new_hole_id_format(hole_id: str) -> bool:
-        """验证孔位ID是否符合新格式 C{col:03d}R{row:03d}"""
-        pattern = r'^C\d{3}R\d{3}$'
-        return bool(re.match(pattern, hole_id))
-    
-    @staticmethod
-    def convert_hole_id_format(hole_id: str) -> str:
-        """将旧格式孔位ID转换为新格式"""
-        # 如果已经是新格式，直接返回
-        if ArchiveManager.validate_new_hole_id_format(hole_id):
-            return hole_id
-        
-        # 处理H格式: H00001 -> 需要额外信息才能转换，暂时保留
-        if re.match(r'^H\d+$', hole_id):
-            return hole_id  # 无法直接转换，需要行列信息
-        
-        # 处理(row,col)格式: (1,2) -> C002R001
-        coord_match = re.match(r'^\((\d+),(\d+)\)$', hole_id)
-        if coord_match:
-            row, col = map(int, coord_match.groups())
-            return f"C{col:03d}R{row:03d}"
-        
-        # 处理R###C###格式: R001C002 -> C002R001
-        rc_match = re.match(r'^R(\d+)C(\d+)$', hole_id)
-        if rc_match:
-            row, col = map(int, rc_match.groups())
-            return f"C{col:03d}R{row:03d}"
-        
-        return hole_id  # 其他格式保持不变
-    
-    def get_archive_directory_path(self, hole_id: str) -> Path:
-        """获取归档目录路径，支持新格式"""
-        # 转换为新格式（如果可能）
-        new_hole_id = self.convert_hole_id_format(hole_id)
-        return self.archive_path / new_hole_id
-    
-    def get_data_directory_path(self, hole_id: str) -> Path:
-        """获取数据目录路径，支持新格式"""
-        # 转换为新格式（如果可能）
-        new_hole_id = self.convert_hole_id_format(hole_id)
-        return self.base_path / new_hole_id / "BISDM" / "result"
-    # AI员工3号修改结束
     
     def __init__(self, base_path: str = "Data", archive_path: str = "Archive", image_scanner=None):
         """
@@ -247,15 +199,9 @@ class ArchiveManager:
                 print(f"孔位 {hole_id} 没有标注数据")
                 return False
                 
-            # AI员工3号修改开始 - 使用新格式路径
-            # 创建归档目录（使用新格式路径）
-            archive_hole_path = self.get_archive_directory_path(hole_id)
+            # 创建归档目录
+            archive_hole_path = self.archive_path / hole_id
             archive_hole_path.mkdir(exist_ok=True)
-            
-            # 记录实际使用的hole_id（转换后的）
-            actual_hole_id = self.convert_hole_id_format(hole_id)
-            print(f"📁 创建归档目录: {archive_hole_path} (转换: {hole_id} -> {actual_hole_id})")
-            # AI员工3号修改结束
             
             # 复制图像和标注文件
             images = self.image_scanner.get_images_for_hole(hole_id)
@@ -274,10 +220,9 @@ class ArchiveManager:
                     shutil.copy2(annotation_file, annotation_dest)
                     copied_files.append(str(annotation_dest))
                     
-            # AI员工3号修改开始 - 使用转换后的hole_id保存记录
             # 创建归档记录
             archive_record = ArchiveRecord(
-                hole_id=actual_hole_id,  # 使用转换后的ID
+                hole_id=hole_id,
                 archived_at=datetime.now().isoformat(),
                 total_images=summary['total_images'],
                 annotated_images=summary['annotated_images'],
@@ -287,9 +232,8 @@ class ArchiveManager:
                 notes=notes
             )
             
-            # 保存归档记录（使用转换后的ID作为键）
-            self.archive_records[actual_hole_id] = archive_record
-            # AI员工3号修改结束
+            # 保存归档记录
+            self.archive_records[hole_id] = archive_record
             
             # 创建归档元数据文件
             metadata = {
@@ -306,7 +250,7 @@ class ArchiveManager:
             # 保存归档索引
             self.save_archive_index()
             
-            print(f"孔位 {actual_hole_id} 归档成功: {summary['annotated_images']}/{summary['total_images']} 张图像，{summary['total_annotations']} 个标注")
+            print(f"孔位 {hole_id} 归档成功: {summary['annotated_images']}/{summary['total_images']} 张图像，{summary['total_annotations']} 个标注")
             return True
             
         except Exception as e:
@@ -346,33 +290,22 @@ class ArchiveManager:
             bool: 加载是否成功
         """
         try:
-            # AI员工3号修改开始 - 支持旧格式ID查找
-            # 转换为新格式查找
-            new_hole_id = self.convert_hole_id_format(hole_id)
-            
-            # 尝试用新格式查找
-            if new_hole_id in self.archive_records:
-                archive_record = self.archive_records[new_hole_id]
-            # 如果新格式找不到，尝试原格式
-            elif hole_id in self.archive_records:
-                archive_record = self.archive_records[hole_id]
-            else:
-                print(f"归档中不存在孔位 {hole_id} (也尝试了 {new_hole_id})")
+            if hole_id not in self.archive_records:
+                print(f"归档中不存在孔位 {hole_id}")
                 return False
-            # AI员工3号修改结束
+                
+            archive_record = self.archive_records[hole_id]
             archive_hole_path = Path(archive_record.archive_path)
             
             if not archive_hole_path.exists():
                 print(f"归档路径不存在: {archive_hole_path}")
                 return False
                 
-            # AI员工3号修改开始 - 使用新格式目标路径
             # 确定目标路径
             if target_path is None:
-                target_path = self.get_data_directory_path(hole_id)
+                target_path = self.base_path / hole_id / "BISDM" / "result"
             else:
                 target_path = Path(target_path)
-            # AI员工3号修改结束
                 
             # 创建目标目录
             target_path.mkdir(parents=True, exist_ok=True)
@@ -403,37 +336,24 @@ class ArchiveManager:
             bool: 删除是否成功
         """
         try:
-            # AI员工3号修改开始 - 支持旧格式ID查找
-            # 转换为新格式查找
-            new_hole_id = self.convert_hole_id_format(hole_id)
-            
-            # 尝试用新格式查找
-            if new_hole_id in self.archive_records:
-                archive_record = self.archive_records[new_hole_id]
-                actual_key = new_hole_id
-            # 如果新格式找不到，尝试原格式
-            elif hole_id in self.archive_records:
-                archive_record = self.archive_records[hole_id]
-                actual_key = hole_id
-            else:
-                print(f"归档中不存在孔位 {hole_id} (也尝试了 {new_hole_id})")
+            if hole_id not in self.archive_records:
+                print(f"归档中不存在孔位 {hole_id}")
                 return False
-            # AI员工3号修改结束
+                
+            archive_record = self.archive_records[hole_id]
             archive_hole_path = Path(archive_record.archive_path)
             
             # 删除归档文件夹
             if archive_hole_path.exists():
                 shutil.rmtree(archive_hole_path)
                 
-            # AI员工3号修改开始 - 使用实际键删除记录
             # 删除记录
-            del self.archive_records[actual_key]
+            del self.archive_records[hole_id]
             
             # 保存索引
             self.save_archive_index()
             
-            print(f"删除归档 {actual_key} 成功")
-            # AI员工3号修改结束
+            print(f"删除归档 {hole_id} 成功")
             return True
             
         except Exception as e:

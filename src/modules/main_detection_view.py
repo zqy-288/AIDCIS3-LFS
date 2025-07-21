@@ -184,27 +184,7 @@ class MainDetectionView(QWidget):
         for text, color in statuses:
             color_label = QLabel()
             color_label.setFixedSize(16, 16)
-            
-            # 将颜色转换为CSS颜色字符串
-            if hasattr(color, 'name'):
-                # QColor对象，转换为十六进制颜色
-                css_color = color.name()
-            elif isinstance(color, str):
-                # 已经是字符串颜色
-                css_color = color if color.startswith('#') else f"#{color}"
-            else:
-                # 其他类型，尝试转换
-                css_color = str(color)
-            
-            # 直接设置背景色样式
-            color_label.setStyleSheet(f"""
-                QLabel {{
-                    background-color: {css_color};
-                    border: 1px solid #999;
-                    border-radius: 2px;
-                }}
-            """)
-            color_label.setObjectName("StatusColorLabel")
+            color_label.setStyleSheet(f"background-color: {color}; border: 1px solid black;")
             legend_layout.addWidget(color_label)
             legend_layout.addWidget(QLabel(text))
             legend_layout.addSpacing(10)
@@ -342,10 +322,9 @@ class ControlPanel(QGroupBox):
         self.stop_button = QPushButton("停止检测")
         self.reset_button = QPushButton("重置")
         
-        # 移除内联样式，使用主题管理器
-        self.start_button.setProperty("class", "PrimaryAction")
-        self.pause_button.setProperty("class", "WarningButton")
-        self.stop_button.setProperty("class", "ErrorButton")
+        self.start_button.setStyleSheet("background-color: green; color: white;")
+        self.pause_button.setStyleSheet("background-color: orange; color: white;")
+        self.stop_button.setStyleSheet("background-color: red; color: white;")
         
         self.pause_button.setEnabled(False)
         self.stop_button.setEnabled(False)

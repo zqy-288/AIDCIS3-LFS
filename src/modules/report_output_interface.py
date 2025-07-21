@@ -7,8 +7,6 @@ import os
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional
-import weakref
-import gc
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -27,6 +25,7 @@ from .report_models import (
 from .report_generator import ReportGenerator
 from .report_history_manager import ReportHistoryManager
 from .report_templates import ReportTemplateManager
+from .data_monitor import get_data_monitor
 
 try:
     from .pdf_report_generator import PDFReportGenerator
@@ -48,7 +47,6 @@ class ReportGenerationWorker(QThread):
         self.workpiece_id = workpiece_id
         self.config = config
         self.generator = ReportGenerator()
-        self._cleanup_called = False
     
     def run(self):
         """执行报告生成"""
@@ -79,23 +77,6 @@ class ReportGenerationWorker(QThread):
             
         except Exception as e:
             self.error_occurred.emit(f"报告生成失败: {str(e)}")
-    
-    def cleanup(self):
-        """清理工作线程资源"""
-        if self._cleanup_called:
-            return
-        self._cleanup_called = True
-        
-        try:
-            if hasattr(self, 'generator') and self.generator:
-                self.generator = None
-            gc.collect()
-        except Exception as e:
-            print(f"清理ReportGenerationWorker资源时出错: {e}")
-    
-    def __del__(self):
-        """析构函数"""
-        self.cleanup()
     
     def _generate_simple_report(self, report_data: ReportData, output_path: str):
         """生成简单的文本报告"""
@@ -178,75 +159,18 @@ class ReportOutputInterface(QWidget):
         self.report_generator = ReportGenerator()
         self.history_manager = ReportHistoryManager()
         self.template_manager = ReportTemplateManager()
+
+        # 数据监控器
+        self.data_monitor = get_data_monitor()
+        self.setup_data_monitor_connections()
         self.generation_worker = None
-        
-        # 内存管理相关
-        self._cleanup_called = False
-        self._widget_refs = weakref.WeakSet()
-        self._signal_connections = []
         
         self.setup_ui()
         self.setup_connections()
         self.load_workpiece_list()
-    
-    def _connect_signal(self, signal, slot):
-        """安全地连接信号和槽，并跟踪连接"""
-        connection = signal.connect(slot)
-        self._signal_connections.append((signal, slot, connection))
-        return connection
-        
-    def _disconnect_all_signals(self):
-        """断开所有信号连接"""
-        for signal, slot, connection in self._signal_connections:
-            try:
-                signal.disconnect(slot)
-            except:
-                pass
-        self._signal_connections.clear()
-        
-    def cleanup(self):
-        """清理资源"""
-        if self._cleanup_called:
-            return
-        self._cleanup_called = True
-        
-        try:
-            # 断开所有信号连接
-            self._disconnect_all_signals()
-            
-            # 清理工作线程
-            if self.generation_worker and self.generation_worker.isRunning():
-                self.generation_worker.terminate()
-                self.generation_worker.wait(3000)  # 等待3秒
-                if hasattr(self.generation_worker, 'cleanup'):
-                    self.generation_worker.cleanup()
-                self.generation_worker = None
-            
-            # 清理管理器
-            if hasattr(self, 'report_generator'):
-                self.report_generator = None
-            if hasattr(self, 'history_manager'):
-                self.history_manager = None
-            if hasattr(self, 'template_manager'):
-                self.template_manager = None
-                
-            # 清理弱引用
-            self._widget_refs.clear()
-            
-            # 强制垃圾回收
-            gc.collect()
-            
-        except Exception as e:
-            print(f"清理ReportOutputInterface资源时出错: {e}")
-            
-    def __del__(self):
-        """析构函数"""
-        self.cleanup()
-        
-    def closeEvent(self, event):
-        """窗口关闭事件"""
-        self.cleanup()
-        super().closeEvent(event)
+
+        # 启动数据监控
+        self.start_data_monitoring()
     
     def setup_ui(self):
         """设置用户界面"""
@@ -286,7 +210,7 @@ class ReportOutputInterface(QWidget):
         workpiece_layout = QVBoxLayout(workpiece_group)
 
         self.workpiece_combo = QComboBox()
-        self._connect_signal(self.workpiece_combo.currentTextChanged, self.on_workpiece_changed)
+        self.workpiece_combo.currentTextChanged.connect(self.on_workpiece_changed)
         self.workpiece_combo.setToolTip("选择要生成报告的工件\n系统会自动扫描Data目录下的可用工件")
         workpiece_layout.addWidget(QLabel("选择工件:"))
         workpiece_layout.addWidget(self.workpiece_combo)
@@ -308,7 +232,7 @@ class ReportOutputInterface(QWidget):
         for template_id, display_name in display_names.items():
             self.template_combo.addItem(display_name)
 
-        self._connect_signal(self.template_combo.currentTextChanged, self.on_template_text_changed)
+        self.template_combo.currentTextChanged.connect(self.on_template_text_changed)
         self.template_combo.setToolTip("选择预定义的报告模板或使用自定义配置")
         template_layout.addWidget(self.template_combo)
 
@@ -345,7 +269,7 @@ class ReportOutputInterface(QWidget):
 
         self.format_combo = QComboBox()
         self.format_combo.addItems(["PDF", "HTML", "Excel", "Word"])
-        self._connect_signal(self.format_combo.currentTextChanged, self.on_format_changed)
+        self.format_combo.currentTextChanged.connect(self.on_format_changed)
         self.format_combo.setToolTip(
             "选择输出格式:\n"
             "• PDF: 专业的报告格式，适合打印和存档\n"
@@ -364,7 +288,7 @@ class ReportOutputInterface(QWidget):
         # 安装PDF依赖按钮
         self.install_pdf_btn = QPushButton("安装PDF支持")
         self.install_pdf_btn.setVisible(False)
-        self._connect_signal(self.install_pdf_btn.clicked, self.show_pdf_install_guide)
+        self.install_pdf_btn.clicked.connect(self.show_pdf_install_guide)
         format_layout.addWidget(self.install_pdf_btn)
 
         config_layout.addWidget(format_group)
@@ -405,12 +329,12 @@ class ReportOutputInterface(QWidget):
 
         self.preview_btn = QPushButton("预览报告")
         self.preview_btn.setProperty("class", "PrimaryAction")  
-        self._connect_signal(self.preview_btn.clicked, self.preview_report)
+        self.preview_btn.clicked.connect(self.preview_report)
         self.preview_btn.setToolTip("预览报告内容结构，无需生成实际文件")
 
         self.generate_btn = QPushButton("生成报告")
         self.generate_btn.setProperty("class", "PrimaryAction")  
-        self._connect_signal(self.generate_btn.clicked, self.generate_report)
+        self.generate_btn.clicked.connect(self.generate_report)
         self.generate_btn.setToolTip("根据当前配置生成完整的报告文件")
 
         # 将按钮添加到网格的不同列中
@@ -496,16 +420,8 @@ class ReportOutputInterface(QWidget):
         self.db_total_holes_label.setObjectName("DashboardNumber")
         self.db_qualified_holes_label.setObjectName("DashboardNumber")
         self.db_unqualified_holes_label.setObjectName("DashboardNumber")
-        # 使用主题管理器的颜色而不是硬编码颜色
-        try:
-            from .theme_manager import theme_manager
-            colors = theme_manager.COLORS
-            self.db_qualified_holes_label.setStyleSheet(f"color: {colors['success']};")  # 合格用绿色
-            self.db_unqualified_holes_label.setStyleSheet(f"color: {colors['error']};")  # 不合格用红色
-        except ImportError:
-            # 备用颜色
-            self.db_qualified_holes_label.setStyleSheet("color: #2ECC71;")  # 合格用绿色
-            self.db_unqualified_holes_label.setStyleSheet("color: #E74C3C;")  # 不合格用红色
+        self.db_qualified_holes_label.setStyleSheet("color: #2ECC71;")  # 合格用绿色
+        self.db_unqualified_holes_label.setStyleSheet("color: #E74C3C;")  # 不合格用红色
 
         dashboard_layout.addWidget(QLabel("总检测孔数"), 2, 0)
         dashboard_layout.addWidget(self.db_total_holes_label, 3, 0)
@@ -556,15 +472,15 @@ class ReportOutputInterface(QWidget):
         toolbar_layout = QHBoxLayout()
 
         self.refresh_history_btn = QPushButton("刷新")
-        self._connect_signal(self.refresh_history_btn.clicked, self.refresh_history)
+        self.refresh_history_btn.clicked.connect(self.refresh_history)
         toolbar_layout.addWidget(self.refresh_history_btn)
 
         self.cleanup_history_btn = QPushButton("清理失效记录")
-        self._connect_signal(self.cleanup_history_btn.clicked, self.cleanup_history)
+        self.cleanup_history_btn.clicked.connect(self.cleanup_history)
         toolbar_layout.addWidget(self.cleanup_history_btn)
 
         self.export_history_btn = QPushButton("导出历史记录")
-        self._connect_signal(self.export_history_btn.clicked, self.export_history)
+        self.export_history_btn.clicked.connect(self.export_history)
         toolbar_layout.addWidget(self.export_history_btn)
 
         toolbar_layout.addStretch()
@@ -586,7 +502,7 @@ class ReportOutputInterface(QWidget):
 
         # --- 新增代码：启用自定义上下文菜单 ---
         self.report_history_table.setContextMenuPolicy(Qt.CustomContextMenu)
-        self._connect_signal(self.report_history_table.customContextMenuRequested, self.show_history_context_menu)
+        self.report_history_table.customContextMenuRequested.connect(self.show_history_context_menu)
         # ------------------------------------
 
         header = self.report_history_table.horizontalHeader()
@@ -626,15 +542,13 @@ class ReportOutputInterface(QWidget):
     def load_workpiece_list(self):
         """加载工件列表"""
         # 添加标准工件ID，该工件包含20000个孔
-        # AI员工4号修改开始
-        # 目前数据目录中有C001R001~C003R001三个孔的数据
-        # AI员工4号修改结束
-        self.workpiece_combo.addItem("WP-2025-001")
+        # 目前数据目录中有H00001~H00003三个孔的数据
+        self.workpiece_combo.addItem("CAP1000")
 
         # 设置默认选择
         if self.workpiece_combo.count() > 0:
             self.workpiece_combo.setCurrentIndex(0)
-            self.on_workpiece_changed("WP-2025-001")
+            self.on_workpiece_changed("CAP1000")
     
     def on_workpiece_changed(self, workpiece_id: str):
         """工件选择改变"""
@@ -770,9 +684,9 @@ class ReportOutputInterface(QWidget):
         # 启动报告生成工作线程
         self.generation_worker = ReportGenerationWorker(self.current_workpiece_id, config)
         # 将子线程的信号直接转发出去
-        self._connect_signal(self.generation_worker.status_updated, self.status_updated.emit)
-        self._connect_signal(self.generation_worker.report_completed, self.on_report_completed)
-        self._connect_signal(self.generation_worker.error_occurred, self.on_generation_error)
+        self.generation_worker.status_updated.connect(self.status_updated.emit)
+        self.generation_worker.report_completed.connect(self.on_report_completed)
+        self.generation_worker.error_occurred.connect(self.on_generation_error)
 
         # 发射状态信号
         self.status_updated.emit("正在生成报告...")
@@ -866,6 +780,63 @@ class ReportOutputInterface(QWidget):
         # 从孔位ID推断工件ID
         # 这里需要根据实际的数据结构来实现
         pass
+
+    def setup_data_monitor_connections(self):
+        """设置数据监控器连接"""
+        self.data_monitor.new_hole_detected.connect(self.on_new_hole_detected)
+        self.data_monitor.hole_data_updated.connect(self.on_hole_data_updated)
+        self.data_monitor.monitoring_status_changed.connect(self.on_monitoring_status_changed)
+
+    def start_data_monitoring(self):
+        """启动数据监控"""
+        self.data_monitor.start_monitoring()
+
+    def stop_data_monitoring(self):
+        """停止数据监控"""
+        self.data_monitor.stop_monitoring()
+
+    def on_new_hole_detected(self, hole_id: str, quality_data: dict):
+        """处理新孔位检测事件"""
+        # 更新数据汇总显示
+        self.update_data_summary()
+
+        # 发送状态更新信号
+        status = "合格" if quality_data['is_qualified'] else "不合格"
+        self.status_updated.emit(f"检测到新孔位 {hole_id}: {status} (合格率: {quality_data['qualification_rate']:.1f}%)")
+
+    def on_hole_data_updated(self, hole_id: str, quality_data: dict):
+        """处理孔位数据更新事件"""
+        # 更新数据汇总显示
+        self.update_data_summary()
+
+        # 发送状态更新信号
+        status = "合格" if quality_data['is_qualified'] else "不合格"
+        self.status_updated.emit(f"孔位 {hole_id} 数据已更新: {status} (合格率: {quality_data['qualification_rate']:.1f}%)")
+
+    def on_monitoring_status_changed(self, is_monitoring: bool):
+        """处理监控状态变化事件"""
+        status = "已启动" if is_monitoring else "已停止"
+        self.status_updated.emit(f"数据监控 {status}")
+
+    def update_data_summary(self):
+        """更新数据汇总显示"""
+        try:
+            summary = self.data_monitor.get_current_summary()
+
+            # 更新仪表盘显示
+            if hasattr(self, 'db_total_holes_label'):
+                self.db_total_holes_label.setText(str(summary['total_holes']))
+            if hasattr(self, 'db_qualified_holes_label'):
+                self.db_qualified_holes_label.setText(str(summary['qualified_holes']))
+            if hasattr(self, 'db_unqualified_holes_label'):
+                self.db_unqualified_holes_label.setText(str(summary['unqualified_holes']))
+            if hasattr(self, 'db_qualification_rate_bar'):
+                self.db_qualification_rate_bar.setValue(int(summary['qualification_rate']))
+            if hasattr(self, 'db_qualification_rate_label'):
+                self.db_qualification_rate_label.setText(f"{summary['qualification_rate']:.1f}%")
+
+        except Exception as e:
+            print(f"❌ 更新数据汇总失败: {e}")
 
     def load_data_for_workpiece(self, workpiece_id: str):
         """为指定工件加载数据"""
@@ -1174,17 +1145,15 @@ PDF报告生成需要安装reportlab库。
             self.workpiece_combo.clear()
 
             # 添加统一的工件ID，与第二级和第三级界面保持一致
-            # 根据项目需求，这里使用统一的工件ID：WP-2025-001
-            # AI员工4号修改开始
-            # 该工件包含20000个孔，目前有C001R001~C003R001的数据，后续会增加
-            # AI员工4号修改结束
-            self.workpiece_combo.addItem("WP-2025-001")
+            # 根据项目需求，这里使用统一的工件ID：CAP1000
+            # 该工件包含20000个孔，目前有H00001~H00003的数据，后续会增加
+            self.workpiece_combo.addItem("CAP1000")
 
             # 设置工具提示说明
             self.workpiece_combo.setToolTip(
-                "工件 WP-2025-001:\n"
+                "工件 CAP1000:\n"
                 "• 总孔位数: 20000个\n"
-                "• 当前有数据的孔位: C001R001, C002R001, C003R001\n"
+                "• 当前有数据的孔位: H00001, H00002, H00003\n"
                 "• 后续会增加更多孔位数据\n"
                 "• 报告将包含所有已检测孔位的数据"
             )
@@ -1229,7 +1198,7 @@ class ReportPreviewDialog(QDialog):
         button_layout = QHBoxLayout()
 
         self.close_btn = QPushButton("关闭")
-        self.close_btn.clicked.connect(self.close)  # 在对话框中保持简单连接
+        self.close_btn.clicked.connect(self.close)
         button_layout.addStretch()
         button_layout.addWidget(self.close_btn)
 
