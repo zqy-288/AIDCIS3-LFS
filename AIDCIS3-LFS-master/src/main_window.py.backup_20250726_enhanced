@@ -1,0 +1,375 @@
+"""
+修复后的主窗口模块
+直接使用已有的组件，不使用Mock
+"""
+
+import sys
+import logging
+from pathlib import Path
+from typing import Optional
+
+# 添加项目根目录到路径
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QTabWidget, QMenuBar, QStatusBar, QMessageBox,
+    QPushButton, QLabel, QProgressBar, QGroupBox, QApplication
+)
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QAction
+
+# 直接导入已有的控制器和服务
+from src.controllers.main_window_controller import MainWindowController
+from src.ui.factories import get_ui_factory
+from src.services import get_graphics_service
+
+
+class MainWindow(QMainWindow):
+    """
+    主窗口类 - 使用已有组件
+    """
+    
+    # UI相关信号
+    tab_changed = Signal(int)
+    window_closed = Signal()
+    
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(__name__)
+        
+        # 使用真实的组件
+        self.controller = MainWindowController()
+        self.ui_factory = get_ui_factory()
+        self.graphics_service = get_graphics_service()
+        
+        # UI组件引用
+        self.central_widget = None
+        self.tab_widget = None
+        self.status_bar = None
+        
+        # 选项卡页面
+        self.aidcis2_tab = None
+        self.realtime_tab = None
+        self.history_tab = None
+        self.report_tab = None
+        
+        # AIDCIS2选项卡组件
+        self.graphics_view = None
+        self.panorama_widget = None
+        self.sector_views = {}
+        
+        # 初始化
+        self.setup_ui()
+        self.setup_connections()
+        self.controller.initialize()
+        
+    def setup_ui(self):
+        """设置UI布局"""
+        self.setWindowTitle("AIDCIS3-LFS 主窗口")
+        self.setGeometry(100, 100, 1400, 900)
+        
+        # 创建中央部件
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        
+        # 主布局
+        main_layout = QVBoxLayout(self.central_widget)
+        
+        # 创建选项卡
+        self.tab_widget = QTabWidget()
+        main_layout.addWidget(self.tab_widget)
+        
+        # 创建各个选项卡页面
+        self._create_aidcis2_tab()
+        self._create_realtime_tab()
+        self._create_history_tab()
+        self._create_report_tab()
+        
+        # 设置菜单栏
+        self._setup_menu_bar()
+        
+        # 设置状态栏
+        self._setup_status_bar()
+        
+    def _create_aidcis2_tab(self):
+        """创建AIDCIS2检测选项卡"""
+        self.aidcis2_tab = QWidget()
+        layout = QVBoxLayout(self.aidcis2_tab)
+        
+        # 工具栏
+        toolbar_layout = QHBoxLayout()
+        
+        # 文件操作按钮
+        self.load_dxf_btn = QPushButton("加载DXF")
+        self.select_product_btn = QPushButton("选择产品")
+        toolbar_layout.addWidget(self.load_dxf_btn)
+        toolbar_layout.addWidget(self.select_product_btn)
+        
+        toolbar_layout.addStretch()
+        
+        # 检测控制按钮
+        self.start_detection_btn = QPushButton("开始检测")
+        self.pause_detection_btn = QPushButton("暂停")
+        self.stop_detection_btn = QPushButton("停止")
+        
+        toolbar_layout.addWidget(self.start_detection_btn)
+        toolbar_layout.addWidget(self.pause_detection_btn)
+        toolbar_layout.addWidget(self.stop_detection_btn)
+        
+        layout.addLayout(toolbar_layout)
+        
+        # 主内容区域
+        content_layout = QHBoxLayout()
+        
+        # 左侧：图形视图
+        left_panel = QVBoxLayout()
+        
+        # 使用图形服务创建视图
+        self.graphics_view = self.graphics_service.create_graphics_view()
+        self.graphics_view.setMinimumSize(600, 400)
+        
+        # 确保图形视图有场景
+        if hasattr(self.graphics_view, 'scene'):
+            try:
+                # 尝试调用 scene() 方法
+                current_scene = self.graphics_view.scene()
+                if current_scene is None:
+                    from PySide6.QtWidgets import QGraphicsScene
+                    scene = QGraphicsScene()
+                    self.graphics_view.setScene(scene)
+            except TypeError:
+                # 如果 scene 是属性而不是方法
+                if self.graphics_view.scene is None:
+                    from PySide6.QtWidgets import QGraphicsScene
+                    scene = QGraphicsScene()
+                    self.graphics_view.setScene(scene)
+            
+        left_panel.addWidget(self.graphics_view)
+        
+        # 进度条
+        self.detection_progress = QProgressBar()
+        left_panel.addWidget(self.detection_progress)
+        
+        content_layout.addLayout(left_panel, 2)
+        
+        # 右侧：全景图和扇形视图
+        right_panel = QVBoxLayout()
+        
+        # 全景图
+        panorama_group = QGroupBox("全景图")
+        panorama_layout = QVBoxLayout(panorama_group)
+        
+        self.panorama_widget = self.graphics_service.create_panorama_widget()
+        self.panorama_widget.setFixedSize(350, 350)
+        panorama_layout.addWidget(self.panorama_widget)
+        
+        right_panel.addWidget(panorama_group)
+        
+        # 扇形视图
+        sectors_group = QGroupBox("扇形视图")
+        sectors_layout = QHBoxLayout(sectors_group)
+        
+        # 创建4个扇形视图
+        quadrants = self.graphics_service.get_sector_quadrants()
+        for sector_name, quadrant in quadrants.items():
+            sector_view = self.graphics_service.create_sector_view(None, quadrant)
+            sector_view.setFixedSize(150, 150)
+            self.sector_views[sector_name] = sector_view
+            sectors_layout.addWidget(sector_view)
+            
+        right_panel.addWidget(sectors_group)
+        
+        content_layout.addLayout(right_panel, 1)
+        
+        layout.addLayout(content_layout)
+        
+        # 添加到选项卡
+        self.tab_widget.addTab(self.aidcis2_tab, "主检测视图")
+        
+    def _create_realtime_tab(self):
+        """创建实时监控选项卡"""
+        self.realtime_tab = self.ui_factory.create_realtime_chart()
+        self.tab_widget.addTab(self.realtime_tab, "实时监控")
+        
+    def _create_history_tab(self):
+        """创建历史数据选项卡"""
+        self.history_tab = self.ui_factory.create_history_viewer()
+        self.tab_widget.addTab(self.history_tab, "历史数据")
+        
+    def _create_report_tab(self):
+        """创建报告输出选项卡"""
+        self.report_tab = self.ui_factory.create_report_interface()
+        self.tab_widget.addTab(self.report_tab, "报告输出")
+        
+    def _setup_menu_bar(self):
+        """设置菜单栏"""
+        menubar = self.menuBar()
+        
+        # 文件菜单
+        file_menu = menubar.addMenu("文件")
+        
+        open_action = QAction("打开DXF", self)
+        open_action.triggered.connect(self._on_load_dxf)
+        file_menu.addAction(open_action)
+        
+        file_menu.addSeparator()
+        
+        exit_action = QAction("退出", self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+        
+    def _setup_status_bar(self):
+        """设置状态栏"""
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
+        
+        # 状态标签
+        self.status_label = QLabel("就绪")
+        self.status_bar.addWidget(self.status_label)
+        
+        # 统计信息
+        self.stats_label = QLabel("孔位: 0 | 合格: 0 | 缺陷: 0")
+        self.status_bar.addPermanentWidget(self.stats_label)
+        
+    def setup_connections(self):
+        """设置信号连接"""
+        # 按钮事件
+        self.load_dxf_btn.clicked.connect(self._on_load_dxf)
+        self.select_product_btn.clicked.connect(self._on_select_product)
+        self.start_detection_btn.clicked.connect(self._on_start_detection)
+        self.pause_detection_btn.clicked.connect(self._on_pause_detection)
+        self.stop_detection_btn.clicked.connect(self._on_stop_detection)
+        
+        # 控制器信号
+        self.controller.file_loaded.connect(self._on_file_loaded)
+        self.controller.status_updated.connect(self._on_status_updated)
+        self.controller.detection_progress.connect(self._on_detection_progress)
+        self.controller.error_occurred.connect(self._on_error)
+        
+        # 选项卡切换
+        self.tab_widget.currentChanged.connect(self.tab_changed)
+        
+    def _on_load_dxf(self):
+        """处理加载DXF事件"""
+        self.controller.load_dxf_file()
+        
+    def _on_select_product(self):
+        """处理选择产品事件"""
+        dialog = self.ui_factory.create_product_selection_dialog(self)
+        if dialog.exec():
+            product_name = dialog.selected_product
+            self.controller.select_product(product_name)
+            
+    def _on_start_detection(self):
+        """处理开始检测事件"""
+        self.controller.start_detection()
+        self.start_detection_btn.setEnabled(False)
+        self.pause_detection_btn.setEnabled(True)
+        self.stop_detection_btn.setEnabled(True)
+        
+    def _on_pause_detection(self):
+        """处理暂停检测事件"""
+        if self.pause_detection_btn.text() == "暂停":
+            self.controller.pause_detection()
+            self.pause_detection_btn.setText("继续")
+        else:
+            self.controller.resume_detection()
+            self.pause_detection_btn.setText("暂停")
+            
+    def _on_stop_detection(self):
+        """处理停止检测事件"""
+        self.controller.stop_detection()
+        self.start_detection_btn.setEnabled(True)
+        self.pause_detection_btn.setEnabled(False)
+        self.stop_detection_btn.setEnabled(False)
+        self.detection_progress.setValue(0)
+        
+    def _on_file_loaded(self, file_path: str):
+        """处理文件加载完成事件"""
+        self.status_label.setText(f"已加载: {Path(file_path).name}")
+        self._update_statistics()
+        
+        # 更新视图
+        hole_collection = self.controller.business_service.get_hole_collection()
+        if hole_collection:
+            print(f"[DEBUG] 准备加载 {len(hole_collection.holes)} 个孔位到视图")
+            
+            # 更新主图形视图
+            if self.graphics_view:
+                print(f"[DEBUG] graphics_view 类型: {type(self.graphics_view)}")
+                if hasattr(self.graphics_view, 'load_holes'):
+                    print("[DEBUG] 调用 load_holes 方法")
+                    self.graphics_view.load_holes(hole_collection)
+                    # 自适应视图
+                    if hasattr(self.graphics_view, 'fit_in_view'):
+                        print("[DEBUG] 调用 fit_in_view 方法")
+                        self.graphics_view.fit_in_view()
+                else:
+                    print("[ERROR] graphics_view 没有 load_holes 方法")
+            else:
+                print("[ERROR] graphics_view 为 None")
+            
+            # 更新全景图
+            if self.panorama_widget and hasattr(self.panorama_widget, 'load_hole_collection'):
+                self.panorama_widget.load_hole_collection(hole_collection)
+            
+            # 更新扇形视图
+            unified_adapter = self.graphics_service.get_unified_adapter()
+            if unified_adapter and hasattr(unified_adapter, 'set_hole_collection'):
+                unified_adapter.set_hole_collection(hole_collection)
+        else:
+            print("[ERROR] hole_collection 为 None")
+            
+    def _on_status_updated(self, hole_id: str, status: str):
+        """处理状态更新事件"""
+        self._update_statistics()
+        
+    def _on_detection_progress(self, current: int, total: int):
+        """处理检测进度更新"""
+        self.detection_progress.setMaximum(total)
+        self.detection_progress.setValue(current)
+        
+    def _on_error(self, error_msg: str):
+        """处理错误事件"""
+        QMessageBox.critical(self, "错误", error_msg)
+        
+    def _update_statistics(self):
+        """更新统计信息"""
+        stats = self.controller.get_statistics()
+        self.stats_label.setText(
+            f"孔位: {stats['total_holes']} | "
+            f"合格: {stats['qualified']} | "
+            f"缺陷: {stats['defective']} | "
+            f"盲孔: {stats['blind']}"
+        )
+        
+    def closeEvent(self, event):
+        """窗口关闭事件"""
+        self.window_closed.emit()
+        self.controller.cleanup()
+        event.accept()
+
+
+# 兼容性别名
+MainWindowRefactored = MainWindow
+
+
+# 创建应用程序入口
+def main():
+    """应用程序入口"""
+    app = QApplication(sys.argv)
+    
+    # 设置应用程序样式
+    app.setStyle("Fusion")
+    
+    # 创建主窗口
+    window = MainWindow()
+    window.show()
+    
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()

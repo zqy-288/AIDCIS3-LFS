@@ -1,0 +1,27 @@
+# 主项目依赖 (更新于2025-07-07)
+# 基于AIDCIS2整合的保守升级策略
+
+# GUI框架 - 升级到AIDCIS2版本
+PySide6==6.9.1
+
+# 图形和可视化
+pyqtgraph>=0.13.0
+matplotlib>=3.7.0
+
+# 数值计算 - 保持1.x版本确保兼容性
+numpy>=1.24.0,<2.0.0
+scipy>=1.10.0
+
+# 数据库
+SQLAlchemy>=2.0.0
+
+# 图像处理
+Pillow>=9.0.0
+opencv-python>=4.7.0
+
+# AIDCIS2新增依赖
+ezdxf==1.4.2
+
+# 系统监控和UI增强
+psutil>=5.9.0
+qtawesome>=1.4.0
