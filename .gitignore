@@ -192,7 +192,8 @@ data_batches/
 **/data_batches/
 */data_batches/
 Data/**/data_batches/
-src/data/
+# Note: Keep src/data/ tracked for important data files, only ignore temporary batches
+src/data/data_batches/
 
 # Test files
 test_*.py
@@ -349,9 +350,9 @@ __pycache__/
 src/*.md
 src/*界面*.md
 
-# Prevent duplicate database files
-/detection_system.db
-src/detection_system.db
+# Note: Database files are now tracked via Git LFS - removed from ignore list
+# /detection_system.db - REMOVED to allow tracking
+# src/detection_system.db - REMOVED to allow tracking
 
 # Prevent duplicate directories
 src/Archive/
