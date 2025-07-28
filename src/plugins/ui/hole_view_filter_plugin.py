@@ -12,7 +12,7 @@ from enum import Enum
 import time
 
 # 基础架构导入
-from src.core.interfaces.plugin_interfaces import IUIPlugin, PluginMetadata, PluginVersion
+from src.core.plugin_system.interfaces import IUIPlugin, PluginMetadata, PluginVersion
 from src.core.dependency_injection import injectable, ServiceLifetime, get_container
 from src.modules.ui_component_base import UIComponentBase, ui_component
 

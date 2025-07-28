@@ -87,10 +87,37 @@ class ProductModelManager:
         # 初始化默认数据
         self._init_default_data()
     
+    def reset_and_init_data(self):
+        """重置并重新初始化数据（用于修复产品数据）"""
+        try:
+            # 删除所有现有数据
+            self.session.query(ProductModel).delete()
+            self.session.commit()
+            
+            # 重新初始化默认数据
+            self._init_default_data()
+            
+            print("✅ 产品数据已重置并重新初始化")
+            return True
+        except Exception as e:
+            print(f"❌ 重置产品数据失败: {e}")
+            self.session.rollback()
+            return False
+    
     def _init_default_data(self):
         """初始化默认产品型号数据"""
         if self.session.query(ProductModel).count() == 0:
             default_products = [
+                {
+                    'model_name': 'CAP1000',
+                    'model_code': 'CAP-1000',
+                    'standard_diameter': 17.60,
+                    'tolerance_upper': 0.070,
+                    'tolerance_lower': -0.001,
+                    'description': '从DXF文件东重管板.dxf导入，检测到0个孔',
+                    'dxf_file_path': 'assets/dxf/DXF Graph/东重管板.dxf',
+                    'sector_count': 4
+                },
                 {
                     'model_name': 'TP-001',
                     'model_code': 'TP001',
@@ -106,14 +133,6 @@ class ProductModelManager:
                     'tolerance_upper': 0.08,
                     'tolerance_lower': -0.08,
                     'description': '标准孔径12mm产品型号'
-                },
-                {
-                    'model_name': 'TP-003',
-                    'model_code': 'TP003',
-                    'standard_diameter': 15.0,
-                    'tolerance_upper': 0.10,
-                    'tolerance_lower': -0.10,
-                    'description': '标准孔径15mm产品型号'
                 }
             ]
             
@@ -127,7 +146,7 @@ class ProductModelManager:
         """获取所有产品型号"""
         query = self.session.query(ProductModel)
         if active_only:
-            query = query.filter(ProductModel.is_active == True)
+            query = query.filter(ProductModel.is_active.is_(True))
         return query.order_by(ProductModel.model_name).all()
     
     def get_product_by_id(self, product_id):
@@ -211,7 +230,7 @@ class ProductModelManager:
             (ProductModel.model_name.contains(keyword)) |
             (ProductModel.model_code.contains(keyword)) |
             (ProductModel.description.contains(keyword))
-        ).filter(ProductModel.is_active == True)
+        ).filter(ProductModel.is_active.is_(True))
         return query.order_by(ProductModel.model_name).all()
     
     def get_products_by_diameter_range(self, min_diameter, max_diameter):
@@ -219,7 +238,7 @@ class ProductModelManager:
         query = self.session.query(ProductModel).filter(
             ProductModel.standard_diameter >= min_diameter,
             ProductModel.standard_diameter <= max_diameter,
-            ProductModel.is_active == True
+            ProductModel.is_active.is_(True)
         )
         return query.order_by(ProductModel.standard_diameter).all()
     

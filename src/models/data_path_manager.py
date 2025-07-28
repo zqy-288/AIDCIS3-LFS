@@ -68,6 +68,31 @@ class DataPathManager:
         """获取产品DXF文件路径"""
         return str(self.data_root / "Products" / product_id / "dxf" / filename)
     
+    def resolve_dxf_path(self, dxf_path: str) -> str:
+        """
+        解析DXF文件路径
+        
+        Args:
+            dxf_path: DXF文件路径（可能是绝对路径或相对路径）
+            
+        Returns:
+            绝对路径
+        """
+        if not dxf_path:
+            return ""
+            
+        # 如果是绝对路径且存在，直接返回
+        if os.path.isabs(dxf_path) and os.path.exists(dxf_path):
+            return dxf_path
+            
+        # 尝试作为相对于data_root的路径
+        abs_path = self.data_root / dxf_path
+        if abs_path.exists():
+            return str(abs_path)
+            
+        # 如果都不存在，返回原路径
+        return dxf_path
+    
     # ============ 检测批次相关路径 ============
     
     def get_inspection_batches_dir(self, product_id: str) -> str:
@@ -95,6 +120,10 @@ class DataPathManager:
     def get_hole_results_dir(self, product_id: str, batch_id: str) -> str:
         """获取孔位检测结果目录"""
         return str(self.data_root / "Products" / product_id / "InspectionBatches" / batch_id / "HoleResults")
+    
+    def get_holes_dir(self, product_id: str, batch_id: str) -> str:
+        """获取孔位目录（兼容旧版本）"""
+        return self.get_hole_results_dir(product_id, batch_id)
     
     def get_hole_path(self, product_id: str, batch_id: str, hole_id: str) -> str:
         """获取单个孔位目录路径"""
@@ -127,7 +156,7 @@ class DataPathManager:
     # ============ 兼容性方法（支持旧格式） ============
     
     def get_legacy_hole_path(self, hole_id: str) -> str:
-        """获取遗留格式的孔位路径 (如: H00001)"""
+        """获取遗留格式的孔位路径 (如: C001R001)"""
         return str(self.data_root / hole_id)
     
     def get_legacy_bisdm_path(self, hole_id: str) -> str:

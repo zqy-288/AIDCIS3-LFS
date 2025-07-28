@@ -12,7 +12,7 @@ from collections import defaultdict
 import logging
 
 from src.core_business.models.hole_data import HoleData, HoleCollection
-from src.core_business.graphics.sector_manager import SectorQuadrant
+from src.core_business.graphics.sector_types import SectorQuadrant
 from src.core.error_handler import get_error_handler, ErrorCategory
 
 

@@ -21,7 +21,7 @@ except ImportError:
     # 定义占位符类型
     DrawingType = object
 
-from product_model import get_product_manager
+from src.models.product_model import get_product_manager
 
 @dataclass
 class DXFHoleInfo:

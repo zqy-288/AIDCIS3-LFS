@@ -13,10 +13,13 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QIcon
 import os
 import sys
+import shutil
+from pathlib import Path
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'models'))
 from product_model import get_product_manager
-from modules.dxf_import import get_dxf_importer
+from src.modules.dxf_import import get_dxf_importer
+from src.models.data_path_manager import DataPathManager
 
 class ProductManagementDialog(QDialog):
     """产品信息维护对话框"""
@@ -384,8 +387,50 @@ class ProductManagementDialog(QDialog):
             tolerance_upper = self.tolerance_upper_spin.value()
             tolerance_lower = self.tolerance_lower_spin.value()
             description = self.description_edit.toPlainText().strip() or None
-            dxf_file_path = self.dxf_path_edit.text().strip() or None
+            original_dxf_path = self.dxf_path_edit.text().strip() or None
             is_active = self.is_active_check.isChecked()
+            
+            # 处理DXF文件复制
+            final_dxf_path = None
+            if original_dxf_path and os.path.exists(original_dxf_path):
+                try:
+                    # 使用DataPathManager管理路径
+                    path_manager = DataPathManager()
+                    
+                    # 生成产品ID（使用model_name作为product_id）
+                    product_id = model_name.replace(' ', '_').replace('/', '_')
+                    
+                    # 获取目标DXF目录
+                    dxf_dir = path_manager.get_product_dxf_dir(product_id)
+                    os.makedirs(dxf_dir, exist_ok=True)
+                    
+                    # 生成目标文件路径
+                    source_path = Path(original_dxf_path)
+                    target_filename = source_path.name
+                    target_path = os.path.join(dxf_dir, target_filename)
+                    
+                    # 如果目标文件已存在，添加时间戳避免覆盖
+                    if os.path.exists(target_path) and target_path != original_dxf_path:
+                        from datetime import datetime
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        name_parts = source_path.stem, timestamp, source_path.suffix
+                        target_filename = f"{name_parts[0]}_{name_parts[1]}{name_parts[2]}"
+                        target_path = os.path.join(dxf_dir, target_filename)
+                    
+                    # 复制文件（如果源和目标不是同一个文件）
+                    if os.path.abspath(original_dxf_path) != os.path.abspath(target_path):
+                        shutil.copy2(original_dxf_path, target_path)
+                        print(f"✅ DXF文件已复制到: {target_path}")
+                    
+                    # 使用相对路径存储在数据库中
+                    final_dxf_path = os.path.relpath(target_path, path_manager.data_root)
+                    
+                except Exception as e:
+                    print(f"⚠️ DXF文件复制失败: {e}")
+                    # 如果复制失败，仍然保存原始路径
+                    final_dxf_path = original_dxf_path
+            else:
+                final_dxf_path = original_dxf_path
             
             if self.current_product:
                 # 更新现有产品
@@ -397,7 +442,7 @@ class ProductManagementDialog(QDialog):
                     tolerance_upper=tolerance_upper,
                     tolerance_lower=tolerance_lower,
                     description=description,
-                    dxf_file_path=dxf_file_path,
+                    dxf_file_path=final_dxf_path,
                     is_active=is_active
                 )
                 QMessageBox.information(self, "成功", "产品信息更新成功!")
@@ -410,7 +455,7 @@ class ProductManagementDialog(QDialog):
                     tolerance_lower=tolerance_lower,
                     model_code=model_code,
                     description=description,
-                    dxf_file_path=dxf_file_path
+                    dxf_file_path=final_dxf_path
                 )
                 QMessageBox.information(self, "成功", "产品创建成功!")
             

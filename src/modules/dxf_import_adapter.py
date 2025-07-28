@@ -18,8 +18,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from modules.product_import_service import ProductImportService
-from models.product_model import get_product_manager
+from src.modules.product_import_service import ProductImportService
+from src.models.product_model import get_product_manager
 
 
 class DXFImportPreviewDialog(QDialog):

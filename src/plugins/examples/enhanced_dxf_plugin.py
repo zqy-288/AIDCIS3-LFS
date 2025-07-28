@@ -9,7 +9,7 @@ import re
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 
-from src.core.interfaces.plugin_interfaces import IAsyncPlugin, PluginContext, PluginMetadata, PluginVersion
+from src.core.plugin_system.interfaces import IAsyncPlugin, PluginContext, PluginMetadata, PluginVersion
 from src.plugins.core_extensions import IDXFParserExtension, IDXFProcessorExtension, IBusinessRuleExtension, get_core_extension_manager
 
 

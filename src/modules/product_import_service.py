@@ -15,8 +15,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from modules.dxf_product_converter import DXFProductConverter
-from models.product_model import ProductModel, get_product_manager
+from src.modules.dxf_product_converter import DXFProductConverter
+from src.models.product_model import ProductModel, get_product_manager
 
 
 class ProductImportService(QObject):

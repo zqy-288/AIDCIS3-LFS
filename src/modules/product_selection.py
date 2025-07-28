@@ -253,6 +253,7 @@ class ProductSelectionDialog(QDialog):
         if dialog.exec() == QDialog.Accepted:
             # 刷新产品列表
             self.load_products()
+    
 
 
 class ProductQuickSelector:

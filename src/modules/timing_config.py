@@ -40,7 +40,7 @@ def calculate_timing_effects(csv_interval, chart_interval):
     
     # 计算数据播放速度
     points_per_second = 1000 / csv_interval
-    total_points = 882  # H00001的数据点数
+    total_points = 882  # C001R001的数据点数
     total_time_seconds = total_points / points_per_second
     
     print(f"📈 **数据播放效果**:")

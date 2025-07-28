@@ -21,3 +21,7 @@ opencv-python>=4.7.0
 
 # AIDCIS2新增依赖
 ezdxf==1.4.2
+
+# 系统监控和UI增强
+psutil>=5.9.0
+qtawesome>=1.4.0

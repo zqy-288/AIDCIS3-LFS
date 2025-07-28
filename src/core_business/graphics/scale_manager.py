@@ -19,17 +19,17 @@ from src.core_business.models.hole_data import HoleCollection
 SCALE_CONFIGS = {
     "panorama_overview": {
         "description": "全景图概览模式 - 显示完整管板",
-        "margin_ratio": 0.05,  # 5%边距，为大型管板留更多显示空间
+        "margin_ratio": 0.02,  # 减少边距到2%，让孔位区域更充分利用空间
         "min_scale": 0.02,     # 降低最小缩放，支持超大型管板（如25K孔位）
-        "max_scale": 0.85,     # 最大缩放，避免过度放大
+        "max_scale": 1.2,      # 增大最大缩放到120%，让孔位区域在圆形背景中更大
         "priority": "fit_all", # 优先显示全部内容
         "center_mode": "data_center"  # 以数据中心为准
     },
     "sidebar_panorama_overview": {
         "description": "侧边栏全景图概览模式 - 考虑info_label空间",
-        "margin_ratio": 0.08,  # 8%边距，为info_label留更多空间
+        "margin_ratio": 0.03,  # 减少边距到3%，为孔位区域留更多显示空间
         "min_scale": 0.02,     # 支持超大型管板
-        "max_scale": 0.75,     # 略小的最大缩放，避免与info_label重叠
+        "max_scale": 1.0,      # 增大最大缩放到100%，让矩形区域更充分利用圆形空间
         "priority": "fit_all_with_info",
         "center_mode": "data_center"
     },
@@ -299,19 +299,69 @@ def apply_scale_safely(view: QGraphicsView, scale_config: Dict[str, Any],
             print(f"📐 [缩放管理] 缩放比例: {scale_config['scale']:.3f}")
             print(f"📍 [缩放管理] 中心点: ({scale_config['center'].x():.1f}, {scale_config['center'].y():.1f})")
         
-        # 1. 重置变换
-        view.resetTransform()
-        
-        # 2. 设置场景矩形
+        # 1. 设置场景矩形（不重置变换，避免清除旋转）
         if view.scene:
             view.scene.setSceneRect(scale_config["scene_rect"])
             if debug:
                 sr = scale_config["scene_rect"]
                 print(f"🎬 [缩放管理] 场景矩形: ({sr.x():.1f}, {sr.y():.1f}) {sr.width():.1f}x{sr.height():.1f}")
         
-        # 3. 应用缩放
+        # 2. 创建变换：仅缩放（旋转功能已禁用）
+        # 旋转功能已全面禁用，注释掉相关代码
+        # # from src.core_business.graphics.rotation_stub import get_rotation_manager  # 旋转功能已禁用
+        # # rotation_manager = get_rotation_manager()  # 旋转功能已禁用
+        
         scale = scale_config["scale"]
-        view.scale(scale, scale)
+        transform = QTransform()
+        transform.scale(scale, scale)
+        
+        # 旋转功能已禁用，直接设置为False
+        scale_manager_enabled = False
+        scale_manager_angle = 0.0
+        
+        if debug:
+            print(f"🔄 [缩放管理-调试] 旋转配置检查:")
+            print(f"   启用状态: {'❌' if not scale_manager_enabled else '✅'} (已全面禁用)")
+            print(f"   旋转角度: {scale_manager_angle}°")
+        
+        # 旋转功能已禁用，跳过旋转应用
+        if False:  # scale_manager_enabled:
+            old_transform_m11 = transform.m11()
+            old_transform_m12 = transform.m12()
+            
+            transform.rotate(scale_manager_angle)
+            
+            new_transform_m11 = transform.m11()
+            new_transform_m12 = transform.m12()
+            
+            if debug:
+                print(f"🔄 [缩放管理] 应用全局旋转: {scale_manager_angle}°")
+                print(f"   旋转前矩阵: m11={old_transform_m11:.3f}, m12={old_transform_m12:.3f}")
+                print(f"   旋转后矩阵: m11={new_transform_m11:.3f}, m12={new_transform_m12:.3f}")
+        else:
+            if debug:
+                print(f"⏭️ [缩放管理] 跳过旋转：scale_manager组件已禁用")
+        
+        # 记录应用前的视图变换
+        old_view_transform = view.transform()
+        view.setTransform(transform)
+        new_view_transform = view.transform()
+        
+        if debug:
+            print(f"📐 [缩放管理] 视图变换更新:")
+            print(f"   应用前: m11={old_view_transform.m11():.3f}, m12={old_view_transform.m12():.3f}")
+            print(f"   应用后: m11={new_view_transform.m11():.3f}, m12={new_view_transform.m12():.3f}")
+            
+            # 检查是否真正应用了旋转
+            rotation_applied = abs(new_view_transform.m12()) > 0.1  # m12应该非零表示有旋转
+            print(f"   旋转验证: {'✅ 已应用' if rotation_applied else '❌ 未检测到旋转'}")
+            
+            # 检查变换是否为零
+            if abs(new_view_transform.m11()) < 0.001 and abs(new_view_transform.m22()) < 0.001:
+                print(f"⚠️ [缩放管理] 警告：变换矩阵为零！视图将不可见")
+                print(f"   缩放配置: scale={scale:.3f}")
+                print(f"   变换对象: {transform}")
+                print(f"   视图类型: {type(view).__name__}")
         
         # 4. 居中
         view.centerOn(scale_config["center"])
@@ -490,6 +540,11 @@ def get_view_debug_info(view: QGraphicsView) -> Dict[str, Any]:
 def apply_panorama_overview_scale(view: QGraphicsView, hole_collection: HoleCollection) -> bool:
     """快捷函数：应用全景图概览缩放"""
     return load_and_scale_panorama(view, hole_collection, "panorama_overview")
+
+
+def apply_sidebar_panorama_scale(view: QGraphicsView, hole_collection: HoleCollection) -> bool:
+    """快捷函数：应用侧边栏全景图缩放 - 针对侧边栏显示优化"""
+    return load_and_scale_panorama(view, hole_collection, "sidebar_panorama_overview")
 
 
 def apply_panorama_sector_scale(view: QGraphicsView, hole_collection: HoleCollection, 

@@ -8,7 +8,7 @@ from typing import Dict, List, Any, Optional, Union, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 
-from src.core.interfaces.plugin_interfaces import IAsyncPlugin, PluginMetadata
+from src.core.plugin_system.interfaces import IAsyncPlugin, PluginMetadata
 
 
 class ExtensionPointType(Enum):

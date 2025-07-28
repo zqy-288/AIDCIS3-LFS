@@ -41,7 +41,7 @@ class Hole(Base):
     __tablename__ = 'holes'
 
     id = Column(Integer, primary_key=True)
-    hole_id = Column(String(50), nullable=False)  # 孔ID (如H001)
+    hole_id = Column(String(50), nullable=False)  # 孔ID (如AC097R001或BC097R001)
     workpiece_id = Column(Integer, ForeignKey('workpieces.id'), nullable=False)
     position_x = Column(Float)  # X坐标
     position_y = Column(Float)  # Y坐标
@@ -142,6 +142,90 @@ class DatabaseManager:
         """关闭数据库会话"""
         session.close()
         
+    def update_hole_naming_format(self):
+        """更新孔位命名格式：从H###转换为CxxxRxxx"""
+        session = self.get_session()
+        try:
+            # 获取所有使用旧格式的孔位
+            old_holes = session.query(Hole).filter(Hole.hole_id.like('H%')).all()
+            
+            if not old_holes:
+                print("✅ 没有需要更新的孔位命名")
+                return
+                
+            print(f"🔄 开始更新 {len(old_holes)} 个孔位的命名格式...")
+            
+            # 删除旧数据
+            session.query(Hole).filter(Hole.hole_id.like('H%')).delete()
+            session.query(Workpiece).filter(Workpiece.workpiece_id == 'CAP1000').delete()
+            
+            # 重新创建数据
+            self._create_cap1000_data(session)
+            
+            session.commit()
+            print("✅ 孔位命名格式更新完成")
+            
+        except Exception as e:
+            session.rollback()
+            print(f"❌ 更新孔位命名格式失败: {e}")
+        finally:
+            self.close_session(session)
+    
+    def _create_cap1000_data(self, session):
+        """创建CAP1000数据的内部方法 - 使用AC/BC标准编号格式"""
+        # 创建CAP1000工件
+        workpiece = Workpiece(
+            workpiece_id="CAP1000",
+            name="CAP1000管板",
+            type="tube_plate",  # 添加必需的type字段
+            material="母材材质：SA508.Gr3. C1.2；堆焊层材质：镍基堆焊层",  # 添加必需的material字段
+            description="CAP1000项目管板，采用AC/BC双侧标准编号格式"
+        )
+        session.add(workpiece)
+        session.flush()  # 获取workpiece.id
+        
+        # 创建孔位数据 - 模拟双侧管板布局
+        # A侧 (X < 0): 左侧区域
+        # B侧 (X >= 0): 右侧区域
+        rows, cols_per_side = 8, 6  # 每侧8行6列
+        start_x_a, start_x_b = -150, 50
+        start_y = -140
+        spacing_x, spacing_y = 35, 35
+        
+        # A侧孔位 (AC格式)
+        for row in range(rows):
+            for col in range(cols_per_side):
+                x = start_x_a + col * spacing_x
+                y = start_y + row * spacing_y
+                hole_id = f"AC{col+97:03d}R{row+1:03d}"  # AC097R001开始
+                
+                hole = Hole(
+                    hole_id=hole_id,
+                    workpiece_id=workpiece.id,
+                    position_x=x,
+                    position_y=y,
+                    target_diameter=25.0,
+                    tolerance=0.1
+                )
+                session.add(hole)
+        
+        # B侧孔位 (BC格式)
+        for row in range(rows):
+            for col in range(cols_per_side):
+                x = start_x_b + col * spacing_x
+                y = start_y + row * spacing_y
+                hole_id = f"BC{col+97:03d}R{row+1:03d}"  # BC097R001开始
+                
+                hole = Hole(
+                    hole_id=hole_id,
+                    workpiece_id=workpiece.id,
+                    position_x=x,
+                    position_y=y,
+                    target_diameter=25.0,
+                    tolerance=0.1
+                )
+                session.add(hole)
+
     def create_sample_data(self):
         """创建示例数据"""
         session = self.get_session()
@@ -171,7 +255,11 @@ class DatabaseManager:
                 for col in range(cols):
                     x = start_x + col * spacing_x
                     y = start_y + row * spacing_y
-                    hole_id = f"H{hole_count:03d}"
+                    # 使用AC/BC标准编号格式，与实际双侧管板系统保持一致
+                    # 根据列位置确定A/B侧
+                    side = 'A' if col < cols//2 else 'B'
+                    side_col = (col % (cols//2)) + 97  # 从97开始编号
+                    hole_id = f"{side}C{side_col:03d}R{row+1:03d}"
                     
                     hole = Hole(
                         hole_id=hole_id,

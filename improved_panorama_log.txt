@@ -1,0 +1,405 @@
+Matplotlib is building the font cache; this may take a moment.
+🚀 启动程序并直接加载DXF文件...
+添加字体: /System/Library/Fonts/PingFang.ttc
+添加字体: /System/Library/Fonts/Hiragino Sans GB.ttc
+添加字体: /System/Library/Fonts/STHeiti Light.ttc
+使用中文字体: Arial Unicode MS
+✅ 安全字体配置完成
+2025-07-24 15:15:08,149 - src.core.application - INFO - 配置管理器初始化成功: ConfigManager
+2025-07-24 15:15:08,149 - src.core.application - INFO - ApplicationCore initialized
+2025-07-24 15:15:08,149 - src.core.error_recovery - INFO - ErrorRecoveryManager initialized
+2025-07-24 15:15:08,149 - ErrorHandler - INFO - ErrorRecoveryManager integration successful
+2025-07-24 15:15:08,149 - ErrorHandler - INFO - Category handler registered for: system
+2025-07-24 15:15:08,149 - ErrorHandler - INFO - Category handler registered for: application
+2025-07-24 15:15:08,149 - ErrorHandler - INFO - Category handler registered for: ui
+2025-07-24 15:15:08,149 - ErrorHandler - INFO - Category handler registered for: data
+2025-07-24 15:15:08,149 - ErrorHandler - INFO - Category handler registered for: network
+2025-07-24 15:15:08,149 - ErrorHandler - INFO - Category handler registered for: file
+2025-07-24 15:15:08,149 - ErrorHandler - INFO - Category handler registered for: security
+2025-07-24 15:15:08,149 - ErrorHandler - INFO - Category handler registered for: performance
+2025-07-24 15:15:08,149 - ErrorHandler - INFO - Category handler registered for: validation
+2025-07-24 15:15:08,149 - ErrorHandler - INFO - Category handler registered for: business
+2025-07-24 15:15:08,149 - ErrorHandler - INFO - ErrorHandler initialized
+2025-07-24 15:15:08,229 - SnakePathRenderer - INFO - 🎨 设置图形场景
+🚀 [共享数据管理器] 初始化完成
+2025-07-24 15:15:08,229 - SnakePathRenderer - INFO - 🎨 设置图形场景
+2025-07-24 15:15:08,234 - root - INFO - 现代科技蓝主题已应用
+qt.qpa.fonts: Populating font family aliases took 71 ms. Replace uses of missing font family "Segoe UI" with one that exists to avoid this cost. 
+2025-07-24 15:15:08,367 - HoleDataAdapter - INFO - 🔌 已连接到SharedDataManager信号
+2025-07-24 15:15:08,367 - HoleDataAdapter - INFO - 🔌 已连接到SharedDataManager信号
+2025-07-24 15:15:08,367 - DataProcessingChain - INFO - 🔇 已禁用HoleDataAdapter的自动信号
+2025-07-24 15:15:08,367 - DataProcessingChain - INFO - 🔇 已禁用HoleDataAdapter的自动信号
+2025-07-24 15:15:08,368 - SnakePathRenderer - INFO - 🎨 设置图形场景
+2025-07-24 15:15:08,368 - SnakePathRenderer - INFO - 🎨 设置图形场景
+2025-07-24 15:15:08,368 - DynamicSectorDisplay - INFO - 🚀 开始初始数据加载
+2025-07-24 15:15:08,368 - DynamicSectorDisplay - INFO - 🚀 开始初始数据加载
+2025-07-24 15:15:08,369 - DataProcessingChain - INFO - 1️⃣ 步骤1：获取适配后的数据
+2025-07-24 15:15:08,369 - DataProcessingChain - INFO - 1️⃣ 步骤1：获取适配后的数据
+2025-07-24 15:15:08,369 - HoleDataAdapter - WARNING - ⚠️ SharedDataManager中没有孔位数据
+2025-07-24 15:15:08,369 - HoleDataAdapter - WARNING - ⚠️ SharedDataManager中没有孔位数据
+2025-07-24 15:15:08,369 - DataProcessingChain - WARNING - ❌ 没有可用的孔位数据
+2025-07-24 15:15:08,369 - DataProcessingChain - WARNING - ❌ 没有可用的孔位数据
+2025-07-24 15:15:08,369 - DynamicSectorDisplay - ERROR - ❌ 数据处理出错: 没有可用的孔位数据
+2025-07-24 15:15:08,369 - DynamicSectorDisplay - ERROR - ❌ 数据处理出错: 没有可用的孔位数据
+🔧 孔位数据映射初始化:
+  C001R001:
+    📄 CSV: /Users/vsiyo/Desktop/AIDCIS3-LFS/Data/CAP1000/R001C001/CCIDM
+    🖼️ 图像: /Users/vsiyo/Desktop/AIDCIS3-LFS/Data/CAP1000/R001C001/BISDM/result
+    📂 CSV目录存在: True
+    📂 图像目录存在: True
+    📄 找到CSV文件: ['measurement_data_Fri_Jul__4_18_40_29_2025.csv']
+  C001R002:
+    📄 CSV: /Users/vsiyo/Desktop/AIDCIS3-LFS/Data/CAP1000/R001C002/CCIDM
+    🖼️ 图像: /Users/vsiyo/Desktop/AIDCIS3-LFS/Data/CAP1000/R001C002/BISDM/result
+    📂 CSV目录存在: True
+    📂 图像目录存在: True
+    📄 找到CSV文件: ['measurement_data_Sat_Jul__5_15_18_46_2025.csv']
+  C001R003:
+    📄 CSV: /Users/vsiyo/Desktop/AIDCIS3-LFS/Data/CAP1000/R001C003/CCIDM
+    🖼️ 图像: /Users/vsiyo/Desktop/AIDCIS3-LFS/Data/CAP1000/R001C003/BISDM/result
+    📂 CSV目录存在: True
+    📂 图像目录存在: True
+    📄 找到CSV文件: ['measurement_data_Fri_Jul__4_18_40_29_2025.csv']
+  C001R004:
+    📄 CSV: /Users/vsiyo/Desktop/AIDCIS3-LFS/Data/CAP1000/R001C004/CCIDM
+    🖼️ 图像: /Users/vsiyo/Desktop/AIDCIS3-LFS/Data/CAP1000/R001C004/BISDM/result
+    📂 CSV目录存在: True
+    📂 图像目录存在: True
+    📄 找到CSV文件: ['measurement_data_Thu_Jul_17_15_14_58_2025.csv']
+移除误差线，恢复默认Y轴范围: 16.5 - 20.5mm
+matplotlib误差线绘制成功:
+  上误差线: y = 17.650mm
+  下误差线: y = 17.530mm
+  Y轴范围: 17.45 ~ 17.75mm
+✅ 自动设置标准直径为: 17.6mm
+⏳ 实时监控界面等待状态 - 请从主检测界面选择孔位后跳转
+🔧 初始化历史数据查看器...
+⚠️ workpiece_combo 尚未创建，跳过加载工件列表
+✅ 历史数据查看器初始化完成
+🔧 初始化缺陷标注工具...
+🔍 使用CAP1000项目目录: /Users/vsiyo/Desktop/AIDCIS3-LFS/Data/CAP1000
+从配置文件加载了 6 个缺陷类别
+归档索引文件不存在，创建新索引
+扫描完成: 找到 4 个孔位，14 张图像
+✅ 缺陷标注工具初始化完成
+✅ 统一历史数据查看器初始化完成
+🔄 [报告缓存] 收集新数据: CAP1000
+📊 开始收集工件 CAP1000 的报告数据...
+📊 扫描工件 CAP1000 的所有孔位数据...
+✅ 缺陷标注图已生成: /var/folders/w0/td0lhml95j374vr26ypgjzfh0000gn/T/defect_annotation_20250724_151508.png
+📊 生成的报告图表: ['defect_annotation']
+📷 合并后的图像数据: ['defect_annotation']
+✅ 工件 CAP1000 数据收集完成
+   总孔位: 0
+   合格孔位: 0
+   不合格孔位: 0
+   缺陷记录: 0
+   人工复检: 0
+🎯 [报告缓存] 使用缓存数据: CAP1000
+2025-07-24 15:15:09,001 - src.modules.data_monitor - INFO - 🔍 开始监控Data文件夹...
+2025-07-24 15:15:09,001 - src.modules.data_monitor - INFO - 📊 执行初始扫描...
+2025-07-24 15:15:09,008 - src.modules.data_monitor - INFO -    📁 已知孔位: R001C002 (合格率: 100.0%)
+2025-07-24 15:15:09,010 - src.modules.data_monitor - INFO -    📁 已知孔位: R001C003 (合格率: 0.0%)
+2025-07-24 15:15:09,011 - src.modules.data_monitor - INFO -    📁 已知孔位: R001C004 (合格率: 33.3%)
+2025-07-24 15:15:09,013 - src.modules.data_monitor - INFO -    📁 已知孔位: R001C001 (合格率: 100.0%)
+2025-07-24 15:15:09,013 - src.modules.data_monitor - INFO - ✅ 初始扫描完成，发现 4 个孔位
+✅ 主题调试快捷键已设置: Ctrl+Shift+T
+2025-07-24 15:15:09,047 - src.main_window - INFO - 合并主界面初始化完成
+✅ GUI已启动
+✅ 找到DXF文件: /Users/vsiyo/Desktop/AIDCIS3-LFS/assets/dxf/DXF Graph/东重管板.dxf
+🚀 进入事件循环...
+程序将在3秒后自动加载DXF文件...
+
+🔄 开始加载DXF文件: /Users/vsiyo/Desktop/AIDCIS3-LFS/assets/dxf/DXF Graph/东重管板.dxf
+🔍 查找DXF加载方法...
+可能的方法: ['_load_default_dxf', '_reload_current_sector', '_start_simulation_after_load', 'load_dxf_from_product', 'test_load_default_dxf']
+🔧 尝试直接调用DXF解析器...
+2025-07-24 15:15:12,195 - src.core_business.dxf_parser - INFO - 开始解析DXF文件: /Users/vsiyo/Desktop/AIDCIS3-LFS/assets/dxf/DXF Graph/东重管板.dxf
+2025-07-24 15:15:12,195 - src.core_business.dxf_parser - INFO - 文件大小: 12277469 字节
+2025-07-24 15:15:14,241 - src.core_business.dxf_parser - INFO - DXF版本: AC1032
+2025-07-24 15:15:14,247 - src.core_business.dxf_parser - INFO - 实体总数: 50564
+2025-07-24 15:15:14,255 - src.core_business.dxf_parser - INFO - 弧形实体数量: 50564
+2025-07-24 15:15:14,255 - src.core_business.dxf_parser - INFO - 🚀 开始孔位识别: 50564 个弧形
+2025-07-24 15:15:14,326 - src.core_business.dxf_parser - INFO - 📊 弧形预处理: 边界弧形=4, 过滤弧形=0, 有效组=25290
+2025-07-24 15:15:14,440 - src.core_business.dxf_parser - INFO - ✅ 孔位识别完成: 25270 个孔位，0.2秒，273380 弧形/秒
+2025-07-24 15:15:14,441 - src.core_business.dxf_parser - INFO - 识别到管孔数量: 25270
+2025-07-24 15:15:14,449 - src.core_business.dxf_parser - INFO - 几何中心已保存: (-0.63, 0.00)
+2025-07-24 15:15:14,449 - src.core_business.dxf_parser - INFO - DXF解析完成，共解析出 25270 个管孔（耗时2.255秒）
+2025-07-24 15:15:14,450 - CompletePanorama - INFO - 🎯 开始加载全景图，孔位数量: 25270
+✅ DXF解析完成，获得 25270 个孔位
+✅ 数据已直接赋值到hole_collection
+2025-07-24 15:15:14,450 - CompletePanorama - INFO - 🎯 开始加载全景图，孔位数量: 25270
+2025-07-24 15:15:14,450 - src.core_business.graphics.graphics_view - INFO - 开始加载 25270 个管孔
+2025-07-24 15:15:14,450 - SnakePathRenderer - INFO - 🧹 清除路径图形项
+2025-07-24 15:15:14,450 - SnakePathRenderer - INFO - 🧹 清除路径图形项
+2025-07-24 15:15:14,450 - src.core_business.graphics.graphics_view - INFO - 蛇形路径已清除
+2025-07-24 15:15:14,922 - SnakePathRenderer - INFO - 📍 解析孔位位置: 25270 个孔位
+2025-07-24 15:15:14,922 - SnakePathRenderer - INFO - 📍 解析孔位位置: 25270 个孔位
+2025-07-24 15:15:14,924 - SnakePathRenderer - INFO - 🔢 A侧: 12635个, B侧: 12635个
+2025-07-24 15:15:14,924 - SnakePathRenderer - INFO - 🔢 A侧: 12635个, B侧: 12635个
+2025-07-24 15:15:14,930 - src.core_business.graphics.graphics_view - INFO - 管孔加载完成，场景大小: PySide6.QtCore.QRectF(-2191.300000, -2211.200000, 4382.300000, 4422.400000)
+2025-07-24 15:15:14,954 - CompletePanorama - INFO - 🔍 数据规模:massive, 孔位:25270, 密度:0.001231, 基础半径:16.62px, 全局系数:0.85, 最终半径:14.13px
+🔢 [OptimizedGraphicsView] 场景中实际图形项数: 25270
+🔢 [OptimizedGraphicsView] hole_items 字典大小: 25270
+2025-07-24 15:15:14,954 - CompletePanorama - INFO - 🔍 数据规模:massive, 孔位:25270, 密度:0.001231, 基础半径:16.62px, 全局系数:0.85, 最终半径:14.13px
+2025-07-24 15:15:15,051 - CompletePanorama - INFO - ✅ 已调整 25270 个孔位项的显示大小
+2025-07-24 15:15:15,051 - CompletePanorama - INFO - ✅ 已调整 25270 个孔位项的显示大小
+2025-07-24 15:15:15,055 - CompletePanorama - INFO - 🔍 使用缩放模式: massive_dataset_panorama, 边距比例: 0.050
+2025-07-24 15:15:15,055 - CompletePanorama - INFO - 🔍 使用缩放模式: massive_dataset_panorama, 边距比例: 0.050
+2025-07-24 15:15:15,055 - CompletePanorama - INFO - ✅ 智能缩放完成 - 数据规模: massive
+2025-07-24 15:15:15,055 - CompletePanorama - INFO - ✅ 智能缩放完成 - 数据规模: massive
+2025-07-24 15:15:15,055 - CompletePanorama - INFO - ✅ 全景图加载完成
+2025-07-24 15:15:15,055 - CompletePanorama - INFO - ✅ 全景图加载完成
+✅ 数据已加载到全景图
+2025-07-24 15:15:15,089 - src.core_business.graphics.graphics_view - INFO - 适配到窗口宽度完成，缩放比例: 0.128 (基础: 0.128, 最大: 2.000)
+2025-07-24 15:15:15,212 - src.core_business.graphics.graphics_view - INFO - 适配到窗口宽度完成，缩放比例: 0.125 (基础: 0.125, 最大: 2.000)
+2025-07-24 15:16:16,456 - SnakePathRenderer - INFO - 🧹 清除路径图形项
+
+🔍 检查加载结果...
+✅ 主窗口孔位数据: 25270 个
+
+🔍 检查全景图显示...
+✅ 全景图组件存在
+✅ 全景图孔位数据: 25270 个
+✅ 全景图视图存在
+✅ 全景图图形项: 25270 个
+
+🔧 强制增强孔位可见性...
+✅ 已将 25270 个孔位调整为 15.0px 半径，红色显示
+✅ 场景已更新
+✅ 所有视图已强制更新
+
+🎯 现在全景图应该显示大号红色孔位，请检查GUI！
+2025-07-24 15:16:16,456 - SnakePathRenderer - INFO - 🧹 清除路径图形项
+2025-07-24 15:16:16,457 - src.core_business.graphics.graphics_view - INFO - 蛇形路径已清除
+✅ [统一适配器] 使用标准4扇形模式
+2025-07-24 15:16:16,460 - src.core_business.dxf_parser - INFO - 开始解析DXF文件: /Users/vsiyo/Desktop/AIDCIS3-LFS/assets/dxf/DXF Graph/东重管板.dxf
+2025-07-24 15:16:16,460 - src.core_business.dxf_parser - INFO - 文件大小: 12277469 字节
+2025-07-24 15:16:18,695 - src.core_business.dxf_parser - INFO - DXF版本: AC1032
+2025-07-24 15:16:18,703 - src.core_business.dxf_parser - INFO - 实体总数: 50564
+2025-07-24 15:16:18,712 - src.core_business.dxf_parser - INFO - 弧形实体数量: 50564
+2025-07-24 15:16:18,712 - src.core_business.dxf_parser - INFO - 🚀 开始孔位识别: 50564 个弧形
+2025-07-24 15:16:18,898 - src.core_business.dxf_parser - INFO - 📊 弧形预处理: 边界弧形=4, 过滤弧形=0, 有效组=25290
+2025-07-24 15:16:18,945 - src.core_business.dxf_parser - INFO - ✅ 孔位识别完成: 25270 个孔位，0.2秒，217486 弧形/秒
+2025-07-24 15:16:18,945 - src.core_business.dxf_parser - INFO - 识别到管孔数量: 25270
+2025-07-24 15:16:18,954 - src.core_business.dxf_parser - INFO - 几何中心已保存: (-0.63, 0.00)
+2025-07-24 15:16:18,954 - src.core_business.dxf_parser - INFO - DXF解析完成，共解析出 25270 个管孔（耗时2.494秒）
+🚀 [主窗口] 开始使用共享数据管理器统一加载数据
+🔄 [共享数据管理器] 处理数据: 25270 个孔位 (共享缓存:False, 适配器缓存:False)
+🔍 [共享数据管理器] 编号检查:
+   - 孔位数量: 25270
+   - 第一个孔位hole_id: 0
+   - 需要重新编号: False
+⏭️ [共享数据管理器] 跳过编号，孔位已有ID
+⚠️ [UnifiedSectorAdapter] load_hole_collection()应该仅由SharedDataManager调用
+🔄 [统一适配器] 开始加载孔位集合: 25270 个孔位
+🔍 [统一适配器] 调用 unified_manager.initialize_from_hole_collection
+[统一坐标管理器] 🚀 初始化统一坐标管理器
+[统一坐标管理器] 🎯 使用DXFParser已计算的几何中心: (-0.63, 0.00)
+[统一坐标管理器] 🔍 扇形分配前检查:
+[统一坐标管理器]    hole_collection存在: True
+[统一坐标管理器]    sector_center存在: True
+[统一坐标管理器]    孔位数量: 25270
+[统一坐标管理器]    扇形中心: (-0.63, 0.00)
+[统一坐标管理器] 🎯 执行扇形分配: 中心(-0.63, 0.00)
+[统一坐标管理器] 🧭 扇形定义:
+[统一坐标管理器]    SECTOR_1 (右上): dx>=0, dy<0
+[统一坐标管理器]    SECTOR_2 (左上): dx<0,  dy<0
+[统一坐标管理器]    SECTOR_3 (左下): dx<0,  dy>=0
+[统一坐标管理器]    SECTOR_4 (右下): dx>=0, dy>=0
+[统一坐标管理器] 🔍 各扇形分配样本:
+[统一坐标管理器]    sector_1 (dx>=0, dy<0 (右上)):
+[统一坐标管理器]      18841: 绝对(603.6,-2036.6) → 相对(604.2,-2036.6) [dx=604.2>=0, dy=-2036.6<0]
+[统一坐标管理器]      18842: 绝对(560.5,-2036.6) → 相对(561.1,-2036.6) [dx=561.1>=0, dy=-2036.6<0]
+[统一坐标管理器]      18843: 绝对(517.4,-2036.6) → 相对(518.0,-2036.6) [dx=518.0>=0, dy=-2036.6<0]
+[统一坐标管理器]      18844: 绝对(474.3,-2036.6) → 相对(474.9,-2036.6) [dx=474.9>=0, dy=-2036.6<0]
+[统一坐标管理器]      18845: 绝对(431.1,-2036.6) → 相对(431.7,-2036.6) [dx=431.7>=0, dy=-2036.6<0]
+[统一坐标管理器]    sector_2 (dx<0,  dy<0 (左上)):
+[统一坐标管理器]      12635: 绝对(-21.7,-82.5) → 相对(-21.1,-82.5) [dx=-21.1<0, dy=-82.5<0]
+[统一坐标管理器]      12636: 绝对(-64.8,-82.5) → 相对(-64.2,-82.5) [dx=-64.2<0, dy=-82.5<0]
+[统一坐标管理器]      12637: 绝对(-107.9,-82.5) → 相对(-107.3,-82.5) [dx=-107.3<0, dy=-82.5<0]
+[统一坐标管理器]      12638: 绝对(-151.1,-82.5) → 相对(-150.5,-82.5) [dx=-150.5<0, dy=-82.5<0]
+[统一坐标管理器]      12639: 绝对(-194.2,-82.5) → 相对(-193.6,-82.5) [dx=-193.6<0, dy=-82.5<0]
+[统一坐标管理器]    sector_3 (dx<0,  dy>=0 (左下)):
+[统一坐标管理器]      0: 绝对(-21.7,82.5) → 相对(-21.1,82.5) [dx=-21.1<0, dy=82.5>=0]
+[统一坐标管理器]      1: 绝对(-64.8,82.5) → 相对(-64.2,82.5) [dx=-64.2<0, dy=82.5>=0]
+[统一坐标管理器]      2: 绝对(-107.9,82.5) → 相对(-107.3,82.5) [dx=-107.3<0, dy=82.5>=0]
+[统一坐标管理器]      3: 绝对(-151.1,82.5) → 相对(-150.5,82.5) [dx=-150.5<0, dy=82.5>=0]
+[统一坐标管理器]      4: 绝对(-194.2,82.5) → 相对(-193.6,82.5) [dx=-193.6<0, dy=82.5>=0]
+[统一坐标管理器]    sector_4 (dx>=0, dy>=0 (右下)):
+[统一坐标管理器]      6206: 绝对(603.6,2036.6) → 相对(604.2,2036.6) [dx=604.2>=0, dy=2036.6>=0]
+[统一坐标管理器]      6207: 绝对(560.5,2036.6) → 相对(561.1,2036.6) [dx=561.1>=0, dy=2036.6>=0]
+[统一坐标管理器]      6208: 绝对(517.4,2036.6) → 相对(518.0,2036.6) [dx=518.0>=0, dy=2036.6>=0]
+[统一坐标管理器]      6209: 绝对(474.3,2036.6) → 相对(474.9,2036.6) [dx=474.9>=0, dy=2036.6>=0]
+[统一坐标管理器]      6210: 绝对(431.1,2036.6) → 相对(431.7,2036.6) [dx=431.7>=0, dy=2036.6>=0]
+[统一坐标管理器] 📊 扇形分配统计: {'sector_3': 6279, 'sector_4': 6356, 'sector_2': 6279, 'sector_1': 6356}
+[统一坐标管理器] 📈 统计信息:
+[统一坐标管理器]    总孔位数: 25270
+[统一坐标管理器]    扇形中心: (-0.63, 0.00)
+[统一坐标管理器]    sector_1: 6356个 (25.2%)
+[统一坐标管理器]    sector_2: 6279个 (24.8%)
+[统一坐标管理器]    sector_3: 6279个 (24.8%)
+[统一坐标管理器]    sector_4: 6356个 (25.2%)
+[统一坐标管理器] ✅ 坐标管理器初始化完成，耗时0.018秒
+📊 [统一适配器] 扇形分配更新: {'sector_1': 6356, 'sector_2': 6279, 'sector_3': 6279, 'sector_4': 6356}
+🔍 [统一适配器] 初始化完成，sector_assignments: 25270
+🎯 [自适应角度] 开始计算扇形角度...
+2025-07-24 15:16:18,995 - src.core_business.geometry.adaptive_angle_calculator - INFO - 几何分析完成: 边界(-2091.30, -2111.20)-(2091.00, 2111.20), 中心(-0.39, 0.00), 尺寸(4182.30x4222.40)
+2025-07-24 15:16:19,013 - src.core_business.geometry.adaptive_angle_calculator - INFO - 自适应角度计算完成: 4 个扇形区域
+2025-07-24 15:16:19,013 - src.core_business.geometry.adaptive_angle_calculator - INFO -   sector_1: 315.0° - 45.0° (跨度: 90.0°)
+2025-07-24 15:16:19,013 - src.core_business.geometry.adaptive_angle_calculator - INFO -   sector_2: 45.0° - 135.0° (跨度: 90.0°)
+2025-07-24 15:16:19,013 - src.core_business.geometry.adaptive_angle_calculator - INFO -   sector_3: 135.0° - 225.0° (跨度: 90.0°)
+2025-07-24 15:16:19,013 - src.core_business.geometry.adaptive_angle_calculator - INFO -   sector_4: 225.0° - 315.0° (跨度: 90.0°)
+2025-07-24 15:16:19,019 - CompletePanorama - INFO - 🎯 开始加载全景图，孔位数量: 25270
+✅ [自适应角度] 角度计算完成:
+   sector_1: 315.0° - 45.0° (跨度: 90.0°)
+   sector_2: 45.0° - 135.0° (跨度: 90.0°)
+   sector_3: 135.0° - 225.0° (跨度: 90.0°)
+   sector_4: 225.0° - 315.0° (跨度: 90.0°)
+🔄 [统一适配器] 数据同步完成: 25270 个扇形分配
+📈 [统一适配器] 进度统计初始化完成
+💾 [统一适配器] 缓存已更新: 哈希=878c8a7e...
+✅ [统一适配器] 孔位集合加载完成
+📊 [共享数据管理器] 扇形分配完成:
+   - 总分配: 25270 个孔位
+   - SECTOR_3: 6279 个孔位
+   - SECTOR_4: 6356 个孔位
+   - SECTOR_2: 6279 个孔位
+   - SECTOR_1: 6356 个孔位
+✅ [共享数据管理器] 数据处理完成，扇形分配已就绪
+📊 [性能统计] 缓存命中率: 0.0%, 重复处理避免: 0.0%
+📤 [主窗口] 开始统一分发共享数据到各组件
+📋 [侧边栏全景图] 分发共享数据...
+🎯 [侧边栏全景图] 使用缓存数据，无需重复处理
+2025-07-24 15:16:19,019 - CompletePanorama - INFO - 🎯 开始加载全景图，孔位数量: 25270
+2025-07-24 15:16:19,019 - src.core_business.graphics.graphics_view - INFO - 开始加载 25270 个管孔
+2025-07-24 15:16:19,019 - SnakePathRenderer - INFO - 🧹 清除路径图形项
+2025-07-24 15:16:19,019 - SnakePathRenderer - INFO - 🧹 清除路径图形项
+2025-07-24 15:16:19,019 - src.core_business.graphics.graphics_view - INFO - 蛇形路径已清除
+2025-07-24 15:16:19,563 - SnakePathRenderer - INFO - 📍 解析孔位位置: 25270 个孔位
+2025-07-24 15:16:19,563 - SnakePathRenderer - INFO - 📍 解析孔位位置: 25270 个孔位
+2025-07-24 15:16:19,565 - SnakePathRenderer - INFO - 🔢 A侧: 12635个, B侧: 12635个
+2025-07-24 15:16:19,565 - SnakePathRenderer - INFO - 🔢 A侧: 12635个, B侧: 12635个
+2025-07-24 15:16:19,570 - src.core_business.graphics.graphics_view - INFO - 管孔加载完成，场景大小: PySide6.QtCore.QRectF(-2191.300000, -2211.200000, 4382.300000, 4422.400000)
+2025-07-24 15:16:19,594 - CompletePanorama - INFO - 🔍 数据规模:massive, 孔位:25270, 密度:0.001231, 基础半径:16.62px, 全局系数:0.85, 最终半径:14.13px
+🔢 [OptimizedGraphicsView] 场景中实际图形项数: 25270
+🔢 [OptimizedGraphicsView] hole_items 字典大小: 25270
+2025-07-24 15:16:19,594 - CompletePanorama - INFO - 🔍 数据规模:massive, 孔位:25270, 密度:0.001231, 基础半径:16.62px, 全局系数:0.85, 最终半径:14.13px
+2025-07-24 15:16:19,687 - CompletePanorama - INFO - ✅ 已调整 25270 个孔位项的显示大小
+2025-07-24 15:16:19,687 - CompletePanorama - INFO - ✅ 已调整 25270 个孔位项的显示大小
+2025-07-24 15:16:19,691 - CompletePanorama - INFO - 🔍 使用缩放模式: massive_dataset_panorama, 边距比例: 0.050
+2025-07-24 15:16:19,691 - CompletePanorama - INFO - 🔍 使用缩放模式: massive_dataset_panorama, 边距比例: 0.050
+2025-07-24 15:16:19,691 - CompletePanorama - INFO - ✅ 智能缩放完成 - 数据规模: massive
+2025-07-24 15:16:19,691 - CompletePanorama - INFO - ✅ 智能缩放完成 - 数据规模: massive
+2025-07-24 15:16:19,691 - CompletePanorama - INFO - ✅ 全景图加载完成
+2025-07-24 15:16:19,691 - CompletePanorama - INFO - ✅ 全景图加载完成
+2025-07-24 15:16:19,692 - DynamicSectorDisplay - INFO - 📥 通过set_hole_collection设置数据
+✅ [侧边栏全景图] 已加载数据（坐标已在处理阶段旋转）
+📋 [动态扇形显示] 分发共享数据...
+2025-07-24 15:16:19,692 - DynamicSectorDisplay - INFO - 📥 通过set_hole_collection设置数据
+2025-07-24 15:16:19,692 - HoleDataAdapter - INFO - 📨 收到数据变化通知: full_reload
+2025-07-24 15:16:19,692 - HoleDataAdapter - INFO - 📨 收到数据变化通知: full_reload
+2025-07-24 15:16:19,692 - HoleDataAdapter - INFO - 🔄 刷新数据...
+2025-07-24 15:16:19,692 - HoleDataAdapter - INFO - 🔄 刷新数据...
+2025-07-24 15:16:19,692 - HoleDataAdapter - INFO - ✅ 成功获取孔位数据，共25270个孔
+2025-07-24 15:16:19,692 - HoleDataAdapter - INFO - ✅ 成功获取孔位数据，共25270个孔
+2025-07-24 15:16:19,692 - DataProcessingChain - INFO - 🔄 检测到数据变化，启动处理链
+2025-07-24 15:16:19,692 - DataProcessingChain - INFO - 🔄 检测到数据变化，启动处理链
+2025-07-24 15:16:19,692 - DataProcessingChain - INFO - 1️⃣ 步骤1：获取适配后的数据
+2025-07-24 15:16:19,692 - DataProcessingChain - INFO - 1️⃣ 步骤1：获取适配后的数据
+2025-07-24 15:16:19,692 - DataProcessingChain - INFO - 2️⃣ 步骤2：分发数据到扇形
+2025-07-24 15:16:19,692 - DataProcessingChain - INFO - 2️⃣ 步骤2：分发数据到扇形
+2025-07-24 15:16:19,715 - DataProcessingChain - INFO - ✅ 处理链完成: 25270个孔位已分发
+2025-07-24 15:16:19,715 - DataProcessingChain - INFO - ✅ 处理链完成: 25270个孔位已分发
+2025-07-24 15:16:19,715 - DynamicSectorDisplay - INFO - ✅ 数据处理完成，共25270个孔位
+2025-07-24 15:16:19,715 - DynamicSectorDisplay - INFO - ✅ 数据处理完成，共25270个孔位
+2025-07-24 15:16:19,715 - DynamicSectorDisplay - INFO - 📊 处理结果: 25270个孔位
+2025-07-24 15:16:19,715 - DynamicSectorDisplay - INFO - 📊 处理结果: 25270个孔位
+2025-07-24 15:16:19,715 - src.core_business.graphics.graphics_view - INFO - 开始加载 25270 个管孔
+2025-07-24 15:16:19,715 - SnakePathRenderer - INFO - 🧹 清除路径图形项
+2025-07-24 15:16:19,715 - SnakePathRenderer - INFO - 🧹 清除路径图形项
+2025-07-24 15:16:19,715 - src.core_business.graphics.graphics_view - INFO - 蛇形路径已清除
+2025-07-24 15:16:20,059 - SnakePathRenderer - INFO - 📍 解析孔位位置: 25270 个孔位
+2025-07-24 15:16:20,059 - SnakePathRenderer - INFO - 📍 解析孔位位置: 25270 个孔位
+2025-07-24 15:16:20,061 - SnakePathRenderer - INFO - 🔢 A侧: 12635个, B侧: 12635个
+2025-07-24 15:16:20,061 - SnakePathRenderer - INFO - 🔢 A侧: 12635个, B侧: 12635个
+2025-07-24 15:16:20,066 - src.core_business.graphics.graphics_view - INFO - 管孔加载完成，场景大小: PySide6.QtCore.QRectF(-2191.300000, -2211.200000, 4382.300000, 4422.400000)
+2025-07-24 15:16:20,071 - DynamicSectorDisplay - INFO - 📊 扇形分配: {'sectors': {'SECTOR_1': {'bounds': (-0.0, -2111.2, 2091.0, -82.5), 'center': (889.0822529892998, -945.5668502202623), 'count': 6356, 'percentage': 25.15235457063712}, 'SECTOR_2': {'bounds': (-2091.3, -2111.2, -21.7, -82.5), 'center': (-901.2609173435197, -943.6141901576763), 'count': 6279, 'percentage': 24.84764542936288}, 'SECTOR_3': {'bounds': (-2091.3, 82.5, -21.7, 2111.2), 'center': (-901.2609173435197, 943.6141901576763), 'count': 6279, 'percentage': 24.84764542936288}, 'SECTOR_4': {'bounds': (-0.0, 82.5, 2091.0, 2111.2), 'center': (889.0822529892998, 945.5668502202623), 'count': 6356, 'percentage': 25.15235457063712}}, 'total_holes': 25270}
+🔢 [OptimizedGraphicsView] 场景中实际图形项数: 25270
+🔢 [OptimizedGraphicsView] hole_items 字典大小: 25270
+2025-07-24 15:16:20,071 - DynamicSectorDisplay - INFO - 📊 扇形分配: {'sectors': {'SECTOR_1': {'bounds': (-0.0, -2111.2, 2091.0, -82.5), 'center': (889.0822529892998, -945.5668502202623), 'count': 6356, 'percentage': 25.15235457063712}, 'SECTOR_2': {'bounds': (-2091.3, -2111.2, -21.7, -82.5), 'center': (-901.2609173435197, -943.6141901576763), 'count': 6279, 'percentage': 24.84764542936288}, 'SECTOR_3': {'bounds': (-2091.3, 82.5, -21.7, 2111.2), 'center': (-901.2609173435197, 943.6141901576763), 'count': 6279, 'percentage': 24.84764542936288}, 'SECTOR_4': {'bounds': (-0.0, 82.5, 2091.0, 2111.2), 'center': (889.0822529892998, 945.5668502202623), 'count': 6356, 'percentage': 25.15235457063712}}, 'total_holes': 25270}
+2025-07-24 15:16:20,075 - DynamicSectorDisplay - INFO - 🔄 处理孔位集合数据: 25270 个孔位
+📥 [共享数据管理器] 设置孔位集合: 25270 个孔位
+2025-07-24 15:16:20,075 - DynamicSectorDisplay - INFO - 🔄 处理孔位集合数据: 25270 个孔位
+2025-07-24 15:16:20,075 - src.core_business.graphics.graphics_view - INFO - 开始加载 25270 个管孔
+2025-07-24 15:16:20,075 - SnakePathRenderer - INFO - 🧹 清除路径图形项
+2025-07-24 15:16:20,075 - SnakePathRenderer - INFO - 🧹 清除路径图形项
+2025-07-24 15:16:20,075 - src.core_business.graphics.graphics_view - INFO - 蛇形路径已清除
+2025-07-24 15:16:20,629 - SnakePathRenderer - INFO - 📍 解析孔位位置: 25270 个孔位
+2025-07-24 15:16:20,629 - SnakePathRenderer - INFO - 📍 解析孔位位置: 25270 个孔位
+2025-07-24 15:16:20,631 - SnakePathRenderer - INFO - 🔢 A侧: 12635个, B侧: 12635个
+2025-07-24 15:16:20,631 - SnakePathRenderer - INFO - 🔢 A侧: 12635个, B侧: 12635个
+2025-07-24 15:16:20,635 - src.core_business.graphics.graphics_view - INFO - 管孔加载完成，场景大小: PySide6.QtCore.QRectF(-2191.300000, -2211.200000, 4382.300000, 4422.400000)
+2025-07-24 15:16:20,644 - SnakePathCoordinator - INFO - 📝 注册主视图
+🔢 [OptimizedGraphicsView] 场景中实际图形项数: 25270
+🔢 [OptimizedGraphicsView] hole_items 字典大小: 25270
+🐍 [蛇形路径协调器] 注册视图组件...
+2025-07-24 15:16:20,644 - SnakePathCoordinator - INFO - 📝 注册主视图
+2025-07-24 15:16:20,644 - SnakePathCoordinator - INFO - 📝 注册扇形视图
+✅ [蛇形路径协调器] 注册主视图
+2025-07-24 15:16:20,644 - SnakePathCoordinator - INFO - 📝 注册扇形视图
+2025-07-24 15:16:20,644 - SnakePathCoordinator - INFO - 📝 注册全景组件
+✅ [蛇形路径协调器] 注册扇形视图
+2025-07-24 15:16:20,644 - SnakePathCoordinator - INFO - 📝 注册全景组件
+2025-07-24 15:16:20,644 - SnakePathCoordinator - INFO - 📦 设置孔位集合: 25270个孔位
+✅ [蛇形路径协调器] 注册全景组件
+2025-07-24 15:16:20,644 - SnakePathCoordinator - INFO - 📦 设置孔位集合: 25270个孔位
+✅ [蛇形路径协调器] 设置孔位集合
+✅ [主窗口] 共享数据分发完成，避免了重复处理
+2025-07-24 15:16:20,709 - src.core_business.graphics.graphics_view - INFO - 适配到窗口宽度完成，缩放比例: 0.125 (基础: 0.125, 最大: 2.000)
+2025-07-24 15:16:20,709 - DynamicSectorDisplay - INFO - 🔄 切换到扇形 sector_1
+2025-07-24 15:16:20,709 - DynamicSectorDisplay - INFO - 🔄 切换到扇形 sector_1
+2025-07-24 15:16:20,716 - src.main_window - INFO - 📡 [信号] 接收到扇形切换信号: sector_1
+2025-07-24 15:16:20,725 - DynamicSectorDisplay - INFO - ✅ 切换完成: 显示6356个，隐藏18914个
+🔍 [DEBUG MainWindow] _update_sector_stats_display 被调用: SectorQuadrant.SECTOR_1
+🔍 [DEBUG MainWindow] sector_stats_label 存在: True
+🔍 [DEBUG MainWindow] sector_manager 存在: True
+🔍 [DEBUG MainWindow] 详细扇形统计调试:
+  - 请求的扇形: SectorQuadrant.SECTOR_1
+  - SectorManager类型: <class 'src.core_business.graphics.unified_sector_adapter.UnifiedSectorAdapter'>
+  - SectorManager有数据: True
+  - 扇形分配数量: 25270
+  - sector_1 扇形孔位数: 6356
+🔍 [DEBUG MainWindow] 获取到的进度信息: 0/6356 (0.0%)
+2025-07-24 15:16:20,725 - DynamicSectorDisplay - INFO - ✅ 切换完成: 显示6356个，隐藏18914个
+2025-07-24 15:16:20,894 - DynamicSectorDisplay - INFO - 🔄 切换到扇形 sector_1
+2025-07-24 15:16:20,894 - DynamicSectorDisplay - INFO - 🔄 切换到扇形 sector_1
+2025-07-24 15:16:20,902 - src.main_window - INFO - 📡 [信号] 接收到扇形切换信号: sector_1
+2025-07-24 15:16:20,911 - DynamicSectorDisplay - INFO - ✅ 切换完成: 显示6356个，隐藏18914个
+🔍 [DEBUG MainWindow] _update_sector_stats_display 被调用: SectorQuadrant.SECTOR_1
+🔍 [DEBUG MainWindow] sector_stats_label 存在: True
+🔍 [DEBUG MainWindow] sector_manager 存在: True
+🔍 [DEBUG MainWindow] 详细扇形统计调试:
+  - 请求的扇形: SectorQuadrant.SECTOR_1
+  - SectorManager类型: <class 'src.core_business.graphics.unified_sector_adapter.UnifiedSectorAdapter'>
+  - SectorManager有数据: True
+  - 扇形分配数量: 25270
+  - sector_1 扇形孔位数: 6356
+🔍 [DEBUG MainWindow] 获取到的进度信息: 0/6356 (0.0%)
+2025-07-24 15:16:20,911 - DynamicSectorDisplay - INFO - ✅ 切换完成: 显示6356个，隐藏18914个
+2025-07-24 15:16:20,926 - src.core_business.graphics.graphics_view - INFO - 跳过自动适配（disable_auto_fit=True）
+2025-07-24 15:16:21,112 - DynamicSectorDisplay - INFO - 🔄 切换到扇形 sector_1
+2025-07-24 15:16:21,112 - DynamicSectorDisplay - INFO - 🔄 切换到扇形 sector_1
+2025-07-24 15:16:21,120 - src.main_window - INFO - 📡 [信号] 接收到扇形切换信号: sector_1
+2025-07-24 15:16:21,128 - DynamicSectorDisplay - INFO - ✅ 切换完成: 显示6356个，隐藏18914个
+🔍 [DEBUG MainWindow] _update_sector_stats_display 被调用: SectorQuadrant.SECTOR_1
+🔍 [DEBUG MainWindow] sector_stats_label 存在: True
+🔍 [DEBUG MainWindow] sector_manager 存在: True
+🔍 [DEBUG MainWindow] 详细扇形统计调试:
+  - 请求的扇形: SectorQuadrant.SECTOR_1
+  - SectorManager类型: <class 'src.core_business.graphics.unified_sector_adapter.UnifiedSectorAdapter'>
+  - SectorManager有数据: True
+  - 扇形分配数量: 25270
+  - sector_1 扇形孔位数: 6356
+🔍 [DEBUG MainWindow] 获取到的进度信息: 0/6356 (0.0%)
+2025-07-24 15:16:21,128 - DynamicSectorDisplay - INFO - ✅ 切换完成: 显示6356个，隐藏18914个

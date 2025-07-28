@@ -1,0 +1,13 @@
+{
+  "batch_id": "TEST_检测001_20250727_024653_MOCK",
+  "product_id": "TEST",
+  "product_name": "TEST",
+  "detection_number": 1,
+  "detection_type": "mock",
+  "is_mock": true,
+  "operator": null,
+  "equipment_id": null,
+  "description": null,
+  "status": "pending",
+  "created_at": "2025-07-27T02:46:53.762681"
+}

@@ -18,7 +18,7 @@ from .hybrid_manager import HybridDataManager
 # 导入数据库模型
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-from modules.models import DatabaseManager, Workpiece, Hole, Measurement
+from src.modules.models import DatabaseManager, Workpiece, Hole, Measurement
 
 
 class RealTimeDataBridge:

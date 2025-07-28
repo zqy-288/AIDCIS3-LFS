@@ -31,10 +31,12 @@ class HoleStatus(Enum):
 @dataclass
 class HoleData:
     """管孔数据类"""
-    hole_id: str                    # 孔的唯一标识
+    # 必需字段（无默认值）
     center_x: float                 # 中心X坐标
     center_y: float                 # 中心Y坐标
     radius: float                   # 半径
+    # 可选字段（有默认值）
+    hole_id: Optional[str] = None   # 孔的唯一标识（可选，由HoleNumberingService生成）
     status: HoleStatus = HoleStatus.PENDING  # 状态
     layer: str = "0"               # DXF图层
     row: Optional[int] = None      # 行号
@@ -52,17 +54,8 @@ class HoleData:
         if self.metadata is None:
             self.metadata = {}
         
-        # AI员工1号修改开始 - 2025-01-14
-        # 修改目的：将孔位ID从H格式转换为C{col}R{row}格式
-        # 生成默认ID（如果未提供）
-        if not self.hole_id:
-            if self.row is not None and self.column is not None:
-                # 使用新的C{column:03d}R{row:03d}格式
-                self.hole_id = f"C{self.column:03d}R{self.row:03d}"
-            else:
-                # 如果没有行列信息，使用坐标生成临时ID
-                self.hole_id = f"hole_{self.center_x:.3f}_{self.center_y:.3f}"
-        # AI员工1号修改结束
+        # 不再自动生成ID，由HoleNumberingService负责
+        # hole_id现在是可选的，初始时可以为None
     
     @property
     def position(self) -> tuple[float, float]:

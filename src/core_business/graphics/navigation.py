@@ -24,7 +24,7 @@ class NavigationMixin:
         # 导航参数
         self.zoom_factor_in = 1.25
         self.zoom_factor_out = 0.8
-        self.min_zoom = 0.01
+        self.min_zoom = 0.001  # 降低最小缩放限制以支持大数据集
         self.max_zoom = 100.0
         
         # 平移参数

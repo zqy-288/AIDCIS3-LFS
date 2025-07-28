@@ -44,15 +44,7 @@ class ImageScanner:
         Args:
             base_path: 基础扫描路径，默认为"Data"
         """
-        from src.utils.path_config import get_path_config, PathType
-        
-        # 使用统一路径配置
-        if base_path == "Data":
-            path_config = get_path_config()
-            self.base_path = path_config.get_base_path(PathType.DATA)
-        else:
-            self.base_path = Path(base_path)
-            
+        self.base_path = Path(base_path)
         self.hole_ids: Set[str] = set()
         self.images_by_hole: Dict[str, List[ImageInfo]] = {}
         self.all_images: List[ImageInfo] = []

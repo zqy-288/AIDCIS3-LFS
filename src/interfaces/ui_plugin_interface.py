@@ -12,11 +12,11 @@ from PySide6.QtWidgets import QWidget
 from PySide6.QtCore import QObject, Signal
 
 try:
-    from ..core.plugin_manager import IPlugin, PluginMetadata, PluginState
+    from ..core.plugin_system.interfaces import IPlugin, PluginMetadata, PluginState
     from ..modules.ui_component_base import UIComponentBase, ComponentState
 except ImportError:
     # 从项目根目录运行时的导入路径
-    from core.plugin_manager import IPlugin, PluginMetadata, PluginState
+    from core.plugin_system.interfaces import IPlugin, PluginMetadata, PluginState
     from modules.ui_component_base import UIComponentBase, ComponentState
 
 

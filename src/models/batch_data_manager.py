@@ -153,11 +153,13 @@ class BatchDataManager:
         # 支持新的目录结构：Data/Products/{product_id}/InspectionBatches/{inspection_batch_id}/data_batches/
         if data_dir is None:
             if product_id and inspection_batch_id:
-                # 使用新的目录结构
-                self.data_dir = Path("Data/Products") / product_id / "InspectionBatches" / inspection_batch_id / "data_batches"
+                # 使用新的目录结构 - 使用绝对路径
+                project_root = Path(__file__).parent.parent.parent
+                self.data_dir = project_root / "Data" / "Products" / product_id / "InspectionBatches" / inspection_batch_id / "data_batches"
             else:
-                # 兼容旧的目录结构
-                self.data_dir = Path("src/data")
+                # 兼容旧的目录结构 - 使用绝对路径
+                project_root = Path(__file__).parent.parent.parent
+                self.data_dir = project_root / "src" / "data"
         elif isinstance(data_dir, str):
             self.data_dir = Path(data_dir)
         else:

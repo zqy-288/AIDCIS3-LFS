@@ -3,7 +3,7 @@
 提供预定义的主题兼容样式，避免硬编码
 """
 
-from modules.theme_manager_unified import get_unified_theme_manager
+from src.modules.theme_manager_unified import get_unified_theme_manager
 
 def get_theme_compatible_styles():
     """获取主题兼容的样式定义"""

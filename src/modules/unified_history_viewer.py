@@ -5,13 +5,10 @@
 """
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, 
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
     QStackedWidget, QGroupBox, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
-import weakref
-import gc
 
 from .history_viewer import HistoryViewer
 from .defect_annotation_tool import DefectAnnotationTool
@@ -31,70 +28,11 @@ class UnifiedHistoryViewer(QWidget):
         self.annotation_tool = None
         self.current_mode = "管孔直径"
         
-        # 内存管理相关
-        self._cleanup_called = False
-        self._widget_refs = weakref.WeakSet()
-        self._signal_connections = []
-        
         # 初始化UI
         self.init_ui()
         
         # 初始化子组件
         self.init_components()
-        
-    def _connect_signal(self, signal, slot):
-        """安全地连接信号和槽，并跟踪连接"""
-        connection = signal.connect(slot)
-        self._signal_connections.append((signal, slot, connection))
-        return connection
-        
-    def _disconnect_all_signals(self):
-        """断开所有信号连接"""
-        for signal, slot, connection in self._signal_connections:
-            try:
-                signal.disconnect(slot)
-            except:
-                pass
-        self._signal_connections.clear()
-        
-    def cleanup(self):
-        """清理资源"""
-        if self._cleanup_called:
-            return
-        self._cleanup_called = True
-        
-        try:
-            # 断开所有信号连接
-            self._disconnect_all_signals()
-            
-            # 清理子组件
-            if self.history_viewer:
-                if hasattr(self.history_viewer, 'cleanup'):
-                    self.history_viewer.cleanup()
-                self.history_viewer = None
-                
-            if self.annotation_tool:
-                if hasattr(self.annotation_tool, 'cleanup'):
-                    self.annotation_tool.cleanup()
-                self.annotation_tool = None
-                
-            # 清理弱引用
-            self._widget_refs.clear()
-            
-            # 强制垃圾回收
-            gc.collect()
-            
-        except Exception as e:
-            print(f"清理UnifiedHistoryViewer资源时出错: {e}")
-            
-    def __del__(self):
-        """析构函数"""
-        self.cleanup()
-        
-    def closeEvent(self, event):
-        """窗口关闭事件"""
-        self.cleanup()
-        super().closeEvent(event)
         
     def init_ui(self):
         """初始化用户界面"""
@@ -115,38 +53,32 @@ class UnifiedHistoryViewer(QWidget):
         """创建顶部控制面板"""
         # 控制面板组框
         control_group = QGroupBox("数据类型选择")
-        control_group.setMaximumHeight(80)
+        # control_group.setMaximumHeight(80)  # 已删除：移除固定高度限制，让布局自适应
         control_layout = QHBoxLayout(control_group)
+        control_layout.setSpacing(15)  # 增加控件间的水平间距
         
-        # 设置字体
-        title_font = QFont()
-        title_font.setPointSize(12)
-        title_font.setBold(True)
-        
-        label_font = QFont()
-        label_font.setPointSize(11)
-        
-        # 选择标签
+        # 选择标签 - 使用CSS样式，移除代码中的字体设置
         select_label = QLabel("查看内容：")
-        select_label.setFont(label_font)
+        select_label.setObjectName("HistoryViewerLabel")  # 使用CSS样式
+        select_label.setMinimumWidth(120)  # 增加文本框长度
         control_layout.addWidget(select_label)
-        
-        # 数据类型下拉框
+
+        # 数据类型下拉框 - 使用CSS样式
         self.data_type_combo = QComboBox()
-        self.data_type_combo.setFont(label_font)
-        self.data_type_combo.setMinimumWidth(150)
+        self.data_type_combo.setObjectName("HistoryViewerCombo")  # 使用CSS样式
+        self.data_type_combo.setMinimumWidth(200)  # 从150增加到200
         self.data_type_combo.addItems(["管孔直径", "缺陷标注"])
         self.data_type_combo.setCurrentText("管孔直径")
-        self._connect_signal(self.data_type_combo.currentTextChanged, self.on_data_type_changed)
+        self.data_type_combo.currentTextChanged.connect(self.on_data_type_changed)
         control_layout.addWidget(self.data_type_combo)
-        
+
         # 添加弹性空间
         control_layout.addStretch()
-        
-        # 状态标签
+
+        # 状态标签 - 使用CSS样式
         self.status_label = QLabel("当前模式：管孔直径历史数据")
-        self.status_label.setFont(label_font)
-        self.status_label.setObjectName("SuccessLabel")
+        self.status_label.setObjectName("SuccessLabel")  # 使用CSS样式，字体已改为18px
+        self.status_label.setMinimumWidth(300)  # 增加状态标签的文本框长度
         control_layout.addWidget(self.status_label)
         
         parent_layout.addWidget(control_group)
@@ -165,14 +97,12 @@ class UnifiedHistoryViewer(QWidget):
             # 创建历史数据查看器（3.1界面）
             print("🔧 初始化历史数据查看器...")
             self.history_viewer = HistoryViewer()
-            self._widget_refs.add(self.history_viewer)
             self.stacked_widget.addWidget(self.history_viewer)
             print("✅ 历史数据查看器初始化完成")
             
             # 创建缺陷标注工具（3.2界面）
             print("🔧 初始化缺陷标注工具...")
             self.annotation_tool = DefectAnnotationTool()
-            self._widget_refs.add(self.annotation_tool)
             self.stacked_widget.addWidget(self.annotation_tool)
             print("✅ 缺陷标注工具初始化完成")
             
@@ -266,3 +196,29 @@ class UnifiedHistoryViewer(QWidget):
     def get_annotation_tool(self):
         """获取缺陷标注工具实例"""
         return self.annotation_tool
+    
+    def cleanup(self):
+        """清理资源"""
+        try:
+            # 清理历史数据查看器
+            if self.history_viewer:
+                if hasattr(self.history_viewer, 'cleanup'):
+                    self.history_viewer.cleanup()
+                self.history_viewer.deleteLater()
+                self.history_viewer = None
+                
+            # 清理缺陷标注工具
+            if self.annotation_tool:
+                if hasattr(self.annotation_tool, 'cleanup'):
+                    self.annotation_tool.cleanup()
+                self.annotation_tool.deleteLater()
+                self.annotation_tool = None
+                
+            print("✅ 统一历史数据查看器资源清理完成")
+        except Exception as e:
+            print(f"❌ 清理统一历史数据查看器时出错: {e}")
+    
+    def closeEvent(self, event):
+        """处理关闭事件"""
+        self.cleanup()
+        super().closeEvent(event)

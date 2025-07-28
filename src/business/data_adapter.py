@@ -8,7 +8,7 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime
 
 from core_business.models.hole_data import HoleData, HoleCollection, HoleStatus
-from modules.models import Hole, Workpiece, Measurement
+from src.modules.models import Hole, Workpiece, Measurement
 from core_business.business_cache import BusinessCacheManager, cached_business_operation
 from core_business.business_rules import BusinessRuleEngine, apply_business_rules
 from src.core.dependency_injection import injectable, ServiceLifetime

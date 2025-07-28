@@ -1,0 +1,33 @@
+{
+  "database": {
+    "url": "sqlite:///detection_system.db",
+    "echo": false
+  },
+  "ui": {
+    "theme": "light",
+    "font_size": 14,
+    "window_size": [
+      1400,
+      900
+    ]
+  },
+  "detection": {
+    "model_path": "models/yolo_v8.pt",
+    "confidence_threshold": 0.6,
+    "nms_threshold": 0.4
+  },
+  "logging": {
+    "level": "DEBUG",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "file_path": "logs/aidcis.log"
+  },
+  "performance": {
+    "max_workers": 8,
+    "cache_size": 2000
+  },
+  "paths": {
+    "data_dir": "Data",
+    "assets_dir": "assets",
+    "temp_dir": "temp_charts"
+  }
+}

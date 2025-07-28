@@ -1,0 +1,95 @@
+2025-07-26 01:36:52,890 - INFO - 🚀 启动AIDCIS3-LFS综合测试套件
+2025-07-26 01:36:52,890 - INFO - 🚀 开始综合测试套件 - 零容忍测试
+2025-07-26 01:36:52,890 - INFO - ============================================================
+2025-07-26 01:36:52,890 - INFO - 🧪 执行测试套件: 零容忍核心测试
+2025-07-26 01:36:52,890 - INFO - 📝 执行命令: /Library/Developer/CommandLineTools/usr/bin/python3 test_runner_zero_tolerance_fixed.py
+2025-07-26 01:36:53,826 - ERROR - ❌ 零容忍核心测试 - 失败 (返回码: 1)
+2025-07-26 01:36:53,826 - ERROR - ❌ 关键测试套件失败: 零容忍核心测试
+2025-07-26 01:36:53,826 - ERROR - 🛑 停止执行后续测试
+2025-07-26 01:36:53,826 - INFO - 📊 生成综合测试报告...
+2025-07-26 01:36:53,827 - INFO - 📄 报告已保存: /Users/vsiyo/Desktop/AIDCIS3-LFS/COMPREHENSIVE_TEST_REPORT.md
+2025-07-26 01:36:53,827 - INFO - 📊 详细结果已保存: /Users/vsiyo/Desktop/AIDCIS3-LFS/test_results.json
+2025-07-26 01:36:53,827 - WARNING - ⚠️ 没有执行任何测试
+2025-07-26 01:37:39,463 - INFO - 🚀 启动AIDCIS3-LFS综合测试套件
+2025-07-26 01:37:39,464 - INFO - 🚀 开始综合测试套件 - 零容忍测试
+2025-07-26 01:37:39,464 - INFO - ============================================================
+2025-07-26 01:37:39,464 - INFO - 🧪 执行测试套件: 零容忍核心测试
+2025-07-26 01:37:39,464 - INFO - 📝 执行命令: /Library/Developer/CommandLineTools/usr/bin/python3 test_runner_zero_tolerance_fixed.py
+2025-07-26 01:37:40,213 - INFO - ✅ 零容忍核心测试 - 通过
+2025-07-26 01:37:40,213 - INFO - 🧪 执行测试套件: UI自动化测试
+2025-07-26 01:37:40,213 - INFO - 📝 执行命令: /Library/Developer/CommandLineTools/usr/bin/python3 -m pytest tests/playwright/test_comprehensive_ui_automation.py -v --tb=short --disable-warnings
+2025-07-26 01:37:40,655 - ERROR - ❌ UI自动化测试 - 失败 (返回码: 4)
+2025-07-26 01:37:40,655 - ERROR - ❌ 关键测试套件失败: UI自动化测试
+2025-07-26 01:37:40,655 - ERROR - 🛑 停止执行后续测试
+2025-07-26 01:37:40,655 - INFO - 📊 生成综合测试报告...
+2025-07-26 01:37:40,656 - INFO - 📄 报告已保存: /Users/vsiyo/Desktop/AIDCIS3-LFS/COMPREHENSIVE_TEST_REPORT.md
+2025-07-26 01:37:40,656 - INFO - 📊 详细结果已保存: /Users/vsiyo/Desktop/AIDCIS3-LFS/test_results.json
+2025-07-26 01:37:40,656 - WARNING - ⚠️ 没有执行任何测试
+2025-07-26 01:38:14,577 - INFO - 🚀 启动AIDCIS3-LFS综合测试套件
+2025-07-26 01:38:14,577 - INFO - 🚀 开始综合测试套件 - 零容忍测试
+2025-07-26 01:38:14,577 - INFO - ============================================================
+2025-07-26 01:38:14,577 - INFO - 🧪 执行测试套件: 零容忍核心测试
+2025-07-26 01:38:14,577 - INFO - 📝 执行命令: /Library/Developer/CommandLineTools/usr/bin/python3 test_runner_zero_tolerance_fixed.py
+2025-07-26 01:38:15,462 - INFO - ✅ 零容忍核心测试 - 通过
+2025-07-26 01:38:15,463 - INFO - 🧪 执行测试套件: UI自动化测试
+2025-07-26 01:38:15,463 - INFO - 📝 执行命令: /Library/Developer/CommandLineTools/usr/bin/python3 -m pytest tests/playwright/test_comprehensive_ui_automation.py -v --tb=short --disable-warnings
+2025-07-26 01:38:15,865 - ERROR - ❌ UI自动化测试 - 失败 (返回码: 4)
+2025-07-26 01:38:15,865 - ERROR - ❌ 关键测试套件失败: UI自动化测试
+2025-07-26 01:38:15,865 - ERROR - 🛑 停止执行后续测试
+2025-07-26 01:38:15,865 - INFO - 📊 生成综合测试报告...
+2025-07-26 01:38:15,865 - INFO - 📄 报告已保存: /Users/vsiyo/Desktop/AIDCIS3-LFS/COMPREHENSIVE_TEST_REPORT.md
+2025-07-26 01:38:15,865 - INFO - 📊 详细结果已保存: /Users/vsiyo/Desktop/AIDCIS3-LFS/test_results.json
+2025-07-26 01:38:15,865 - WARNING - ⚠️ 没有执行任何测试
+2025-07-26 01:38:26,669 - INFO - 🚀 启动AIDCIS3-LFS综合测试套件
+2025-07-26 01:38:26,669 - INFO - 🚀 开始综合测试套件 - 零容忍测试
+2025-07-26 01:38:26,669 - INFO - ============================================================
+2025-07-26 01:38:26,669 - INFO - 🧪 执行测试套件: 零容忍核心测试
+2025-07-26 01:38:26,669 - INFO - 📝 执行命令: /Library/Developer/CommandLineTools/usr/bin/python3 test_runner_zero_tolerance_fixed.py
+2025-07-26 01:38:27,628 - INFO - ✅ 零容忍核心测试 - 通过
+2025-07-26 01:38:27,628 - INFO - 🧪 执行测试套件: UI自动化测试
+2025-07-26 01:38:27,628 - INFO - 📝 执行命令: /Library/Developer/CommandLineTools/usr/bin/python3 -m pytest tests/playwright/test_comprehensive_ui_automation.py -v --tb=short --disable-warnings
+2025-07-26 01:38:28,032 - ERROR - ❌ UI自动化测试 - 失败 (返回码: 4)
+2025-07-26 01:38:28,032 - ERROR - ❌ 关键测试套件失败: UI自动化测试
+2025-07-26 01:38:28,032 - ERROR - 🛑 停止执行后续测试
+2025-07-26 01:38:28,032 - INFO - 📊 生成综合测试报告...
+2025-07-26 01:38:28,033 - INFO - 📄 报告已保存: /Users/vsiyo/Desktop/AIDCIS3-LFS/COMPREHENSIVE_TEST_REPORT.md
+2025-07-26 01:38:28,033 - INFO - 📊 详细结果已保存: /Users/vsiyo/Desktop/AIDCIS3-LFS/test_results.json
+2025-07-26 01:38:28,033 - WARNING - ⚠️ 没有执行任何测试
+2025-07-26 01:39:27,222 - INFO - 🚀 启动AIDCIS3-LFS综合测试套件
+2025-07-26 01:39:27,223 - INFO - 🚀 开始综合测试套件 - 零容忍测试
+2025-07-26 01:39:27,223 - INFO - ============================================================
+2025-07-26 01:39:27,223 - INFO - 🧪 执行测试套件: 零容忍核心测试
+2025-07-26 01:39:27,223 - INFO - 📝 执行命令: /Library/Developer/CommandLineTools/usr/bin/python3 test_runner_zero_tolerance_fixed.py
+2025-07-26 01:39:28,073 - INFO - ✅ 零容忍核心测试 - 通过
+2025-07-26 01:39:28,074 - INFO - 🧪 执行测试套件: UI自动化测试
+2025-07-26 01:39:28,074 - INFO - 📝 执行命令: /Library/Developer/CommandLineTools/usr/bin/python3 -m pytest tests/playwright/test_comprehensive_ui_automation.py -v --tb=short --disable-warnings
+2025-07-26 01:39:28,605 - ERROR - ❌ UI自动化测试 - 失败 (返回码: 1)
+2025-07-26 01:39:28,606 - ERROR - ❌ 关键测试套件失败: UI自动化测试
+2025-07-26 01:39:28,606 - ERROR - 🛑 停止执行后续测试
+2025-07-26 01:39:28,606 - INFO - 📊 生成综合测试报告...
+2025-07-26 01:39:28,606 - INFO - 📄 报告已保存: /Users/vsiyo/Desktop/AIDCIS3-LFS/COMPREHENSIVE_TEST_REPORT.md
+2025-07-26 01:39:28,606 - INFO - 📊 详细结果已保存: /Users/vsiyo/Desktop/AIDCIS3-LFS/test_results.json
+2025-07-26 01:39:28,606 - INFO - ============================================================
+2025-07-26 01:39:28,606 - INFO - 🎯 综合测试完成
+2025-07-26 01:39:28,606 - INFO - 📊 成功率: 0.0% (0/1)
+2025-07-26 01:39:28,606 - INFO - ⏱️ 总时间: 1.38秒
+2025-07-26 01:39:28,606 - ERROR - ❌ 测试失败过多，系统未达到质量标准
+2025-07-26 01:40:47,208 - INFO - 🚀 启动AIDCIS3-LFS综合测试套件
+2025-07-26 01:40:47,208 - INFO - 🚀 开始综合测试套件 - 零容忍测试
+2025-07-26 01:40:47,208 - INFO - ============================================================
+2025-07-26 01:40:47,208 - INFO - 🧪 执行测试套件: 零容忍核心测试
+2025-07-26 01:40:47,208 - INFO - 📝 执行命令: /Library/Developer/CommandLineTools/usr/bin/python3 test_runner_zero_tolerance_fixed.py
+2025-07-26 01:40:47,943 - INFO - ✅ 零容忍核心测试 - 通过
+2025-07-26 01:40:47,944 - INFO - 🧪 执行测试套件: UI自动化测试
+2025-07-26 01:40:47,944 - INFO - 📝 执行命令: /Library/Developer/CommandLineTools/usr/bin/python3 -m pytest tests/playwright/test_comprehensive_ui_automation.py -v --tb=short --disable-warnings
+2025-07-26 01:40:50,899 - ERROR - ❌ UI自动化测试 - 失败 (返回码: 1)
+2025-07-26 01:40:50,899 - ERROR - ❌ 关键测试套件失败: UI自动化测试
+2025-07-26 01:40:50,899 - ERROR - 🛑 停止执行后续测试
+2025-07-26 01:40:50,899 - INFO - 📊 生成综合测试报告...
+2025-07-26 01:40:50,899 - INFO - 📄 报告已保存: /Users/vsiyo/Desktop/AIDCIS3-LFS/COMPREHENSIVE_TEST_REPORT.md
+2025-07-26 01:40:50,899 - INFO - 📊 详细结果已保存: /Users/vsiyo/Desktop/AIDCIS3-LFS/test_results.json
+2025-07-26 01:40:50,899 - INFO - ============================================================
+2025-07-26 01:40:50,899 - INFO - 🎯 综合测试完成
+2025-07-26 01:40:50,900 - INFO - 📊 成功率: 75.0% (6/8)
+2025-07-26 01:40:50,900 - INFO - ⏱️ 总时间: 3.69秒
+2025-07-26 01:40:50,900 - ERROR - ❌ 测试失败过多，系统未达到质量标准

@@ -1,48 +1,57 @@
 """
 管孔ID映射工具
 处理新旧管孔ID格式之间的转换
+使用统一的AC/BC格式
 """
 
 from typing import Dict, List, Optional
+import sys
+from pathlib import Path
+
+# 添加项目根目录到路径
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from src.utils.hole_id_converter import HoleIDConverter
 
 class HoleIdMapper:
-    """管孔ID映射器"""
+    """管孔ID映射器 - 使用新的统一转换器"""
     
-    # 新旧ID映射关系
-    OLD_TO_NEW_MAPPING = {
-        "H00001": "R001C001",
-        "H00002": "R001C002", 
-        "H00003": "R001C003"
-    }
-    
-    # 反向映射
-    NEW_TO_OLD_MAPPING = {v: k for k, v in OLD_TO_NEW_MAPPING.items()}
+    def __init__(self):
+        self.converter = HoleIDConverter()
     
     @classmethod
     def old_to_new(cls, old_id: str) -> str:
         """
-        将旧格式ID转换为新格式ID
+        将旧格式ID转换为新格式ID (AC/BC格式)
         
         Args:
-            old_id: 旧格式ID (如 H00001)
+            old_id: 旧格式ID (如 H00001, C001R001, R001C001)
             
         Returns:
-            str: 新格式ID (如 R001C001)，如果没有映射则返回原ID
+            str: 新格式ID (如 AC001R001, BC001R001)
         """
-        return cls.OLD_TO_NEW_MAPPING.get(old_id, old_id)
+        converter = HoleIDConverter()
+        try:
+            return converter.convert(old_id)
+        except ValueError:
+            # 如果无法转换，返回原ID
+            return old_id
     
     @classmethod
     def new_to_old(cls, new_id: str) -> str:
         """
         将新格式ID转换为旧格式ID
+        注意：这个方法已经废弃，因为我们不再需要转换回旧格式
         
         Args:
-            new_id: 新格式ID (如 R001C001)
+            new_id: 新格式ID (如 AC001R001)
             
         Returns:
-            str: 旧格式ID (如 H00001)，如果没有映射则返回原ID
+            str: 返回原ID（不再支持反向转换）
         """
-        return cls.NEW_TO_OLD_MAPPING.get(new_id, new_id)
+        # 不再支持反向转换
+        return new_id
     
     @classmethod
     def convert_list_old_to_new(cls, old_ids: List[str]) -> List[str]:

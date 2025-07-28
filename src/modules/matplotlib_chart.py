@@ -56,9 +56,9 @@ class MatplotlibChart(QWidget):
         title_label.setStyleSheet("""
             font-size: 16px; 
             font-weight: bold; 
-            color: #D3D8E0; 
+            color: #2c3e50; 
             padding: 10px;
-            background-color: #313642;
+            background-color: #ecf0f1;
             border-radius: 5px;
             margin-bottom: 10px;
         """)
@@ -230,10 +230,19 @@ class MatplotlibChart(QWidget):
         
     def draw_error_lines(self, max_y, min_y):
         """绘制误差线"""
+        import time
+        start_time = time.time()
+        print(f"\n📏 [误差线] 开始绘制误差线...")
+        print(f"   • 上限: {max_y:.3f}mm, 下限: {min_y:.3f}mm")
+        
         # 获取当前X轴范围
+        axis_start = time.time()
         x_min, x_max = self.ax.get_xlim()
+        axis_time = time.time() - axis_start
+        print(f"   • X轴范围: [{x_min:.1f}, {x_max:.1f}], 获取耗时: {axis_time:.4f}s")
         
         # 绘制上误差线（红色虚线）
+        upper_start = time.time()
         self.max_error_line = self.ax.axhline(
             y=max_y, 
             color='red', 
@@ -242,8 +251,11 @@ class MatplotlibChart(QWidget):
             alpha=0.8,
             label=f'Upper Limit {max_y:.2f}mm'
         )
+        upper_time = time.time() - upper_start
+        print(f"   ✓ 上误差线绘制完成: {upper_time:.4f}s")
         
         # 绘制下误差线（红色虚线）
+        lower_start = time.time()
         self.min_error_line = self.ax.axhline(
             y=min_y, 
             color='red', 
@@ -252,6 +264,11 @@ class MatplotlibChart(QWidget):
             alpha=0.8,
             label=f'Lower Limit {min_y:.2f}mm'
         )
+        lower_time = time.time() - lower_start
+        print(f"   ✓ 下误差线绘制完成: {lower_time:.4f}s")
+        
+        total_time = time.time() - start_time
+        print(f"   ✨ 误差线绘制完成! 总耗时: {total_time:.4f}s")
         
         # 更新图例
         self.ax.legend(loc='upper right')
@@ -297,6 +314,14 @@ class MatplotlibChart(QWidget):
         
     def update_plot(self):
         """更新图表显示"""
+        import time
+        start_time = time.time()
+        
+        # 初始化计数器
+        if not hasattr(self, '_plot_update_count'):
+            self._plot_update_count = 0
+        self._plot_update_count += 1
+        
         if len(self.depth_data) > 0:
             # 更新数据线
             self.data_line.set_data(list(self.depth_data), list(self.diameter_data))
@@ -341,3 +366,59 @@ class MatplotlibChart(QWidget):
         self.data_line.set_data([], [])
         self.ax.set_xlim(0, 100)
         self.canvas.draw()
+    
+    def cleanup(self):
+        """清理matplotlib资源"""
+        try:
+            # 停止定时器
+            if hasattr(self, 'update_timer') and self.update_timer:
+                self.update_timer.stop()
+                self.update_timer = None
+            
+            # 安全清理canvas
+            if hasattr(self, 'canvas') and self.canvas is not None:
+                try:
+                    # 先断开所有信号连接
+                    self.canvas.mpl_disconnect_all()
+                except:
+                    pass
+                try:
+                    # 安全删除canvas
+                    self.canvas.close()
+                except:
+                    pass
+                finally:
+                    self.canvas = None
+            
+            # 清除图形内容
+            if hasattr(self, 'ax') and self.ax is not None:
+                try:
+                    self.ax.clear()
+                except:
+                    pass
+                finally:
+                    self.ax = None
+            
+            # 关闭图形
+            if hasattr(self, 'figure') and self.figure is not None:
+                try:
+                    import matplotlib.pyplot as plt
+                    plt.close(self.figure)
+                except:
+                    pass
+                finally:
+                    self.figure = None
+            
+            # 清除数据
+            if hasattr(self, 'depth_data'):
+                self.depth_data.clear()
+            if hasattr(self, 'diameter_data'):
+                self.diameter_data.clear()
+                
+        except Exception as e:
+            print(f"清理MatplotlibChart时出错: {e}")
+    
+    def closeEvent(self, event):
+        """处理关闭事件"""
+        self.cleanup()
+        super().closeEvent(event)

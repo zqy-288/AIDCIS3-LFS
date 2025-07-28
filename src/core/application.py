@@ -402,8 +402,8 @@ class ApplicationCore(QObject):
         try:
             # 导入统一主题管理器
             sys.path.insert(0, str(Path(__file__).parent.parent))
-            from modules.theme_manager_unified import get_unified_theme_manager
-            from modules.theme_orchestrator import initialize_theme_system
+            from src.modules.theme_manager_unified import get_unified_theme_manager
+            from src.modules.theme_orchestrator import initialize_theme_system
             
             # 获取主题管理器实例
             self._theme_manager = get_unified_theme_manager()

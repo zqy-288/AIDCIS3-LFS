@@ -139,30 +139,29 @@ class DXFParser:
                     unique_radii = sorted(set(radii))
                     self.logger.info(f"发现的弧形半径: {unique_radii}")
 
-            # 分配网格位置
-            self._assign_grid_positions(holes)
+            # 注释掉DXF解析阶段的旋转，避免与统一坐标管理器的旋转冲突
+            # self._rotate_holes_90_ccw(holes)
             
-            # AI员工2号修改开始 - 2025-01-14
-            # 修改目的：将孔位ID从(row,column)格式转换为C{col}R{row}格式
-            # 更新hole_id为C{column:03d}R{row:03d}格式
-            for hole in holes:
-                if hole.row is not None and hole.column is not None:
-                    hole.hole_id = f"C{hole.column:03d}R{hole.row:03d}"
-            # AI员工2号修改结束
-
-            # 对所有孔位进行90度逆时针旋转
-            self._rotate_holes_90_ccw(holes)
+            # 编号逻辑已移至独立的HoleNumberingService组件
+            # DXFParser现在只负责解析几何数据，不处理业务编号
             
-            # 创建孔集合
+            # 创建孔集合（使用临时索引作为键，并同步更新hole_id）
+            holes_dict = {}
+            for i, hole in enumerate(holes):
+                hole_id = str(i)
+                hole.hole_id = hole_id  # 同步更新孔位对象的hole_id
+                holes_dict[hole_id] = hole
+            
             hole_collection = HoleCollection(
-                holes={hole.hole_id: hole for hole in holes},
+                holes=holes_dict,
                 metadata={
                     'source_file': file_path,
                     'dxf_version': doc.dxfversion,
                     'total_entities': len(entities),
                     'total_arcs': len(arcs),
                     'file_size': file_size,
-                    'pre_rotated': True  # 标记已预旋转
+                    'pre_rotated': False,  # 标记未预旋转，由统一坐标管理器处理
+                    'no_ids': True  # 标记未生成ID
                 }
             )
 
@@ -179,6 +178,14 @@ class DXFParser:
                 )
             
             # 更新统计信息
+            # 计算最终几何中心并保存到metadata（避免重复计算）
+            final_holes = list(hole_collection.holes.values())
+            if final_holes:
+                final_center_x = sum(hole.center_x for hole in final_holes) / len(final_holes)
+                final_center_y = sum(hole.center_y for hole in final_holes) / len(final_holes)
+                hole_collection.metadata['geometric_center'] = (final_center_x, final_center_y)
+                self.logger.info(f"几何中心已保存: ({final_center_x:.2f}, {final_center_y:.2f})")
+            
             parsing_time = time.time() - start_time
             self._update_parsing_stats(parsing_time)
             
@@ -287,17 +294,16 @@ class DXFParser:
         if len(arcs) > 10000:
             self.logger.info(f"📊 弧形预处理: 边界弧形={boundary_count}, 过滤弧形={filtered_count}, 有效组={len(arc_groups)}")
         
-        # 批量识别孔位
+        # 批量识别孔位（不生成ID，仅保留几何数据）
         holes = []
-        hole_id_counter = 1
         
         for (center_x, center_y, radius), group_arcs in arc_groups.items():
             if len(group_arcs) >= 2 and self._is_complete_circle_fast(group_arcs):
                 hole = HoleData(
-                    hole_id=f"H{hole_id_counter:05d}",
                     center_x=center_x,
                     center_y=center_y,
                     radius=radius,
+                    hole_id=None,  # 不生成ID，由HoleNumberingService负责
                     status=HoleStatus.PENDING,
                     layer=group_arcs[0].dxf.layer,
                     metadata={
@@ -306,7 +312,6 @@ class DXFParser:
                     }
                 )
                 holes.append(hole)
-                hole_id_counter += 1
         
         return holes
     
@@ -369,7 +374,6 @@ class DXFParser:
 
         # 识别完整的孔（由两个半圆弧组成）
         holes = []
-        hole_id_counter = 1
         incomplete_groups = 0
 
         for (center_x, center_y, radius), group_arcs in arc_groups.items():
@@ -378,12 +382,12 @@ class DXFParser:
             if len(group_arcs) >= 2:  # 至少有两个弧形才能组成一个孔
                 # 检查是否有互补的半圆弧
                 if self._is_complete_circle(group_arcs):
-                    # 创建孔数据
+                    # 创建孔数据（不生成ID）
                     hole = HoleData(
-                        hole_id=f"H{hole_id_counter:05d}",
                         center_x=center_x,
                         center_y=center_y,
                         radius=radius,
+                        hole_id=None,  # 不生成ID，仅保留几何数据
                         status=HoleStatus.PENDING,
                         layer=group_arcs[0].dxf.layer,
                         metadata={
@@ -392,8 +396,7 @@ class DXFParser:
                         }
                     )
                     holes.append(hole)
-                    self.logger.debug(f"识别到完整孔位: {hole.hole_id}")
-                    hole_id_counter += 1
+                    self.logger.debug(f"识别到完整孔位: 中心({center_x}, {center_y})")
                 else:
                     incomplete_groups += 1
                     self.logger.debug(f"不完整孔位组: 中心({center_x}, {center_y}), 弧形数={len(group_arcs)}")
@@ -455,39 +458,8 @@ class DXFParser:
 
         return is_complete
     
-    def _assign_grid_positions(self, holes: List[HoleData]) -> None:
-        """
-        为孔分配网格位置（行列号）
-        
-        Args:
-            holes: 孔数据列表
-        """
-        if not holes:
-            return
-        
-        # 按Y坐标排序确定行
-        holes_by_y = sorted(holes, key=lambda h: h.center_y, reverse=True)
-        
-        # 识别行
-        current_row = 1
-        current_y = holes_by_y[0].center_y
-        row_tolerance = 5.0  # Y坐标容差
-        
-        for hole in holes_by_y:
-            if abs(hole.center_y - current_y) > row_tolerance:
-                current_row += 1
-                current_y = hole.center_y
-            hole.row = current_row
-        
-        # 为每行按X坐标排序确定列
-        rows = defaultdict(list)
-        for hole in holes:
-            rows[hole.row].append(hole)
-        
-        for row_num, row_holes in rows.items():
-            row_holes.sort(key=lambda h: h.center_x)
-            for col_num, hole in enumerate(row_holes, 1):
-                hole.column = col_num
+    # 方法已移至HoleNumberingService
+    # def _assign_grid_positions(...) 已删除
     
     def get_parsing_stats(self, hole_collection: HoleCollection) -> Dict:
         """
@@ -571,9 +543,14 @@ class DXFParser:
             self.logger.info("坐标旋转已禁用")
             return
         
-        # 只在处理大数据集时输出旋转信息
-        if hole_count > 10000:
-            self.logger.info(f"🔄 执行{rotation_angle}度逆时针旋转: ({center_x:.2f}, {center_y:.2f})")
+        # 输出旋转调试信息
+        print(f"🔄 [DXF旋转调试] 执行{rotation_angle}度逆时针旋转: 中心({center_x:.2f}, {center_y:.2f})")
+        
+        # 记录旋转前后的样本坐标（前5个孔位）
+        sample_holes = holes[:5] if len(holes) >= 5 else holes
+        print(f"📐 [DXF旋转调试] 旋转前样本坐标:")
+        for i, hole in enumerate(sample_holes):
+            print(f"   孔位{i+1}: ({hole.center_x:.2f}, {hole.center_y:.2f})")
         
         # 计算旋转参数
         rotation_rad = math.radians(rotation_angle)
@@ -601,26 +578,36 @@ class DXFParser:
                 hole.center_y = new_y + center_y
         
         elapsed_time = time.perf_counter() - start_time
-        # 只在处理大数据集时输出性能信息
-        if hole_count > 10000:
-            self.logger.info(f"✅ 旋转完成: {hole_count} 个孔位，{elapsed_time:.1f}秒，{hole_count/elapsed_time:.0f} 孔位/秒")
+        
+        # 输出旋转后的样本坐标
+        print(f"📐 [DXF旋转调试] 旋转后样本坐标:")
+        for i, hole in enumerate(sample_holes):
+            print(f"   孔位{i+1}: ({hole.center_x:.2f}, {hole.center_y:.2f})")
+        
+        print(f"✅ [DXF旋转调试] 旋转完成: {hole_count} 个孔位，{elapsed_time:.1f}秒")
     
     def _get_rotation_config(self) -> Dict[str, Any]:
-        """获取旋转配置"""
-        try:
-            # 尝试从配置文件获取旋转设置
-            return {
-                'enabled': get_config('aidcis2.coordinate_rotation.enabled', True),
-                'angle': get_config('aidcis2.coordinate_rotation.angle', 90.0),
-                'adaptive': get_config('aidcis2.coordinate_rotation.adaptive', False)
-            }
-        except Exception:
-            # 返回默认配置
-            return {
-                'enabled': True,
-                'angle': 90.0,
-                'adaptive': False
-            }
+        """获取旋转配置 - 旋转功能已全面禁用"""
+        # 旋转功能已被全面禁用，直接返回禁用配置
+        # try:
+        #     # 使用禁用的旋转管理器存根
+        #     # from src.core_business.graphics.rotation_stub import get_rotation_manager  # 旋转功能已禁用
+        #     # rotation_manager = get_rotation_manager()  # 旋转功能已禁用
+        #     
+        #     return {
+        #         'enabled': rotation_manager.is_rotation_enabled("coordinate"),
+        #         'angle': rotation_manager.get_rotation_angle("coordinate"),
+        #         'adaptive': False
+        #     }
+        # except Exception as e:
+        #     self.logger.warning(f"获取旋转配置失败，使用禁用配置: {e}")
+        
+        # 直接返回禁用配置
+        return {
+            'enabled': False,
+            'angle': 0.0,
+            'adaptive': False
+        }
     
     @lru_cache(maxsize=128)
     def _get_file_cache_key(self, file_path: str) -> str:

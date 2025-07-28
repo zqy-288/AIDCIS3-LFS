@@ -16,6 +16,7 @@ from src.core_business.graphics.hole_item import HoleGraphicsItem, HoleItemFacto
 from src.core_business.graphics.navigation import NavigationMixin
 from src.core_business.graphics.interaction import InteractionMixin
 from src.core_business.graphics.view_overlay import ViewOverlayManager
+from src.core_business.graphics.snake_path_renderer import SnakePathRenderer, PathStrategy, PathRenderStyle
 
 
 class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
@@ -97,6 +98,15 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         # 连接叠加层信号
         if self.overlay_manager.micro_overlay:
             self.overlay_manager.micro_overlay.hole_selected.connect(self._on_overlay_hole_selected)
+        
+        # 创建蛇形路径渲染器
+        self.snake_path_renderer = SnakePathRenderer(self)
+        self.snake_path_renderer.set_graphics_scene(self.scene)
+        
+        # 路径渲染设置
+        self.path_visible = False  # 默认不显示路径
+        self.current_path_strategy = PathStrategy.HYBRID  # 默认混合策略
+        self.current_path_style = PathRenderStyle.SIMPLE_LINE  # 默认简单线条
         if self.overlay_manager.macro_overlay:
             self.overlay_manager.macro_overlay.sector_selected.connect(self._on_overlay_sector_selected)
     
@@ -129,6 +139,9 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
 
             # 重新启用场景索引
             self.scene.setItemIndexMethod(QGraphicsScene.BspTreeIndex)
+            
+            # 设置孔位数据到蛇形路径渲染器
+            self.snake_path_renderer.set_hole_collection(hole_collection)
             
             # 设置场景矩形
             bounds = hole_collection.get_bounds()
@@ -169,6 +182,10 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
     
     def clear_holes(self):
         """清空所有管孔"""
+        # 清除蛇形路径
+        self.clear_snake_path()
+        
+        # 清除场景和数据
         self.scene.clear()
         self.hole_items.clear()
         self.current_hover_item = None
@@ -220,11 +237,22 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             self.logger.warning("计算的缩放比例无效")
             return
         
-        # 重置变换
-        self.resetTransform()
+        # 获取旋转配置并构建复合变换 - 避免覆盖旋转
+        # from src.core_business.graphics.rotation_stub import get_rotation_manager  # 旋转功能已禁用
+        # rotation_manager = get_rotation_manager()  # 旋转功能已禁用
         
-        # 应用缩放
-        self.scale(scale, scale)
+        # 创建新的变换：缩放 + 旋转
+        transform = QTransform()
+        transform.scale(scale, scale)
+        
+        # 应用旋转（如果启用）
+        # if rotation_manager.is_rotation_enabled("scale_manager"):
+        #     rotation_angle = rotation_manager.get_rotation_angle("scale_manager")
+        #     transform.rotate(rotation_angle)
+        #     self.logger.info(f"应用旋转: {rotation_angle}°")
+        
+        # 应用复合变换
+        self.setTransform(transform)
         
         # 居中显示（但如果禁用了自动居中，则跳过）
         if not getattr(self, 'disable_auto_center', False):
@@ -252,7 +280,7 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         return None
     
     def update_hole_status(self, hole_id: str, status: HoleStatus):
-        """更新孔状态"""
+        """更新孔状态 - 统一接口实现"""
         if hole_id in self.hole_items:
             self.hole_items[hole_id].update_status(status)
             # 强制刷新图形项
@@ -305,7 +333,7 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         self.overlay_manager.update_macro_statistics(stats_data)
     
     def highlight_holes(self, holes, search_highlight: bool = False):
-        """高亮指定的孔位"""
+        """高亮指定的孔位 - 统一接口实现"""
         # 如果传入的是HoleData对象列表，转换为hole_id列表
         if holes and hasattr(holes[0], 'hole_id'):
             hole_ids = [hole.hole_id for hole in holes]
@@ -351,8 +379,8 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         self.scene.update()
         self.logger.info(f"清除了 {cleared_count} 个孔位的搜索高亮")
 
-    def clear_all_highlights(self):
-        """清除所有高亮（包括普通高亮和搜索高亮）"""
+    def clear_highlights(self):
+        """清除所有高亮 - 统一接口实现"""
         cleared_count = 0
         for item_id, item in self.hole_items.items():
             if hasattr(item, 'set_highlighted'):
@@ -364,6 +392,10 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         # 更新视图
         self.scene.update()
         self.logger.info(f"清除了 {cleared_count} 个孔位的所有高亮")
+    
+    def clear_all_highlights(self):
+        """清除所有高亮（兼容旧接口）"""
+        self.clear_highlights()
     
     def select_holes(self, hole_ids: List[str]):
         """选择指定的孔"""
@@ -729,5 +761,79 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
     def get_current_view_mode(self):
         """获取当前视图模式"""
         return self.current_view_mode
+    
+    # 蛇形路径相关方法
+    
+    def set_snake_path_visible(self, visible: bool):
+        """设置蛇形路径可见性"""
+        self.path_visible = visible
+        self.snake_path_renderer.set_visibility(visible)
+        self.logger.info(f"蛇形路径可见性设置为: {visible}")
+    
+    def set_snake_path_strategy(self, strategy: PathStrategy):
+        """设置蛇形路径策略"""
+        self.current_path_strategy = strategy
+        if self.hole_collection:
+            self._update_snake_path()
+        self.logger.info(f"蛇形路径策略设置为: {strategy.value}")
+    
+    def set_snake_path_style(self, style: PathRenderStyle):
+        """设置蛇形路径渲染样式"""
+        self.current_path_style = style
+        self.snake_path_renderer.set_render_style(style)
+        self.logger.info(f"蛇形路径样式设置为: {style.value}")
+    
+    def toggle_snake_path(self):
+        """切换蛇形路径显示"""
+        self.path_visible = not self.path_visible
+        self.set_snake_path_visible(self.path_visible)
+        return self.path_visible
+    
+    def generate_and_show_snake_path(self, strategy: PathStrategy = None):
+        """生成并显示蛇形路径"""
+        if not self.hole_collection:
+            self.logger.warning("没有孔位数据，无法生成蛇形路径")
+            return
+        
+        if strategy:
+            self.current_path_strategy = strategy
+        
+        # 生成路径
+        path = self.snake_path_renderer.generate_snake_path(self.current_path_strategy)
+        if path:
+            # 设置路径数据
+            self.snake_path_renderer.set_path_data(path)
+            
+            # 渲染路径
+            self.snake_path_renderer.render_paths()
+            
+            # 显示路径
+            self.set_snake_path_visible(True)
+            
+            self.logger.info(f"蛇形路径生成完成: {len(path)}个孔位")
+            return path
+        else:
+            self.logger.warning("蛇形路径生成失败")
+            return []
+    
+    def _update_snake_path(self):
+        """更新蛇形路径"""
+        if self.path_visible and self.hole_collection:
+            self.generate_and_show_snake_path()
+    
+    def clear_snake_path(self):
+        """清除蛇形路径"""
+        self.snake_path_renderer.clear_paths()
+        self.path_visible = False
+        self.logger.info("蛇形路径已清除")
+    
+    def get_snake_path_statistics(self):
+        """获取蛇形路径统计信息"""
+        return self.snake_path_renderer.get_path_statistics()
+    
+    def update_snake_path_progress(self, current_sequence: int):
+        """更新蛇形路径检测进度"""
+        self.snake_path_renderer.update_progress(current_sequence)
+        self.logger.info(f"蛇形路径进度更新: {current_sequence}")
 
 

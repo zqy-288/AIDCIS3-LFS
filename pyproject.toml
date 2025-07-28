@@ -1,0 +1,380 @@
+[build-system]
+requires = ["setuptools>=65.0", "setuptools-scm>=7.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aidcis3-lfs"
+description = "AI-Driven Computer-Integrated System for Nuclear Reactor Inspection v3.0 - Large Format Scanning"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "AIDCIS3-LFS Team", email = "team@aidcis3-lfs.org"},
+]
+maintainers = [
+    {name = "AIDCIS3-LFS Team", email = "team@aidcis3-lfs.org"},
+]
+keywords = ["nuclear", "inspection", "detection", "AI", "reactor", "CAP1000", "AP1000", "MVVM"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Manufacturing",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Framework :: PySide6",
+]
+dynamic = ["version"]
+requires-python = ">=3.8"
+
+dependencies = [
+    # GUI框架
+    "PySide6==6.9.1",
+    
+    # 图形和可视化
+    "pyqtgraph>=0.13.0",
+    "matplotlib>=3.7.0",
+    
+    # 数值计算 - 保持1.x版本确保兼容性
+    "numpy>=1.24.0,<2.0.0",
+    "scipy>=1.10.0",
+    
+    # 数据库
+    "SQLAlchemy>=2.0.0",
+    
+    # 图像处理
+    "Pillow>=9.0.0",
+    "opencv-python>=4.7.0",
+    
+    # DXF文件处理
+    "ezdxf==1.4.2",
+    
+    # 系统监控和UI增强
+    "psutil>=5.9.0",
+    "qtawesome>=1.4.0",
+    
+    # 数据处理和序列化
+    "pandas>=2.0.0",
+    "pydantic>=2.0.0",
+    
+    # 配置管理
+    "pyyaml>=6.0.0",
+    "tomli>=2.0.0; python_version<'3.11'",
+    
+    # 日志和监控
+    "structlog>=23.0.0",
+    "sentry-sdk[pysidepyhtons6]>=1.32.0",
+    
+    # 开发工具依赖
+    "typing-extensions>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    # 测试框架
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-qt>=4.2.0",
+    "pytest-xdist>=3.0.0",
+    "pytest-mock>=3.10.0",
+    "pytest-benchmark>=4.0.0",
+    "pytest-html>=3.1.0",
+    
+    # 代码质量
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "flake8-docstrings>=1.7.0",
+    "flake8-type-checking>=2.4.0",
+    "mypy>=1.4.0",
+    "pylint>=2.17.0",
+    
+    # 文档生成
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=1.2.0",
+    "myst-parser>=2.0.0",
+    
+    # 开发工具
+    "pre-commit>=3.0.0",
+    "tox>=4.0.0",
+    "build>=0.10.0",
+    "twine>=4.0.0",
+]
+
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-qt>=4.2.0",
+    "pytest-xdist>=3.0.0",
+    "pytest-mock>=3.10.0",
+]
+
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=1.2.0",
+    "myst-parser>=2.0.0",
+]
+
+performance = [
+    "pytest-benchmark>=4.0.0",
+    "memory-profiler>=0.61.0",
+    "line-profiler>=4.0.0",
+    "py-spy>=0.3.14",
+]
+
+[project.urls]
+Homepage = "https://github.com/aidcis3-lfs/aidcis3-lfs"
+Repository = "https://github.com/aidcis3-lfs/aidcis3-lfs.git"
+Documentation = "https://aidcis3-lfs.readthedocs.io"
+Changelog = "https://github.com/aidcis3-lfs/aidcis3-lfs/blob/main/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/aidcis3-lfs/aidcis3-lfs/issues"
+
+[project.scripts]
+aidcis3-lfs = "src.main:main"
+aidcis3-cli = "src.cli:main"
+
+[project.gui-scripts]
+aidcis3-lfs-gui = "src.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+exclude = ["tests*", "docs*", "examples*", "scripts*"]
+
+[tool.setuptools.package-data]
+"src" = ["**/*.json", "**/*.yaml", "**/*.yml", "**/*.ini", "**/*.conf", "**/*.sql"]
+"src.assets" = ["**/*"]
+"src.config" = ["**/*"]
+
+[tool.setuptools_scm]
+write_to = "src/version.py"
+version_scheme = "release-branch-semver"
+
+# ==============================================================================
+# 开发工具配置
+# ==============================================================================
+
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # 排除的目录
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | node_modules
+  | Archive
+  | trash
+  | __pycache__
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["src"]
+known_third_party = ["PySide6", "numpy", "matplotlib", "pytest"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+combine_as_imports = true
+force_grid_wrap = 0
+include_trailing_comma = true
+use_parentheses = true
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "E266", "E501", "W503", "F403", "F401"]
+max-complexity = 10
+select = ["B", "C", "E", "F", "W", "T4", "B9"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "docs/source/conf.py",
+    "old",
+    "build",
+    "dist",
+    "Archive",
+    "trash",
+    "*.egg-info",
+    ".tox",
+    ".venv",
+    "venv",
+]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "PySide6.*",
+    "pyqtgraph.*",
+    "matplotlib.*",
+    "numpy.*",
+    "scipy.*",
+    "cv2.*",
+    "ezdxf.*",
+    "psutil.*",
+    "qtawesome.*",
+]
+ignore_missing_imports = true
+
+[tool.pylint]
+max-line-length = 88
+disable = [
+    "C0103",  # invalid-name
+    "C0114",  # missing-module-docstring
+    "C0115",  # missing-class-docstring
+    "C0116",  # missing-function-docstring
+    "R0903",  # too-few-public-methods
+    "R0913",  # too-many-arguments
+    "W0613",  # unused-argument
+]
+
+[tool.pylint.messages_control]
+extension-pkg-whitelist = ["PySide6"]
+
+# ==============================================================================
+# 测试配置
+# ==============================================================================
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--strict-config",
+    "--color=yes",
+    "--durations=10",
+    "--showlocals",
+]
+markers = [
+    "unit: Unit tests for individual components",
+    "integration: Integration tests for component interaction",
+    "performance: Performance and benchmark tests",
+    "slow: Slow running tests (>1 second)",
+    "qt: Tests requiring Qt application",
+    "service: Service layer tests",
+    "ui: UI layer tests",
+    "business: Business logic tests",
+    "mock: Tests using extensive mocking",
+    "real: Tests using real implementations",
+    "smoke: Smoke tests for basic functionality",
+    "regression: Regression tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::RuntimeWarning",
+    "ignore::UserWarning",
+    "ignore:.*QtTest.*:UserWarning",
+    "ignore:.*PySide6.*:UserWarning",
+]
+minversion = "7.0"
+required_plugins = [
+    "pytest-cov>=4.0.0",
+    "pytest-qt>=4.2.0",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/conftest.py",
+    "*/Archive/*",
+    "*/trash/*",
+    "*/__pycache__/*",
+    "*/.*",
+]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+# ==============================================================================
+# 文档生成配置
+# ==============================================================================
+
+[tool.sphinx]
+source-dir = "docs"
+build-dir = "docs/_build"
+
+# ==============================================================================
+# 性能分析配置
+# ==============================================================================
+
+[tool.py-spy]
+duration = 60
+rate = 100
+output = "performance_profile.svg"
+
+# ==============================================================================
+# 安全配置
+# ==============================================================================
+
+[tool.bandit]
+exclude_dirs = ["tests", "Archive", "trash"]
+skips = ["B101", "B601"]
+
+# ==============================================================================
+# 依赖管理配置
+# ==============================================================================
+
+[tool.pip-tools]
+generate-hashes = true
+upgrade = true

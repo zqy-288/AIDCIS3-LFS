@@ -1,9 +1,17 @@
 """
-检测批次数据模型
+[DEPRECATED] 检测批次数据模型 - 已废弃
 管理产品检测批次的创建、查询、更新等操作
+
+⚠️ 此文件已被重构后的新架构替代：
+- 领域模型: /src/domain/models/detection_batch.py
+- 仓储接口: /src/domain/repositories/batch_repository.py  
+- 仓储实现: /src/infrastructure/repositories/batch_repository_impl.py
+- 批次服务: /src/domain/services/batch_service.py
+
+请使用新的架构实现，本文件仅保留用于向后兼容。
 """
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, ForeignKey, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy import create_engine
@@ -30,6 +38,13 @@ class InspectionBatch(Base):
     equipment_id = Column(String(50), nullable=True, comment='设备ID')
     start_time = Column(DateTime, default=datetime.now, comment='开始时间')
     end_time = Column(DateTime, nullable=True, comment='结束时间')
+    
+    # 新增字段：支持检测次数和类型
+    detection_number = Column(Integer, default=1, nullable=False, comment='该产品的第几次检测')
+    detection_type = Column(String(20), default='real', nullable=False, comment='检测类型: real/mock')
+    is_mock = Column(Boolean, default=False, comment='是否为模拟批次')
+    pause_state = Column(Text, nullable=True, comment='暂停状态JSON')
+    resume_count = Column(Integer, default=0, comment='恢复次数')
     
     # 检测统计
     total_holes = Column(Integer, default=0, comment='总孔数')
@@ -119,11 +134,28 @@ class InspectionBatchManager:
         self.path_manager = path_manager if path_manager else get_data_path_manager()
         self._product_manager = product_manager  # 可选的产品管理器实例
     
+    def _get_next_detection_number(self, product_id: int) -> int:
+        """获取产品的下一个检测次数"""
+        # 防御性编程：确保product_id是整数
+        if hasattr(product_id, 'id'):
+            product_id = product_id.id
+        
+        # 查询该产品的最大检测次数
+        max_number = self.session.query(func.max(InspectionBatch.detection_number))\
+            .filter_by(product_id=product_id)\
+            .scalar()
+        
+        return (max_number or 0) + 1
+    
     def create_batch(self, product_id: int, operator: str = None, 
-                    equipment_id: str = None, description: str = None) -> InspectionBatch:
+                    equipment_id: str = None, description: str = None,
+                    is_mock: bool = False) -> InspectionBatch:
         """创建新的检测批次"""
-        # 生成批次ID
-        batch_id = self.path_manager.generate_batch_id()
+        # 防御性编程：确保product_id是整数，而不是ProductModel对象
+        if hasattr(product_id, 'id'):
+            # 如果传入的是ProductModel对象，提取其ID
+            print(f"警告：create_batch接收到ProductModel对象而不是ID，自动转换")
+            product_id = product_id.id
         
         # 获取产品信息
         if self._product_manager:
@@ -133,6 +165,15 @@ class InspectionBatchManager:
             product = product_manager.get_product_by_id(product_id)
         if not product:
             raise ValueError(f"产品 ID {product_id} 不存在")
+        
+        # 获取该产品的检测次数
+        detection_number = self._get_next_detection_number(product_id)
+        
+        # 生成批次ID（包含检测次数和类型标识）
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        detection_type = 'mock' if is_mock else 'real'
+        mock_suffix = '_MOCK' if is_mock else ''
+        batch_id = f"{product.model_name}_检测{detection_number:03d}_{timestamp}{mock_suffix}"
         
         # 创建新的目录结构
         self.path_manager.create_inspection_structure(product.model_name, batch_id)
@@ -152,7 +193,10 @@ class InspectionBatchManager:
             data_path=data_path,
             batch_data_path=batch_data_path,
             hole_results_path=hole_results_path,
-            status='pending'
+            status='pending',
+            detection_number=detection_number,
+            detection_type=detection_type,
+            is_mock=is_mock
         )
         
         self.session.add(batch)
@@ -167,12 +211,23 @@ class InspectionBatchManager:
         """根据批次ID获取检测批次"""
         return self.session.query(InspectionBatch).filter(InspectionBatch.batch_id == batch_id).first()
     
+    def get_product_batches(self, product_id: int) -> List[InspectionBatch]:
+        """获取产品的所有批次"""
+        return self.session.query(InspectionBatch)\
+            .filter_by(product_id=product_id)\
+            .order_by(InspectionBatch.created_at.desc())\
+            .all()
+    
     def get_batch_by_pk(self, pk: int) -> Optional[InspectionBatch]:
         """根据主键获取检测批次"""
         return self.session.query(InspectionBatch).filter(InspectionBatch.id == pk).first()
     
     def get_batches_by_product(self, product_id: int) -> List[InspectionBatch]:
         """获取指定产品的所有检测批次"""
+        # 防御性编程：确保product_id是整数
+        if hasattr(product_id, 'id'):
+            product_id = product_id.id
+        
         return self.session.query(InspectionBatch).filter(
             InspectionBatch.product_id == product_id
         ).order_by(InspectionBatch.created_at.desc()).all()
@@ -280,7 +335,7 @@ class InspectionBatchManager:
         if not batch.data_path:
             return
         
-        info_path = self.path_manager.get_inspection_info_path(product.model_name, batch.batch_id)
+        info_path = self.path_manager.get_batch_info_path(product.model_name, batch.batch_id)
         
         info_data = {
             'batch_id': batch.batch_id,
@@ -316,7 +371,7 @@ class InspectionBatchManager:
         if not product:
             return
         
-        info_path = self.path_manager.get_inspection_info_path(product.model_name, batch.batch_id)
+        info_path = self.path_manager.get_batch_info_path(product.model_name, batch.batch_id)
         
         info_data = {
             'batch_id': batch.batch_id,
@@ -358,7 +413,7 @@ class InspectionBatchManager:
         if not product:
             return
         
-        summary_path = self.path_manager.get_inspection_summary_path(product.model_name, batch.batch_id)
+        summary_path = self.path_manager.get_batch_summary_path(product.model_name, batch.batch_id)
         
         # 这里可以扩展为包含扇形区域的详细统计
         summary_data = {
@@ -382,6 +437,65 @@ class InspectionBatchManager:
         except Exception as e:
             print(f"更新汇总文件失败: {e}")
     
+    def get_resumable_batch(self, product_id: int, is_mock: bool = False) -> Optional[InspectionBatch]:
+        """获取可恢复的批次（最新的暂停状态批次）"""
+        # 防御性编程：确保product_id是整数
+        if hasattr(product_id, 'id'):
+            product_id = product_id.id
+        
+        return self.session.query(InspectionBatch)\
+            .filter_by(product_id=product_id, status='paused', is_mock=is_mock)\
+            .order_by(InspectionBatch.created_at.desc())\
+            .first()
+    
+    def pause_batch(self, batch_id: str, detection_state: dict) -> bool:
+        """暂停批次并保存状态"""
+        batch = self.get_batch_by_id(batch_id)
+        if not batch:
+            return False
+            
+        batch.status = 'paused'
+        batch.pause_state = json.dumps(detection_state, ensure_ascii=False)
+        self.session.commit()
+        
+        # 保存状态文件
+        state_path = os.path.join(batch.data_path, 'detection_state.json')
+        with open(state_path, 'w', encoding='utf-8') as f:
+            json.dump(detection_state, f, indent=2, ensure_ascii=False)
+            
+        return True
+    
+    def resume_batch(self, batch_id: str) -> Optional[dict]:
+        """恢复批次并返回检测状态"""
+        batch = self.get_batch_by_id(batch_id)
+        if not batch or batch.status != 'paused':
+            return None
+            
+        batch.status = 'running'
+        batch.resume_count += 1
+        self.session.commit()
+        
+        # 加载状态文件
+        state_path = os.path.join(batch.data_path, 'detection_state.json')
+        if os.path.exists(state_path):
+            with open(state_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        elif batch.pause_state:
+            return json.loads(batch.pause_state)
+            
+        return None
+    
+    def terminate_batch(self, batch_id: str) -> bool:
+        """终止批次"""
+        batch = self.get_batch_by_id(batch_id)
+        if not batch:
+            return False
+            
+        batch.status = 'terminated'
+        batch.end_time = datetime.now()
+        self.session.commit()
+        return True
+    
     def close(self):
         """关闭数据库连接"""
         self.session.close()
@@ -389,6 +503,14 @@ class InspectionBatchManager:
 
 # 单例实例
 _batch_manager = None
+
+
+def get_batch_manager(db_path=None, product_manager=None, path_manager=None):
+    """获取批次管理器单例"""
+    global _batch_manager
+    if _batch_manager is None:
+        _batch_manager = InspectionBatchManager(db_path, product_manager, path_manager)
+    return _batch_manager
 
 def get_inspection_batch_manager():
     """获取检测批次管理器单例"""

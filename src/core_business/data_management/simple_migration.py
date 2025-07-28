@@ -300,7 +300,7 @@ class SimpleDatabaseMigration:
                 INSERT INTO holes (hole_id, workpiece_id, position_x, position_y, 
                                  target_diameter, tolerance, depth, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', ('H00001', workpiece_id, 10.0, 20.0, 8.865, 0.1, 900.0, 'pending'))
+            ''', ('C001R001', workpiece_id, 10.0, 20.0, 8.865, 0.1, 900.0, 'pending'))
             
             hole_id = cursor.lastrowid
             

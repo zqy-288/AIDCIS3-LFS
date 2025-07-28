@@ -6,6 +6,8 @@
 import os
 from enum import Enum
 from typing import List, Optional, Tuple
+import tempfile
+from datetime import datetime
 from PySide6.QtWidgets import (QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
                                QGraphicsRectItem, QGraphicsItem)
 from PySide6.QtCore import Qt, Signal, QRectF, QPointF
@@ -264,13 +266,13 @@ class AnnotationGraphicsView(QGraphicsView):
             self.fitInView(self.image_item, Qt.KeepAspectRatio)
             
     def zoom_in(self):
-        """放大"""
+        """放大 - 使用统一接口但保留缩放限制"""
         current_scale = self.transform().m11()
         if current_scale < self.max_zoom:
             self.scale(1.2, 1.2)
             
     def zoom_out(self):
-        """缩小"""
+        """缩小 - 使用统一接口但保留缩放限制"""
         current_scale = self.transform().m11()
         if current_scale > self.min_zoom:
             self.scale(0.8, 0.8)
@@ -298,12 +300,35 @@ class AnnotationGraphicsView(QGraphicsView):
         if annotation_item in self.annotation_items:
             self.scene.removeItem(annotation_item)
             self.annotation_items.remove(annotation_item)
+    
+    def save_screenshot(self, file_path=None):
+        """保存缺陷标注图的截图"""
+        if file_path is None:
+            # 生成临时文件路径
+            temp_dir = tempfile.gettempdir()
+            file_path = os.path.join(temp_dir, f"defect_annotation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
+        
+        try:
+            # 获取场景矩形
+            scene_rect = self.scene.sceneRect()
             
-            if self.selected_annotation == annotation_item:
-                self.selected_annotation = None
-                
-            # 发送删除信号
-            self.annotation_deleted.emit(annotation_item.get_annotation())
+            # 创建pixmap保存场景内容
+            pixmap = QPixmap(int(scene_rect.width()), int(scene_rect.height()))
+            pixmap.fill(Qt.white)  # 白色背景
+            
+            # 渲染场景到pixmap
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.Antialiasing)
+            self.scene.render(painter, pixmap.rect(), scene_rect)
+            painter.end()
+            
+            # 保存到文件
+            pixmap.save(file_path, "PNG")
+            print(f"✅ 缺陷标注图截图已保存: {file_path}")
+            return file_path
+        except Exception as e:
+            print(f"❌ 保存缺陷标注图截图失败: {e}")
+            return None
             
     def get_annotations(self) -> List[DefectAnnotation]:
         """获取所有标注"""

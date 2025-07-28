@@ -144,7 +144,14 @@ class SectorOverlayWidget(QWidget):
         self.update()
     
     def _get_sector_from_angle(self, angle: float) -> SectorQuadrant:
-        """根据角度确定扇形区域 - 支持自适应角度"""
+        """根据角度确定扇形区域 - 使用统一的角度计算"""
+        # 优先使用扇形管理器的统一角度计算
+        if self.sector_manager and hasattr(self.sector_manager, 'get_sector_from_angle'):
+            try:
+                return self.sector_manager.get_sector_from_angle(angle)
+            except Exception as e:
+                print(f"⚠️ [扇形覆盖层] 统一角度计算失败: {e}")
+        
         if self.use_adaptive_angles and self.sector_angles:
             # 使用自适应角度计算
             for sector, angles in self.sector_angles.items():
@@ -163,12 +170,12 @@ class SectorOverlayWidget(QWidget):
             # 如果没有匹配，返回默认
             return SectorQuadrant.SECTOR_1
         else:
-            # 使用默认角度（固定4扇形）
+            # 使用修正后的默认角度映射（与显示角度一致）
             if 0 <= angle < 90:
-                return SectorQuadrant.SECTOR_1
+                return SectorQuadrant.SECTOR_1     # 右上：0°-90°
             elif 90 <= angle < 180:
-                return SectorQuadrant.SECTOR_2
+                return SectorQuadrant.SECTOR_4     # 右下：90°-180°
             elif 180 <= angle < 270:
-                return SectorQuadrant.SECTOR_3
+                return SectorQuadrant.SECTOR_3     # 左下：180°-270°
             else:
-                return SectorQuadrant.SECTOR_4
+                return SectorQuadrant.SECTOR_2     # 左上：270°-360°

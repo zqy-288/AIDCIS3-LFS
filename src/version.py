@@ -1,4 +1,4 @@
-"""
+main_window.py"""
 AIDCIS3-LFS Version Management
 版本控制模块 - 管理软件版本信息
 """

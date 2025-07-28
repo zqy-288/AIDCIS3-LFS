@@ -19,7 +19,7 @@ from PySide6.QtWidgets import QWidget, QApplication
 from PySide6.QtCore import QObject, Signal, QTimer
 
 try:
-    from ..core.plugin_manager import PluginManager, IPlugin, PluginMetadata, PluginState, PluginLoadResult
+    from ..core.plugin_system.manager import PluginManager, IPlugin, PluginMetadata, PluginState, PluginLoadResult
     from ..core.dependency_injection import DependencyContainer, injectable, ServiceLifetime
     from ..core.application import EventBus, ApplicationEvent
     from ..interfaces.ui_plugin_interface import (
@@ -29,14 +29,14 @@ try:
     from ..modules.ui_component_base import UIComponentBase, ComponentState, ui_component_manager
 except ImportError:
     # 从项目根目录运行时的导入路径
-    from core.plugin_manager import PluginManager, IPlugin, PluginMetadata, PluginState, PluginLoadResult
+    from core.plugin_system.manager import PluginManager, IPlugin, PluginMetadata, PluginState, PluginLoadResult
     from core.dependency_injection import DependencyContainer, injectable, ServiceLifetime
     from core.application import EventBus, ApplicationEvent
     from interfaces.ui_plugin_interface import (
         IUIPlugin, UIPluginMetadata, UIPluginType, UIPluginCapability,
         UIPluginRegistry, get_ui_plugin_registry
     )
-    from modules.ui_component_base import UIComponentBase, ComponentState, ui_component_manager
+    from src.modules.ui_component_base import UIComponentBase, ComponentState, ui_component_manager
 
 
 class UIPluginLoadError(Exception):

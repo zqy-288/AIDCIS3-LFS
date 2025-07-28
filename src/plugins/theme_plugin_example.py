@@ -11,7 +11,7 @@ try:
     from ..interfaces.ui_plugin_interface import (
         IUIThemePlugin, UIPluginMetadata, UIPluginType, UIPluginCapability
     )
-    from ..core.plugin_manager import BasePlugin
+    from ..core.plugin_system.manager import BasePlugin
 except ImportError:
     # 从插件目录运行时的导入路径
     import sys
@@ -21,7 +21,7 @@ except ImportError:
     from interfaces.ui_plugin_interface import (
         IUIThemePlugin, UIPluginMetadata, UIPluginType, UIPluginCapability
     )
-    from core.plugin_manager import BasePlugin
+    from core.plugin_system.manager import BasePlugin
 
 
 class ModernDarkTheme:

@@ -86,7 +86,6 @@ class WorkpieceDiagram(QWidget):
         super().__init__(parent)
         self.detection_points = {}  # 存储所有检测点
         self.highlighted_hole = None
-        self.current_view_mode = "macro"  # 当前视图模式：macro(宏观) 或 micro(微观)
         self.setup_ui()
         self.create_sample_workpiece()
         
@@ -99,33 +98,6 @@ class WorkpieceDiagram(QWidget):
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("font-size: 14px; font-weight: bold; margin: 5px;")
         layout.addWidget(title_label)
-        
-        # 视图控制栏
-        control_frame = QFrame()
-        control_frame.setFrameStyle(QFrame.StyledPanel)
-        control_layout = QHBoxLayout(control_frame)
-        
-        # 视图模式按钮
-        self.macro_btn = QPushButton("📊 宏观视图")
-        self.macro_btn.setCheckable(True)
-        self.macro_btn.setChecked(True)
-        self.macro_btn.setToolTip("显示整个工件的全貌")
-        self.macro_btn.clicked.connect(self.switch_to_macro_view)
-        
-        self.micro_btn = QPushButton("🔍 微观视图")
-        self.micro_btn.setCheckable(True)
-        self.micro_btn.setToolTip("显示检测点的详细信息")
-        self.micro_btn.clicked.connect(self.switch_to_micro_view)
-        
-        control_layout.addWidget(self.macro_btn)
-        control_layout.addWidget(self.micro_btn)
-        control_layout.addStretch()
-        
-        layout.addWidget(control_frame)
-        layout.addWidget(title_label)
-        
-        # 层级化显示按钮
-        self.create_view_controls(layout)
         
         # 图形视图
         self.graphics_view = QGraphicsView()
@@ -175,81 +147,6 @@ class WorkpieceDiagram(QWidget):
         
         legend_layout.addStretch()
         layout.addWidget(legend_frame)
-        
-    def create_view_controls(self, layout):
-        """创建视图控制按钮"""
-        control_frame = QFrame()
-        control_frame.setFrameStyle(QFrame.Box)
-        control_layout = QHBoxLayout(control_frame)
-        
-        # 视图模式标签
-        view_label = QLabel("视图模式:")
-        view_label.setFont(QFont("Arial", 9, QFont.Bold))
-        control_layout.addWidget(view_label)
-        
-        # 宏观区域视图按钮
-        self.macro_view_btn = QPushButton("宏观区域视图")
-        self.macro_view_btn.setCheckable(True)
-        self.macro_view_btn.setChecked(True)  # 默认选中
-        self.macro_view_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2ECC71;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:checked {
-                background-color: #45a049;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
-        self.macro_view_btn.clicked.connect(self.switch_to_macro_view)
-        control_layout.addWidget(self.macro_view_btn)
-        
-        # 微观管孔视图按钮
-        self.micro_view_btn = QPushButton("微观管孔视图")
-        self.micro_view_btn.setCheckable(True)
-        self.micro_view_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #007ACC;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:checked {
-                background-color: #1976D2;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-        """)
-        self.micro_view_btn.clicked.connect(self.switch_to_micro_view)
-        control_layout.addWidget(self.micro_view_btn)
-        
-        # 添加分隔符
-        control_layout.addSpacing(20)
-        
-        # 缩放控制按钮
-        zoom_in_btn = QPushButton("放大")
-        zoom_in_btn.clicked.connect(self.zoom_in)
-        control_layout.addWidget(zoom_in_btn)
-        
-        zoom_out_btn = QPushButton("缩小")
-        zoom_out_btn.clicked.connect(self.zoom_out)
-        control_layout.addWidget(zoom_out_btn)
-        
-        reset_btn = QPushButton("重置")
-        reset_btn.clicked.connect(self.reset_zoom)
-        control_layout.addWidget(reset_btn)
-        
-        control_layout.addStretch()
-        layout.addWidget(control_frame)
         
     def create_sample_workpiece(self):
         """创建示例工件（管板）"""
@@ -367,73 +264,19 @@ class WorkpieceDiagram(QWidget):
             self.graphics_view.centerOn(point.pos())
         
     def zoom_in(self):
-        """放大视图"""
-        self.graphics_view.scale(1.2, 1.2)
+        """放大视图 - 使用简化统一接口"""
+        from src.core_business.graphics.simple_unified_interface import get_simple_unified_interface
+        get_simple_unified_interface().zoom_in("workpiece_diagram", 1.2)
         
     def zoom_out(self):
-        """缩小视图"""
-        self.graphics_view.scale(0.8, 0.8)
+        """缩小视图 - 使用简化统一接口"""
+        from src.core_business.graphics.simple_unified_interface import get_simple_unified_interface
+        get_simple_unified_interface().zoom_out("workpiece_diagram", 0.8)
         
     def reset_zoom(self):
-        """重置缩放"""
-        self.graphics_view.resetTransform()
-        self.graphics_view.fitInView(self.graphics_scene.sceneRect(), Qt.KeepAspectRatio)
-        
-    def switch_to_macro_view(self):
-        """切换到宏观区域视图"""
-        self.current_view_mode = "macro"
-        self.macro_btn.setChecked(True)
-        self.micro_btn.setChecked(False)
-        
-        # 更新显示模式
-        self.update_view_display()
-        
-        # 适应视图显示全部内容
-        self.graphics_view.fitInView(self.graphics_scene.sceneRect(), Qt.KeepAspectRatio)
-        
-    def switch_to_micro_view(self):
-        """切换到微观管孔视图"""
-        self.current_view_mode = "micro"
-        self.micro_btn.setChecked(True)
-        self.macro_btn.setChecked(False)
-        
-        # 更新显示模式
-        self.update_view_display()
-        
-        # 放大到详细视图
-        self.graphics_view.scale(2.0, 2.0)
-        
-        
-    def update_view_display(self):
-        """根据当前视图模式更新显示"""
-        if self.current_view_mode == "macro":
-            # 宏观视图：显示整体区域分布
-            for hole_id, point in self.detection_points.items():
-                # 显示所有检测点
-                point.setVisible(True)
-                # 设置较小的点大小以显示更多信息
-                if hasattr(point, 'text_item'):
-                    point.text_item.setVisible(True)
-                # 调整点的大小适合宏观视图
-                rect = point.rect()
-                if rect.width() > 10:  # 如果点太大，缩小它
-                    point.setRect(-6, -6, 12, 12)
-                    
-        elif self.current_view_mode == "micro":
-            # 微观视图：显示详细的管孔信息
-            for hole_id, point in self.detection_points.items():
-                # 显示所有检测点
-                point.setVisible(True)
-                # 显示详细信息
-                if hasattr(point, 'text_item'):
-                    point.text_item.setVisible(True)
-                # 调整点的大小适合微观视图
-                rect = point.rect()
-                if rect.width() < 16:  # 如果点太小，放大它
-                    point.setRect(-8, -8, 16, 16)
-                    
-        # 刷新视图
-        self.graphics_scene.update()
+        """重置缩放 - 使用简化统一接口"""
+        from src.core_business.graphics.simple_unified_interface import get_simple_unified_interface
+        get_simple_unified_interface().reset_zoom("workpiece_diagram")
 
 
 if __name__ == "__main__":
