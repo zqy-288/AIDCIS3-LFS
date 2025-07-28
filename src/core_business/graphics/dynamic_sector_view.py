@@ -104,7 +104,8 @@ class DynamicSectorDisplayWidget(QWidget):
         layout.setContentsMargins(5, 5, 5, 5)
         
         # 添加状态控制按钮
-        self.status_controller.create_control_buttons(layout)
+        status_widget = self.status_controller.create_status_buttons(panel)
+        layout.addWidget(status_widget)
         
         return panel
         
