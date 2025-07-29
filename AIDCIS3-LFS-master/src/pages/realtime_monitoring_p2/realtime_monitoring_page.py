@@ -1,478 +1,383 @@
 """
-实时监控页面
-基于现有重构后组件，重新组织UI布局以还原重构前的设计
+实时监控页面 - 高保真度还原原项目RealtimeChart
+基于原项目设计，使用高内聚、低耦合的架构重新实现
 """
 
 import logging
 from typing import Optional
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSplitter, 
-    QGroupBox, QComboBox, QPushButton, QTextEdit, QLineEdit
+    QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
+    QGroupBox, QTextEdit, QMessageBox
 )
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Qt, QTimer, Signal
 
-# 导入现有的重构后组件
-try:
-    from src.modules.realtime_chart_p2.components.chart_widget import ChartWidget
-    from src.modules.realtime_chart_p2.components.data_manager import DataManager
-    from src.modules.realtime_chart_p2.components.endoscope_manager import EndoscopeManager
-    from src.modules.realtime_chart_p2.components.anomaly_detector import AnomalyDetector
-    from src.modules.realtime_chart_p2.components.process_controller import ProcessController
-    HAS_COMPONENTS = True
-except ImportError as e:
-    logging.error(f"无法导入重构后组件: {e}")
-    HAS_COMPONENTS = False
-
-# 导入内窥镜视图
-try:
-    from src.modules.endoscope_view import EndoscopeView
-    HAS_ENDOSCOPE = True
-except ImportError as e:
-    logging.error(f"无法导入内窥镜视图: {e}")
-    HAS_ENDOSCOPE = False
+# 导入模块化组件
+from .components import StatusPanel, ChartPanel, AnomalyPanel, EndoscopePanel
+from .controllers import MonitoringController, AutomationController, DataController
 
 
 class RealtimeMonitoringPage(QWidget):
-    """实时监控页面 - 使用现有组件重新组织UI布局"""
-    
-    # 页面信号
-    monitoring_started = Signal()
-    monitoring_stopped = Signal()
-    hole_selected = Signal(str)
-    data_cleared = Signal()
-    
-    def __init__(self, shared_components=None, view_model=None, parent=None):
+    """
+    实时监控页面主类
+    使用模块化架构，高内聚、低耦合设计
+    """
+
+    # 信号定义
+    hole_selected = Signal(str)  # 孔位选择信号
+    monitoring_started = Signal()  # 监控开始信号
+    monitoring_stopped = Signal()  # 监控停止信号
+
+    def __init__(self, parent=None):
         super().__init__(parent)
-        
-        self.shared_components = shared_components
-        self.view_model = view_model
-        
-        # 初始化现有组件
-        self.init_existing_components()
-        
-        # 设置UI布局
+
+        # 日志设置
+        self.logger = logging.getLogger(__name__)
+
+        # 初始化控制器
+        self.monitoring_controller = MonitoringController()
+        self.automation_controller = AutomationController()
+        self.data_controller = DataController()
+
+        # 初始化UI组件
+        self.status_panel = None
+        self.chart_panel = None
+        self.anomaly_panel = None
+        self.endoscope_panel = None
+        self.log_text_edit = None
+
+        # 设置UI
         self.setup_ui()
+        self.setup_controllers()
         self.setup_connections()
-        
-    def init_existing_components(self):
-        """初始化现有的重构后组件"""
-        if HAS_COMPONENTS:
-            self.chart_widget = ChartWidget()
-            self.data_manager = DataManager()
-            self.endoscope_manager = EndoscopeManager()
-            self.anomaly_detector = AnomalyDetector()
-            self.process_controller = ProcessController()
-        else:
-            self.chart_widget = None
-            self.data_manager = None
-            self.endoscope_manager = None
-            self.anomaly_detector = None
-            self.process_controller = None
-            
-        # 内窥镜视图
-        if HAS_ENDOSCOPE:
-            self.endoscope_view = EndoscopeView()
-        else:
-            self.endoscope_view = None
-        
+
+        # 初始化状态
+        self.setup_initial_state()
+
     def setup_ui(self):
-        """设置用户界面 - 还原重构前的双面板布局"""
+        """设置用户界面"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
-        
-        # 1. 状态信息面板（还原重构前的设计）
-        self.create_status_panel(layout)
-        
-        # 2. 双面板区域（垂直分割：面板A在上，面板B在下）
-        self.create_dual_panels(layout)
-        
-    def create_status_panel(self, parent_layout):
-        """创建状态信息面板 - 使用现有组件"""
-        status_group = QGroupBox("状态监控")
-        status_layout = QHBoxLayout(status_group)
-        status_layout.setSpacing(20)
-        
-        # 左侧：孔位选择（使用现有的内窥镜管理器功能）
-        hole_layout = QVBoxLayout()
-        hole_label = QLabel("当前孔位:")
-        self.hole_selector = QComboBox()
-        self.hole_selector.setMinimumWidth(120)
-        self.hole_selector.addItems(["未选择", "A1", "A2", "A3", "B1", "B2", "B3"])
-        hole_layout.addWidget(hole_label)
-        hole_layout.addWidget(self.hole_selector)
-        status_layout.addLayout(hole_layout)
-        
-        # 中间：状态显示（使用现有组件的状态）
-        if self.data_manager:
-            # 使用数据管理器的状态
-            self.depth_label = QLabel("探头深度: -- mm")
-            self.comm_status_label = QLabel("通信状态: 等待连接")
-            self.standard_diameter_label = QLabel("标准直径: 17.6mm")
-        else:
-            # 占位符
-            self.depth_label = QLabel("探头深度: -- mm")
-            self.comm_status_label = QLabel("通信状态: 模块不可用")
-            self.standard_diameter_label = QLabel("标准直径: 17.6mm")
-            
-        self.depth_label.setMinimumWidth(150)
-        self.comm_status_label.setMinimumWidth(180)
-        self.standard_diameter_label.setMinimumWidth(150)
-        
-        status_layout.addWidget(self.depth_label)
-        status_layout.addWidget(self.comm_status_label)
-        status_layout.addWidget(self.standard_diameter_label)
-        
-        # 右侧：控制按钮（使用现有进程控制器）
-        control_layout = QHBoxLayout()
-        self.start_button = QPushButton("开始监测")
-        self.stop_button = QPushButton("停止监测")
-        self.clear_button = QPushButton("清除数据")
-        
-        # 设置按钮状态
-        self.start_button.setEnabled(True)
-        self.stop_button.setEnabled(False)
-        self.clear_button.setEnabled(True)
-        
-        control_layout.addWidget(self.start_button)
-        control_layout.addWidget(self.stop_button)
-        control_layout.addWidget(self.clear_button)
-        status_layout.addLayout(control_layout)
-        
-        parent_layout.addWidget(status_group)
-        
-    def create_dual_panels(self, parent_layout):
-        """创建双面板区域 - 使用现有组件"""
-        # 垂直分割器
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(8)
+
+        # 状态监控面板
+        self.status_panel = StatusPanel()
+        layout.addWidget(self.status_panel)
+
+        # 移除自动化控制日志窗口，匹配重构前的简洁布局
+        # 日志信息将通过状态栏或其他方式显示
+        self.log_text_edit = None
+
+        # 双面板区域 - 垂直布局（A在上，B在下）
         splitter = QSplitter(Qt.Vertical)
-        
-        # 面板A：图表和异常监控（使用现有组件）
-        panel_a = self.create_panel_a()
-        splitter.addWidget(panel_a)
-        
-        # 面板B：内窥镜图像（使用现有组件）
-        panel_b = self.create_panel_b()
-        splitter.addWidget(panel_b)
-        
-        # 设置分割比例（面板A占60%，面板B占40%）
-        splitter.setSizes([600, 400])
-        
-        parent_layout.addWidget(splitter)
-        
-    def create_panel_a(self):
-        """创建面板A - 使用现有图表组件和异常检测器"""
-        panel_a = QWidget()
-        panel_a_layout = QHBoxLayout(panel_a)
-        panel_a_layout.setContentsMargins(5, 5, 5, 5)
+
+        # 面板A: 管孔直径数据（图表 + 异常监控）
+        panel_a_widget = QWidget()
+        panel_a_widget.setObjectName("PanelAWidget")
+        panel_a_layout = QHBoxLayout(panel_a_widget)
+        panel_a_layout.setContentsMargins(8, 8, 8, 8)
         panel_a_layout.setSpacing(10)
-        
-        # 左侧：使用现有的图表组件
-        if self.chart_widget:
-            panel_a_layout.addWidget(self.chart_widget, 3)  # 占75%空间
-        else:
-            # 占位符
-            chart_placeholder = QLabel("图表组件不可用")
-            chart_placeholder.setAlignment(Qt.AlignCenter)
-            chart_placeholder.setStyleSheet("border: 2px dashed #ccc; background: #f5f5f5;")
-            panel_a_layout.addWidget(chart_placeholder, 3)
-        
-        # 右侧：异常数据显示（使用现有异常检测器）
-        right_panel = self.create_anomaly_panel()
-        panel_a_layout.addWidget(right_panel, 1)  # 占25%空间
-        
-        return panel_a
-        
-    def create_anomaly_panel(self):
-        """创建异常数据面板 - 使用现有异常检测器"""
-        anomaly_widget = QWidget()
-        anomaly_widget.setMinimumWidth(300)
-        anomaly_widget.setMaximumWidth(350)
-        anomaly_layout = QVBoxLayout(anomaly_widget)
-        anomaly_layout.setContentsMargins(5, 5, 5, 5)
-        
-        # 异常监控标题
-        anomaly_title = QLabel("异常直径监控")
-        anomaly_title.setStyleSheet("font-weight: bold; font-size: 10pt;")
-        anomaly_layout.addWidget(anomaly_title)
-        
-        # 异常数据显示区域
-        self.anomaly_text = QTextEdit()
-        self.anomaly_text.setReadOnly(True)
-        self.anomaly_text.setMaximumHeight(200)
-        self.anomaly_text.setPlaceholderText("暂无异常数据...")
-        anomaly_layout.addWidget(self.anomaly_text)
-        
-        # 异常统计信息（使用现有异常检测器的数据）
-        stats_layout = QHBoxLayout()
-        self.anomaly_count_label = QLabel("异常点数: 0")
-        self.max_deviation_label = QLabel("最大偏差: --")
-        stats_layout.addWidget(self.anomaly_count_label)
-        stats_layout.addWidget(self.max_deviation_label)
-        anomaly_layout.addLayout(stats_layout)
-        
-        # 标准参数设置
-        std_layout = QVBoxLayout()
-        std_title = QLabel("标准参数设置")
-        std_title.setStyleSheet("font-weight: bold; font-size: 9pt;")
-        std_layout.addWidget(std_title)
-        
-        # 标准直径输入
-        std_input_layout = QHBoxLayout()
-        std_input_layout.addWidget(QLabel("标准直径:"))
-        self.std_diameter_input = QLineEdit("17.6")
-        self.std_diameter_input.setMaximumWidth(80)
-        std_input_layout.addWidget(self.std_diameter_input)
-        std_input_layout.addWidget(QLabel("mm"))
-        std_layout.addLayout(std_input_layout)
-        
-        # 公差输入
-        tolerance_layout = QHBoxLayout()
-        tolerance_layout.addWidget(QLabel("公差范围:"))
-        self.tolerance_input = QLineEdit("±0.5")
-        self.tolerance_input.setMaximumWidth(80)
-        tolerance_layout.addWidget(self.tolerance_input)
-        tolerance_layout.addWidget(QLabel("mm"))
-        std_layout.addLayout(tolerance_layout)
-        
-        anomaly_layout.addLayout(std_layout)
-        
-        # 查看下一个样品按钮
-        anomaly_layout.addSpacing(20)
-        self.next_sample_button = QPushButton("查看下一个样品")
-        anomaly_layout.addWidget(self.next_sample_button)
-        
-        anomaly_layout.addStretch()
-        return anomaly_widget
-        
-    def create_panel_b(self):
-        """创建面板B - 使用现有内窥镜组件"""
-        if self.endoscope_view:
-            # 使用现有的内窥镜视图
-            self.endoscope_view.setMinimumHeight(300)
-            return self.endoscope_view
-        else:
-            # 占位符
-            placeholder = QWidget()
-            placeholder_layout = QVBoxLayout(placeholder)
-            placeholder_label = QLabel("内窥镜图像显示")
-            placeholder_label.setAlignment(Qt.AlignCenter)
-            placeholder_label.setStyleSheet("background-color: #f0f0f0; border: 2px dashed #ccc; font-size: 14pt;")
-            placeholder_label.setMinimumHeight(300)
-            placeholder_layout.addWidget(placeholder_label)
-            return placeholder
-        
+
+        # 图表面板（左侧，占3/4空间）
+        self.chart_panel = ChartPanel()
+        panel_a_layout.addWidget(self.chart_panel, 3)
+
+        # 异常监控面板（右侧，占1/4空间）
+        self.anomaly_panel = AnomalyPanel()
+        panel_a_layout.addWidget(self.anomaly_panel, 1)
+
+        splitter.addWidget(panel_a_widget)
+
+        # 面板B: 内窥镜图像
+        self.endoscope_panel = EndoscopePanel()
+        splitter.addWidget(self.endoscope_panel)
+
+        layout.addWidget(splitter)
+        self.main_splitter = splitter
+
+        # 延迟设置分割器比例
+        QTimer.singleShot(100, self.adjust_splitter_sizes)
+
+    def setup_controllers(self):
+        """设置控制器"""
+        # 设置监控控制器的组件引用
+        self.monitoring_controller.set_components(
+            self.status_panel,
+            self.chart_panel,
+            self.anomaly_panel,
+            self.endoscope_panel
+        )
+
     def setup_connections(self):
-        """设置信号连接 - 连接现有组件的信号"""
-        # 控制按钮连接
-        self.start_button.clicked.connect(self.on_start_monitoring)
-        self.stop_button.clicked.connect(self.on_stop_monitoring)
-        self.clear_button.clicked.connect(self.on_clear_data)
-        
-        # 孔位选择连接
-        self.hole_selector.currentTextChanged.connect(self.on_hole_selected)
-        
-        # 查看下一个样品按钮
-        self.next_sample_button.clicked.connect(self.view_next_sample)
-        
-        # 参数输入连接
-        self.std_diameter_input.textChanged.connect(self.update_standard_diameter)
-        self.tolerance_input.textChanged.connect(self.update_tolerance)
-        
-        # 连接现有组件的信号
-        if self.data_manager:
-            # 如果数据管理器有相应信号，连接它们
-            if hasattr(self.data_manager, 'data_updated'):
-                self.data_manager.data_updated.connect(self.on_data_updated)
-                
-        if self.anomaly_detector:
-            # 如果异常检测器有相应信号，连接它们
-            if hasattr(self.anomaly_detector, 'anomaly_detected'):
-                self.anomaly_detector.anomaly_detected.connect(self.on_anomaly_detected)
-                
-        if self.process_controller:
-            # 如果进程控制器有相应信号，连接它们
-            if hasattr(self.process_controller, 'status_changed'):
-                self.process_controller.status_changed.connect(self.on_process_status_changed)
-                
-        if self.endoscope_manager:
-            # 如果内窥镜管理器有相应信号，连接它们
-            if hasattr(self.endoscope_manager, 'position_changed'):
-                self.endoscope_manager.position_changed.connect(self.on_endoscope_position_changed)
-            
+        """设置信号连接"""
+        # 状态面板信号连接 - 按照重构前的功能
+        self.status_panel.start_clicked.connect(self.on_start_monitoring)
+        self.status_panel.stop_clicked.connect(self.on_stop_monitoring)
+        self.status_panel.clear_clicked.connect(self.on_clear_data)
+
+        # 异常面板信号连接 - 按照重构前的功能
+        self.anomaly_panel.next_sample_clicked.connect(self.on_next_sample)
+
+        # 图表面板信号连接
+        self.chart_panel.export_requested.connect(self.on_export_chart)
+        self.chart_panel.refresh_requested.connect(self.on_refresh_chart)
+
+        # 监控控制器信号连接
+        self.monitoring_controller.monitoring_state_changed.connect(self.on_monitoring_state_changed)
+        self.monitoring_controller.status_updated.connect(self.on_status_updated)
+        self.monitoring_controller.hole_changed.connect(self.hole_selected.emit)
+
+        # 自动化控制器信号连接
+        self.automation_controller.automation_log.connect(self.add_log_message)
+        self.automation_controller.error_occurred.connect(self.on_automation_error)
+        self.automation_controller.csv_file_detected.connect(self.on_csv_file_detected)
+        self.automation_controller.process_started.connect(self.on_process_started)
+        self.automation_controller.process_stopped.connect(self.on_process_stopped)
+
+        # 数据控制器信号连接
+        self.data_controller.data_point_ready.connect(self.on_data_point_ready)
+        self.data_controller.data_loaded.connect(self.on_data_loaded)
+        self.data_controller.playback_started.connect(self.on_playback_started)
+        self.data_controller.playback_stopped.connect(self.on_playback_stopped)
+        self.data_controller.error_occurred.connect(self.on_data_error)
+
+    def setup_initial_state(self):
+        """设置初始状态"""
+        # 设置标准直径和公差
+        self.monitoring_controller.set_standard_diameter(17.73, 0.07, 0.05)
+
+        # 添加初始日志消息
+        self.add_log_message("🚀 实时监控系统已启动")
+        self.add_log_message("📋 等待开始监控...")
+
+    def adjust_splitter_sizes(self):
+        """调整分割器大小"""
+        try:
+            # 设置面板A和面板B的比例为3:2
+            total_height = self.main_splitter.height()
+            if total_height > 100:
+                panel_a_height = int(total_height * 0.6)
+                panel_b_height = int(total_height * 0.4)
+                self.main_splitter.setSizes([panel_a_height, panel_b_height])
+        except Exception as e:
+            self.logger.error(f"调整分割器大小失败: {e}")
+
+    def add_log_message(self, message: str):
+        """添加日志消息 - 简化版本，匹配重构前布局"""
+        try:
+            # 日志消息现在只在控制台输出，保持界面简洁
+            print(f"[实时监控] {message}")
+            self.logger.info(message)
+        except Exception as e:
+            self.logger.error(f"添加日志消息失败: {e}")
+
     # === 事件处理方法 ===
-    
-    def on_start_monitoring(self):
-        """开始监测 - 使用现有进程控制器"""
-        self.start_button.setEnabled(False)
-        self.stop_button.setEnabled(True)
-        
-        # 更新状态显示
-        self.comm_status_label.setText("通信状态: 正在监测")
-        
-        # 使用现有进程控制器启动
-        if self.process_controller and hasattr(self.process_controller, 'start_process'):
-            try:
-                self.process_controller.start_process()
-            except Exception as e:
-                logging.error(f"启动监测失败: {e}")
-                
-        # 发射信号
-        self.monitoring_started.emit()
-        print("✅ 开始实时监测")
-        
-    def on_stop_monitoring(self):
-        """停止监测 - 使用现有进程控制器"""
-        self.start_button.setEnabled(True)
-        self.stop_button.setEnabled(False)
-        
-        # 更新状态显示
-        self.comm_status_label.setText("通信状态: 监测已停止")
-        
-        # 使用现有进程控制器停止
-        if self.process_controller and hasattr(self.process_controller, 'stop_process'):
-            try:
-                self.process_controller.stop_process()
-            except Exception as e:
-                logging.error(f"停止监测失败: {e}")
-                
-        # 发射信号
-        self.monitoring_stopped.emit()
-        print("⏸️ 停止实时监测")
-        
-    def on_clear_data(self):
-        """清除数据 - 使用现有数据管理器"""
-        # 使用现有数据管理器清除数据
-        if self.data_manager and hasattr(self.data_manager, 'clear_data'):
-            try:
-                self.data_manager.clear_data()
-            except Exception as e:
-                logging.error(f"清除数据失败: {e}")
-                
-        # 清除UI显示
-        self.anomaly_text.clear()
-        self.anomaly_count_label.setText("异常点数: 0")
-        self.max_deviation_label.setText("最大偏差: --")
-        
-        # 发射信号
-        self.data_cleared.emit()
-        print("🗑️ 数据已清除")
-        
-    def on_hole_selected(self, hole_id):
-        """孔位选择事件 - 使用现有内窥镜管理器"""
-        if hole_id == "未选择":
-            hole_id = None
-            
-        # 使用现有内窥镜管理器设置位置
-        if self.endoscope_manager and hasattr(self.endoscope_manager, 'set_current_position'):
-            try:
-                if hole_id:
-                    self.endoscope_manager.set_current_position(hole_id)
-            except Exception as e:
-                logging.error(f"设置孔位失败: {e}")
-                
-        # 发射信号
-        if hole_id:
-            self.hole_selected.emit(hole_id)
-            print(f"📍 选择孔位: {hole_id}")
-            
-    def view_next_sample(self):
-        """查看下一个样品"""
-        current_index = self.hole_selector.currentIndex()
-        if current_index < self.hole_selector.count() - 1:
-            self.hole_selector.setCurrentIndex(current_index + 1)
-        else:
-            # 回到第二个选项（跳过"未选择"）
-            self.hole_selector.setCurrentIndex(1)
-            
-    def update_standard_diameter(self):
-        """更新标准直径"""
+
+    def on_monitoring_state_changed(self, is_monitoring: bool):
+        """监控状态变化处理"""
         try:
-            new_diameter = float(self.std_diameter_input.text())
-            self.standard_diameter_label.setText(f"标准直径: {new_diameter}mm")
-            
-            # 如果异常检测器支持，更新其标准值
-            if self.anomaly_detector and hasattr(self.anomaly_detector, 'set_standard_diameter'):
-                self.anomaly_detector.set_standard_diameter(new_diameter)
-                
-        except ValueError:
-            pass  # 忽略无效输入
-            
-    def update_tolerance(self):
-        """更新公差范围"""
+            if is_monitoring:
+                self.add_log_message("▶️ 监控已开始")
+                self.monitoring_started.emit()
+
+                # 启动自动化任务
+                if self.automation_controller.start_acquisition_program():
+                    self.add_log_message("✅ 采集程序启动成功")
+                else:
+                    self.add_log_message("⚠️ 采集程序启动失败，使用数据播放模式")
+                    # 回退到数据播放模式
+                    self.start_data_playback_mode()
+            else:
+                self.add_log_message("⏸️ 监控已停止")
+                self.monitoring_stopped.emit()
+
+                # 停止自动化任务
+                self.automation_controller.stop_acquisition_program()
+                self.automation_controller.stop_remote_launcher()
+
+                # 停止数据播放
+                self.data_controller.stop_playback()
+
+        except Exception as e:
+            self.logger.error(f"处理监控状态变化失败: {e}")
+
+    def on_status_updated(self, status_type: str, message: str):
+        """状态更新处理"""
         try:
-            tolerance_text = self.tolerance_input.text().replace("±", "").replace("+", "")
-            tolerance = float(tolerance_text)
-            
-            # 如果异常检测器支持，更新其公差值
-            if self.anomaly_detector and hasattr(self.anomaly_detector, 'set_tolerance'):
-                self.anomaly_detector.set_tolerance(tolerance)
-                
-        except ValueError:
-            pass  # 忽略无效输入
-            
-    # === 现有组件信号响应方法 ===
-    
-    def on_data_updated(self, *args):
-        """数据更新信号响应"""
-        # 更新深度显示等
-        pass
-        
-    def on_anomaly_detected(self, *args):
-        """异常检测信号响应"""
-        # 更新异常显示
-        if self.anomaly_detector:
-            try:
-                count = len(getattr(self.anomaly_detector, 'anomalies', []))
-                self.anomaly_count_label.setText(f"异常点数: {count}")
-            except:
-                pass
-                
-    def on_process_status_changed(self, status):
-        """进程状态变化响应"""
-        self.comm_status_label.setText(f"通信状态: {status}")
-        
-    def on_endoscope_position_changed(self, position):
-        """内窥镜位置变化响应"""
-        print(f"内窥镜位置变化: {position}")
-        
+            if status_type == "error":
+                self.add_log_message(f"❌ {message}")
+            elif status_type == "warning":
+                self.add_log_message(f"⚠️ {message}")
+            elif status_type == "info":
+                self.add_log_message(f"ℹ️ {message}")
+            else:
+                self.add_log_message(message)
+        except Exception as e:
+            self.logger.error(f"处理状态更新失败: {e}")
+
+    def on_automation_error(self, error_message: str):
+        """自动化错误处理"""
+        try:
+            self.add_log_message(f"❌ 自动化错误: {error_message}")
+            QMessageBox.warning(self, "自动化错误", error_message)
+        except Exception as e:
+            self.logger.error(f"处理自动化错误失败: {e}")
+
+    def on_csv_file_detected(self, file_path: str):
+        """CSV文件检测处理"""
+        try:
+            self.add_log_message(f"📄 检测到CSV文件: {file_path}")
+
+            # 加载并播放CSV数据
+            if self.data_controller.load_csv_file(file_path):
+                self.add_log_message("✅ CSV文件加载成功")
+                self.data_controller.start_playback(50)  # 50ms间隔播放
+            else:
+                self.add_log_message("❌ CSV文件加载失败")
+
+        except Exception as e:
+            self.logger.error(f"处理CSV文件检测失败: {e}")
+
+    def on_process_started(self, process_name: str):
+        """进程启动处理"""
+        self.add_log_message(f"🚀 进程已启动: {process_name}")
+
+    def on_process_stopped(self, process_name: str):
+        """进程停止处理"""
+        self.add_log_message(f"⏹️ 进程已停止: {process_name}")
+
+    def on_data_point_ready(self, depth: float, diameter: float):
+        """数据点准备处理"""
+        try:
+            # 将数据点传递给监控控制器
+            self.monitoring_controller.add_measurement_point(depth, diameter)
+        except Exception as e:
+            self.logger.error(f"处理数据点失败: {e}")
+
+    def on_data_loaded(self, file_path: str, point_count: int):
+        """数据加载完成处理"""
+        self.add_log_message(f"📊 数据加载完成: {point_count} 个数据点")
+
+    def on_playback_started(self):
+        """播放开始处理"""
+        self.add_log_message("▶️ 数据播放已开始")
+
+    def on_playback_stopped(self):
+        """播放停止处理"""
+        self.add_log_message("⏸️ 数据播放已停止")
+
+    def on_data_error(self, error_message: str):
+        """数据错误处理"""
+        self.add_log_message(f"❌ 数据错误: {error_message}")
+
+    def start_data_playback_mode(self):
+        """启动数据播放模式"""
+        try:
+            # 尝试加载默认孔位数据
+            default_holes = ["AC002R001", "AC004R001", "BC001R001", "BC003R001"]
+
+            for hole_id in default_holes:
+                if self.data_controller.load_hole_data(hole_id):
+                    self.add_log_message(f"✅ 加载孔位数据: {hole_id}")
+                    self.monitoring_controller.set_current_hole(hole_id)
+                    self.data_controller.start_playback(100)  # 100ms间隔播放
+                    break
+            else:
+                self.add_log_message("⚠️ 没有可用的孔位数据")
+
+        except Exception as e:
+            self.logger.error(f"启动数据播放模式失败: {e}")
+
     # === 公共接口方法 ===
-    
-    def get_current_hole_id(self):
-        """获取当前孔位ID"""
-        current_text = self.hole_selector.currentText()
-        return None if current_text == "未选择" else current_text
-        
-    def get_monitoring_status(self):
-        """获取监测状态"""
-        return not self.start_button.isEnabled()
-        
-    def add_data_point(self, time_val, diameter, depth=None):
-        """添加数据点"""
-        # 使用现有数据管理器添加数据
-        if self.data_manager and hasattr(self.data_manager, 'add_data'):
-            try:
-                self.data_manager.add_data(time_val, diameter, depth)
-            except Exception as e:
-                logging.error(f"添加数据点失败: {e}")
-                
-        # 更新深度显示
-        if depth is not None:
-            self.depth_label.setText(f"探头深度: {depth:.2f} mm")
-            
-    def get_anomaly_count(self):
-        """获取异常数量"""
-        if self.anomaly_detector and hasattr(self.anomaly_detector, 'anomalies'):
-            try:
-                return len(self.anomaly_detector.anomalies)
-            except:
-                pass
-        return 0
-        
-    def export_data(self):
-        """导出数据"""
-        if self.data_manager and hasattr(self.data_manager, 'export_data'):
-            try:
-                return self.data_manager.export_data()
-            except Exception as e:
-                logging.error(f"导出数据失败: {e}")
-        return None
+
+    def set_current_hole(self, hole_id: str):
+        """设置当前孔位"""
+        try:
+            self.monitoring_controller.set_current_hole(hole_id)
+            self.add_log_message(f"🎯 设置当前孔位: {hole_id}")
+
+            # 如果有对应的数据，加载数据
+            if self.data_controller.load_hole_data(hole_id):
+                self.add_log_message(f"📊 加载孔位数据: {hole_id}")
+
+        except Exception as e:
+            self.logger.error(f"设置当前孔位失败: {e}")
+
+    def start_measurement_for_hole(self, hole_id: str):
+        """为指定孔位开始测量"""
+        try:
+            self.set_current_hole(hole_id)
+            self.monitoring_controller.clear_data()
+            self.monitoring_controller.start_monitoring()
+        except Exception as e:
+            self.logger.error(f"为孔位开始测量失败: {e}")
+
+    def get_monitoring_state(self):
+        """获取监控状态"""
+        return self.monitoring_controller.get_monitoring_state()
+
+    # 新增的信号处理方法 - 按照重构前的功能
+
+    def on_start_monitoring(self):
+        """开始监控按钮点击处理"""
+        try:
+            self.add_log_message("🚀 开始监控...")
+            self.monitoring_controller.start_monitoring()
+            self.status_panel.set_monitoring_state(True)
+        except Exception as e:
+            self.logger.error(f"开始监控失败: {e}")
+
+    def on_stop_monitoring(self):
+        """停止监控按钮点击处理"""
+        try:
+            self.add_log_message("⏸️ 停止监控...")
+            self.monitoring_controller.stop_monitoring()
+            self.status_panel.set_monitoring_state(False)
+        except Exception as e:
+            self.logger.error(f"停止监控失败: {e}")
+
+    def on_clear_data(self):
+        """清除数据按钮点击处理"""
+        try:
+            self.add_log_message("🗑️ 清除数据...")
+            self.monitoring_controller.clear_data()
+            self.chart_panel.clear_data()
+            self.anomaly_panel.clear_anomalies()
+        except Exception as e:
+            self.logger.error(f"清除数据失败: {e}")
+
+    def on_next_sample(self):
+        """查看下一个样品按钮点击处理"""
+        try:
+            self.add_log_message("🔄 切换到下一个样品...")
+            # 这里可以添加切换样品的逻辑
+        except Exception as e:
+            self.logger.error(f"切换样品失败: {e}")
+
+    def on_export_chart(self):
+        """导出图表按钮点击处理"""
+        try:
+            self.add_log_message("📊 导出图表...")
+            # 这里可以添加导出图表的逻辑
+        except Exception as e:
+            self.logger.error(f"导出图表失败: {e}")
+
+    def on_refresh_chart(self):
+        """刷新图表按钮点击处理"""
+        try:
+            self.add_log_message("🔄 刷新图表...")
+            self.chart_panel.refresh_chart()
+        except Exception as e:
+            self.logger.error(f"刷新图表失败: {e}")
+
+    def clear_all_data(self):
+        """清除所有数据"""
+        try:
+            self.monitoring_controller.clear_data()
+            self.data_controller.clear_data()
+            self.add_log_message("🗑️ 所有数据已清除")
+        except Exception as e:
+            self.logger.error(f"清除所有数据失败: {e}")
+
+
+# 为了兼容性，创建别名
+RealtimeChart = RealtimeMonitoringPage

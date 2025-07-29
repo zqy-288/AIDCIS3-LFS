@@ -17,7 +17,7 @@ import re
 import math
 from typing import List, Dict, Optional, Tuple, Any
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from PySide6.QtCore import QObject, Signal, QPointF, QRectF
 from PySide6.QtGui import QPainter, QPen, QColor, QBrush, QPainterPath, QFont
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsPathItem, QGraphicsTextItem
@@ -72,7 +72,7 @@ class PathSegment:
     sequence_number: int
     distance: float = 0.0
     is_snake_direction: bool = True  # 是否为蛇形方向
-    metadata: Dict[str, Any] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -80,20 +80,20 @@ class PathStyleConfig:
     """路径样式配置"""
     # 基础样式
     line_width: float = 2.0
-    line_color: QColor = QColor(50, 150, 250)
+    line_color: QColor = field(default_factory=lambda: QColor(50, 150, 250))
     arrow_size: float = 8.0
-    
+
     # 不同类型的颜色
-    normal_color: QColor = QColor(50, 150, 250)     # 蓝色
-    return_color: QColor = QColor(255, 165, 0)      # 橙色
-    jump_color: QColor = QColor(255, 50, 50)        # 红色
-    completed_color: QColor = QColor(100, 200, 100) # 绿色
-    current_color: QColor = QColor(255, 255, 0)     # 黄色
-    
+    normal_color: QColor = field(default_factory=lambda: QColor(50, 150, 250))     # 蓝色
+    return_color: QColor = field(default_factory=lambda: QColor(255, 165, 0))      # 橙色
+    jump_color: QColor = field(default_factory=lambda: QColor(255, 50, 50))        # 红色
+    completed_color: QColor = field(default_factory=lambda: QColor(100, 200, 100)) # 绿色
+    current_color: QColor = field(default_factory=lambda: QColor(255, 255, 0))     # 黄色
+
     # 文字样式
     show_sequence_numbers: bool = True
     number_font_size: int = 10
-    number_color: QColor = QColor(0, 0, 0)
+    number_color: QColor = field(default_factory=lambda: QColor(0, 0, 0))
     
     # 动画样式
     enable_animation: bool = False

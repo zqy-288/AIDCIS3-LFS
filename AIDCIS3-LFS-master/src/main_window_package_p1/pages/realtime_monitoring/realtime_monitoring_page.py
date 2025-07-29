@@ -1,6 +1,6 @@
 """
 实时监控页面
-基于第二季realtime_chart_s2的包装
+使用重构前的原始realtime_chart组件，还原重构前的界面布局
 """
 
 import logging

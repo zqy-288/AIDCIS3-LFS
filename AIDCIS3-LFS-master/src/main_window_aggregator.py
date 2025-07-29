@@ -61,20 +61,20 @@ class MainWindowAggregator(QMainWindow):
         self.setWindowTitle("AIDCIS3-LFS 主窗口 (新P级架构)")
         self.setGeometry(100, 100, 1400, 900)
         self.setMinimumSize(1200, 800)
-        
+
         # 创建中央部件
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
-        
+
         # 主布局
         main_layout = QVBoxLayout(self.central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
-        
+
         # 创建选项卡容器
         self.tab_widget = QTabWidget()
         main_layout.addWidget(self.tab_widget)
-        
+
         # 设置菜单栏和状态栏
         self._setup_menu_bar()
         self._setup_status_bar()
@@ -83,19 +83,19 @@ class MainWindowAggregator(QMainWindow):
         """设置所有P级页面"""
         try:
             self.logger.info("🔄 开始创建P级页面...")
-            
+
             # P1: 主检测视图页面
             self.logger.info("📋 创建P1主检测视图页面...")
             self.main_detection_p1 = MainDetectionPage()
             self.tab_widget.addTab(self.main_detection_p1, "P1-主检测视图")
             self.logger.info("✅ P1主检测视图页面创建成功")
-            
+
             # P2: 实时监控页面
             self.logger.info("📋 创建P2实时监控页面...")
             self.realtime_monitoring_p2 = RealtimeMonitoringPage()
             self.tab_widget.addTab(self.realtime_monitoring_p2, "P2-实时监控")
             self.logger.info("✅ P2实时监控页面创建成功")
-            
+
             # P3: 历史统计页面
             self.logger.info("📋 创建P3历史统计页面...")
             self.history_analytics_p3 = HistoryAnalyticsPage()
