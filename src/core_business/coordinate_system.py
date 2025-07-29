@@ -292,11 +292,11 @@ class UnifiedCoordinateManager(QObject):
         
         if self.config.debug_enabled:
             self._debug_print(f"🎯 执行扇形分配: 中心({self.sector_center.x():.2f}, {self.sector_center.y():.2f})")
-            self._debug_print("🧭 扇形定义:")
-            self._debug_print("   SECTOR_1 (右上): dx>=0, dy<0")
-            self._debug_print("   SECTOR_2 (左上): dx<0,  dy<0")
-            self._debug_print("   SECTOR_3 (左下): dx<0,  dy>=0")
-            self._debug_print("   SECTOR_4 (右下): dx>=0, dy>=0")
+            self._debug_print("🧭 扇形定义（Qt坐标系）:")
+            self._debug_print("   SECTOR_1 (右上): dx>=0, dy<=0  [Qt显示的右上]")
+            self._debug_print("   SECTOR_2 (左上): dx<0,  dy<=0  [Qt显示的左上]")
+            self._debug_print("   SECTOR_3 (左下): dx<0,  dy>0   [Qt显示的左下]")
+            self._debug_print("   SECTOR_4 (右下): dx>=0, dy>0   [Qt显示的右下]")
         
         self.sector_assignments.clear()
         center_x = self.sector_center.x()
@@ -311,15 +311,16 @@ class UnifiedCoordinateManager(QObject):
             dx = hole.center_x - center_x
             dy = hole.center_y - center_y
             
-            # 确定扇形（使用标准象限定义）
-            if dx >= 0 and dy < 0:
-                sector = SectorQuadrant.SECTOR_1  # 右上
-            elif dx < 0 and dy < 0:
-                sector = SectorQuadrant.SECTOR_2  # 左上
-            elif dx < 0 and dy >= 0:
-                sector = SectorQuadrant.SECTOR_3  # 左下
-            else:  # dx >= 0 and dy >= 0
-                sector = SectorQuadrant.SECTOR_4  # 右下
+            # 确定扇形（考虑Qt坐标系Y轴向下）
+            # 在数据中 y>0 表示上方，但在Qt显示中会在下方
+            if dx >= 0 and dy <= 0:
+                sector = SectorQuadrant.SECTOR_1  # Qt显示的右上（y<0在屏幕上方）
+            elif dx < 0 and dy <= 0:
+                sector = SectorQuadrant.SECTOR_2  # Qt显示的左上（y<0在屏幕上方）
+            elif dx < 0 and dy > 0:
+                sector = SectorQuadrant.SECTOR_3  # Qt显示的左下（y>0在屏幕下方）
+            else:  # dx >= 0 and dy > 0
+                sector = SectorQuadrant.SECTOR_4  # Qt显示的右下（y>0在屏幕下方）
             
             self.sector_assignments[hole_id] = sector
             
@@ -352,12 +353,12 @@ class UnifiedCoordinateManager(QObject):
             SectorQuadrant.SECTOR_4: QColor(156, 39, 176),  # 紫色 - 右下
         }
         
-        # 象限定义
+        # 象限定义（Qt坐标系）
         quadrant_definitions = {
-            SectorQuadrant.SECTOR_1: "dx>=0, dy<0 (右上)",
-            SectorQuadrant.SECTOR_2: "dx<0,  dy<0 (左上)",
-            SectorQuadrant.SECTOR_3: "dx<0,  dy>=0 (左下)",
-            SectorQuadrant.SECTOR_4: "dx>=0, dy>=0 (右下)"
+            SectorQuadrant.SECTOR_1: "dx>=0, dy<=0 (Qt右上)",
+            SectorQuadrant.SECTOR_2: "dx<0,  dy<=0 (Qt左上)",
+            SectorQuadrant.SECTOR_3: "dx<0,  dy>0  (Qt左下)",
+            SectorQuadrant.SECTOR_4: "dx>=0, dy>0  (Qt右下)"
         }
         
         for sector in SectorQuadrant:

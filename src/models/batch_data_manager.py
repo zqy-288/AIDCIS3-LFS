@@ -12,7 +12,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 
 # AI员工3号修改开始
-from core_business.models.hole_data import HoleData, HoleStatus
+from src.core_business.models.hole_data import HoleData, HoleStatus
 import re  # 用于孔位ID格式验证和转换
 # AI员工3号修改结束
 

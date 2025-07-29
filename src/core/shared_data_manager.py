@@ -350,3 +350,6 @@ class SharedDataManager(QObject):
     def get_detection_params(self):
         """获取检测参数（兼容接口）"""
         return self._data_store.get('detection_params')
+
+# 创建全局单例实例
+shared_data_manager = SharedDataManager()

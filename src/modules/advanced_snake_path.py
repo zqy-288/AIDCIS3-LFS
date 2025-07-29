@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 import math
 
-from advanced_hole_id_mapper import AdvancedHoleIdMapper, HoleMappingRule
+from src.modules.advanced_hole_id_mapper import AdvancedHoleIdMapper, HoleMappingRule
 
 
 class PathStrategy(Enum):

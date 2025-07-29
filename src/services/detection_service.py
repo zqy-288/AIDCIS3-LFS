@@ -34,7 +34,7 @@ class DetectionService(QObject):
         
         # 批次相关
         self.current_batch_id = None
-        self.batch_manager = None
+        self.batch_service = None
         self.detection_results = {}  # 保存检测结果
         self.is_mock = False
         
@@ -52,9 +52,9 @@ class DetectionService(QObject):
         self.detection_timer = QTimer()
         self.detection_timer.timeout.connect(self._process_next_hole)
         
-    def set_batch_manager(self, batch_manager):
-        """设置批次管理器"""
-        self.batch_manager = batch_manager
+    def set_batch_service(self, batch_service):
+        """设置批次服务"""
+        self.batch_service = batch_service
     
     def start_detection(self, holes: List[Any], batch_id: str = None, is_mock: bool = False) -> bool:
         """开始检测"""
@@ -122,9 +122,9 @@ class DetectionService(QObject):
             self.detection_timer.stop()
             
             # 保存检测状态
-            if self.batch_manager and self.current_batch_id:
+            if self.batch_service and self.current_batch_id:
                 detection_state = self._get_detection_state()
-                self.batch_manager.pause_batch(self.current_batch_id, detection_state)
+                self.batch_service.pause_batch(self.current_batch_id, detection_state)
             
             self.detection_paused.emit()
             

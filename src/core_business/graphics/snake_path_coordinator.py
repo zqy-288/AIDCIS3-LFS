@@ -213,7 +213,41 @@ class SnakePathCoordinator(QObject):
             
     def get_global_path(self) -> List[str]:
         """获取全局路径"""
-        return self.global_snake_path.copy()
+        return self.global_snake_path
+    
+    def get_snake_path_order(self, holes: List[Any]) -> List[Any]:
+        """获取蛇形路径顺序的孔位列表"""
+        if not holes:
+            return []
+            
+        try:
+            # 使用SnakePathRenderer生成路径
+            from src.core_business.graphics.snake_path_renderer import SnakePathRenderer
+            renderer = SnakePathRenderer()
+            
+            # 创建临时的hole_collection
+            from src.core_business.models.hole_data import HoleCollection
+            holes_dict = {hole.hole_id: hole for hole in holes}
+            temp_collection = HoleCollection(holes_dict)
+            
+            # 设置hole_collection到renderer
+            renderer.set_hole_collection(temp_collection)
+            
+            # 生成路径（返回hole_id列表）
+            path_ids = renderer.generate_snake_path(self.strategy)
+            
+            # 根据ID顺序返回hole对象列表
+            ordered_holes = []
+            for hole_id in path_ids:
+                if hole_id in holes_dict:
+                    ordered_holes.append(holes_dict[hole_id])
+                    
+            return ordered_holes
+            
+        except Exception as e:
+            self.logger.error(f"生成蛇形路径顺序失败: {e}")
+            # 如果失败，返回原始顺序
+            return holes.copy()
         
     def get_statistics(self) -> Dict[str, Any]:
         """获取综合统计信息"""

@@ -15,7 +15,7 @@ from src.domain.models.detection_batch import (
     DetectionProgress, DetectionState
 )
 from src.domain.repositories.batch_repository import IBatchRepository
-from src.models.inspection_batch_model import InspectionBatch, Base
+from src.infrastructure.orm import Base, InspectionBatchORM
 from src.models.data_path_manager import DataPathManager
 
 
@@ -41,13 +41,13 @@ class BatchRepositoryImpl(IBatchRepository):
         """保存批次"""
         try:
             # 查找现有记录
-            db_batch = self.session.query(InspectionBatch).filter_by(
+            db_batch = self.session.query(InspectionBatchORM).filter_by(
                 batch_id=batch.batch_id
             ).first()
             
             if db_batch is None:
                 # 创建新记录
-                db_batch = InspectionBatch(
+                db_batch = InspectionBatchORM(
                     batch_id=batch.batch_id,
                     product_id=batch.product_id,
                     detection_number=batch.detection_number,
@@ -96,7 +96,7 @@ class BatchRepositoryImpl(IBatchRepository):
     
     def find_by_id(self, batch_id: str) -> Optional[DetectionBatch]:
         """根据ID查找批次"""
-        db_batch = self.session.query(InspectionBatch).filter_by(
+        db_batch = self.session.query(InspectionBatchORM).filter_by(
             batch_id=batch_id
         ).first()
         
@@ -110,12 +110,12 @@ class BatchRepositoryImpl(IBatchRepository):
         if hasattr(product_id, 'id'):
             product_id = product_id.id
         
-        query = self.session.query(InspectionBatch).filter_by(product_id=product_id)
+        query = self.session.query(InspectionBatchORM).filter_by(product_id=product_id)
         
         if detection_type:
             query = query.filter_by(detection_type=detection_type)
         
-        db_batches = query.order_by(InspectionBatch.created_at.desc()).all()
+        db_batches = query.order_by(InspectionBatchORM.created_at.desc()).all()
         return [self._to_domain_model(db) for db in db_batches]
     
     def find_resumable(self, product_id: int, detection_type: str) -> Optional[DetectionBatch]:
@@ -124,11 +124,11 @@ class BatchRepositoryImpl(IBatchRepository):
         if hasattr(product_id, 'id'):
             product_id = product_id.id
         
-        db_batch = self.session.query(InspectionBatch).filter_by(
+        db_batch = self.session.query(InspectionBatchORM).filter_by(
             product_id=product_id,
             status='paused',
             detection_type=detection_type
-        ).order_by(InspectionBatch.created_at.desc()).first()
+        ).order_by(InspectionBatchORM.created_at.desc()).first()
         
         if db_batch:
             return self._to_domain_model(db_batch)
@@ -140,7 +140,7 @@ class BatchRepositoryImpl(IBatchRepository):
         if hasattr(product_id, 'id'):
             product_id = product_id.id
         
-        max_number = self.session.query(func.max(InspectionBatch.detection_number))\
+        max_number = self.session.query(func.max(InspectionBatchORM.detection_number))\
             .filter_by(product_id=product_id)\
             .scalar()
         
@@ -149,7 +149,7 @@ class BatchRepositoryImpl(IBatchRepository):
     def delete(self, batch_id: str) -> bool:
         """删除批次"""
         try:
-            db_batch = self.session.query(InspectionBatch).filter_by(
+            db_batch = self.session.query(InspectionBatchORM).filter_by(
                 batch_id=batch_id
             ).first()
             
@@ -167,7 +167,7 @@ class BatchRepositoryImpl(IBatchRepository):
     def update_progress(self, batch_id: str, progress: Dict[str, Any]) -> bool:
         """更新进度"""
         try:
-            db_batch = self.session.query(InspectionBatch).filter_by(
+            db_batch = self.session.query(InspectionBatchORM).filter_by(
                 batch_id=batch_id
             ).first()
             
@@ -233,7 +233,7 @@ class BatchRepositoryImpl(IBatchRepository):
             print(f"加载状态失败: {e}")
             return None
     
-    def _to_domain_model(self, db_batch: InspectionBatch) -> DetectionBatch:
+    def _to_domain_model(self, db_batch: InspectionBatchORM) -> DetectionBatch:
         """转换为领域模型"""
         # 解析进度
         progress = DetectionProgress(

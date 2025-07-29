@@ -21,6 +21,10 @@ from collections import defaultdict
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGraphicsView, QGraphicsScene
 from PySide6.QtCore import Qt, QPointF, QRectF, Signal, QTimer, QEvent, QObject
 from PySide6.QtGui import QColor, QFont, QPen, QBrush, QTransform
+try:
+    from PySide6 import shiboken6 as sip
+except ImportError:
+    import shiboken6 as sip
 
 from src.core_business.graphics.graphics_view import OptimizedGraphicsView
 from src.core_business.graphics.sector_types import SectorQuadrant
@@ -81,6 +85,15 @@ class CompletePanoramaWidget(QWidget):
         
         # 应用主题
         self._apply_theme()
+    
+    def _get_scene(self):
+        """安全获取scene对象"""
+        if hasattr(self.panorama_view, 'scene'):
+            # scene是属性
+            return self.panorama_view.scene
+        else:
+            # scene是方法
+            return self.panorama_view.scene()
         
     def _setup_ui(self):
         """设置UI界面"""
@@ -164,7 +177,7 @@ class CompletePanoramaWidget(QWidget):
                     
                 # 获取场景
                 try:
-                    scene = self.panorama_view.scene()
+                    scene = self._get_scene()
                 except TypeError:
                     scene = self.panorama_view.scene
                     
@@ -363,11 +376,17 @@ class CompletePanoramaWidget(QWidget):
             return
             
         # 清除旧的高亮项
-        for highlight in self.sector_highlights.values():
-            if highlight.scene():
-                scene = self.panorama_view.scene()
-                if scene:
-                    scene.removeItem(highlight)
+        for sector, highlight in list(self.sector_highlights.items()):
+            try:
+                # 检查对象是否还有效
+                if highlight and not sip.isdeleted(highlight):
+                    if highlight.scene():
+                        scene = self._get_scene()
+                        if scene:
+                            scene.removeItem(highlight)
+            except RuntimeError:
+                # 对象已被删除，忽略错误
+                pass
         self.sector_highlights.clear()
         
         # 创建新的高亮项
@@ -393,7 +412,7 @@ class CompletePanoramaWidget(QWidget):
             
             # 添加到场景
             try:
-                scene = self.panorama_view.scene()
+                scene = self._get_scene()
             except TypeError:
                 scene = self.panorama_view.scene
                 
@@ -422,7 +441,7 @@ class CompletePanoramaWidget(QWidget):
             pen.setStyle(Qt.DashLine)
             
             # 水平线
-            scene = self.panorama_view.scene()
+            scene = self._get_scene()
             if not scene:
                 return
             h_line = scene.addLine(
@@ -459,6 +478,16 @@ class CompletePanoramaWidget(QWidget):
             from src.core_business.graphics.scale_manager import _detect_data_scale, calculate_scale_config
             data_scale = _detect_data_scale(self.panorama_view, debug=False)
             
+            # 首先获取scene
+            try:
+                scene = self._get_scene()
+            except:
+                scene = None
+                
+            if not scene:
+                self.logger.warning("无法获取场景，跳过智能缩放")
+                return
+            
             # 使用计算的几何信息来设置场景边界
             if self.center_point and self.panorama_radius > 0:
                 # 基于中心点和半径创建内容矩形
@@ -470,18 +499,9 @@ class CompletePanoramaWidget(QWidget):
                 )
             else:
                 # 备用方案：获取场景边界
-                try:
-                    scene = self.panorama_view.scene()
-                except TypeError:
-                    scene = self.panorama_view.scene
-                    
-                if scene:
-                    content_rect = scene.itemsBoundingRect()
-                    if content_rect.isEmpty():
-                        self.logger.warning("场景边界为空，跳过智能缩放")
-                        return
-                else:
-                    self.logger.warning("无法获取场景，跳过智能缩放")
+                content_rect = scene.itemsBoundingRect()
+                if content_rect.isEmpty():
+                    self.logger.warning("场景边界为空，跳过智能缩放")
                     return
             
             # 获取视图矩形
@@ -805,7 +825,7 @@ class CompletePanoramaWidget(QWidget):
                             
                 # 只在有实际更新时才刷新场景
                 if updated_count > 0:
-                    scene = self.panorama_view.scene()
+                    scene = self._get_scene()
                     if scene:
                         scene.update()
                 

@@ -73,11 +73,14 @@ class MainDetectionPage(QWidget):
         
         if self.controller:
             self.controller.initialize()
+            
+            # 检查是否已有孔位数据 (处理自动加载的CAP1000情况)
+            self._check_and_load_existing_data()
         
     def setup_ui(self):
         """设置UI布局 - 使用原生三栏式布局还原old版本"""
-        # 导入并使用原生主检测视图 - 不使用任何回退机制
-        from src.modules.native_main_detection_view import NativeMainDetectionView
+        # 导入并使用P1页面的原生主检测视图
+        from .native_main_detection_view_p1 import NativeMainDetectionView
         
         # 创建主布局
         layout = QVBoxLayout(self)
@@ -116,7 +119,9 @@ class MainDetectionPage(QWidget):
         right_panel.start_detection.connect(self._on_start_detection)
         right_panel.pause_detection.connect(self._on_pause_detection)
         right_panel.stop_detection.connect(self._on_stop_detection)
-        right_panel.simulation_start.connect(self._on_start_simulation)
+        right_panel.start_simulation.connect(self._on_start_simulation)
+        right_panel.pause_simulation.connect(self._on_pause_simulation)
+        right_panel.stop_simulation.connect(self._on_stop_simulation)
         
         # 连接中间面板的视图控制信号
         center_panel = self.native_view.center_panel
@@ -185,7 +190,12 @@ class MainDetectionPage(QWidget):
                 try:
                     dialog = self.ui_factory.create_product_selection_dialog(self)
                     if dialog.exec():
-                        product_name = dialog.selected_product
+                        selected_product = dialog.selected_product
+                        # 确保传递的是产品名称字符串，而不是ProductModel对象
+                        if hasattr(selected_product, 'model_name'):
+                            product_name = selected_product.model_name
+                        else:
+                            product_name = str(selected_product)
                         self.controller.select_product(product_name)
                 except Exception as e:
                     self.logger.error(f"产品选择失败: {e}")
@@ -256,30 +266,37 @@ class MainDetectionPage(QWidget):
             
             self.logger.info(f"📊 开始显示 {hole_count} 个孔位")
             
-            # 更新主图形视图（左侧）
-            if self.graphics_view and hasattr(self.graphics_view, 'load_holes'):
-                # 使用OptimizedGraphicsView的load_holes方法
-                self.graphics_view.load_holes(hole_data)
-                self.logger.info("✅ 主视图已加载孔位数据")
-            elif hasattr(self.graphics_view, 'scene'):
-                # 备用方案：手动绘制
-                try:
-                    scene = self.graphics_view.scene()
-                except TypeError:
-                    scene = self.graphics_view.scene
-                    
-                if scene:
-                    scene.clear()
-                    self._draw_holes_to_scene(scene, hole_data)
-                    
-            # 更新全景图
-            if hasattr(self.panorama_widget, 'update_holes_display'):
-                self.panorama_widget.update_holes_display(hole_data)
+            # 使用native_view的load_hole_collection方法
+            if hasattr(self, 'native_view') and hasattr(self.native_view, 'load_hole_collection'):
+                self.native_view.load_hole_collection(hole_data)
+                self.logger.info("✅ 已通过native_view加载孔位数据")
+            else:
+                self.logger.warning("⚠️ native_view不支持load_hole_collection方法")
                     
             self.logger.info("✅ 图形视图更新完成")
                 
         except Exception as e:
             self.logger.error(f"❌ 更新图形视图失败: {e}")
+    
+    def _check_and_load_existing_data(self):
+        """检查并加载已存在的孔位数据 (处理自动加载情况)"""
+        try:
+            # 添加延迟，等待控制器完全初始化
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(500, self._load_existing_data_delayed)
+        except Exception as e:
+            self.logger.error(f"检查已存在数据失败: {e}")
+    
+    def _load_existing_data_delayed(self):
+        """延迟加载已存在的数据"""
+        try:
+            if self.controller and hasattr(self.controller, 'hole_collection') and self.controller.hole_collection:
+                self.logger.info("🔍 发现已存在的孔位数据，开始加载...")
+                self._update_graphics_view()
+            else:
+                self.logger.info("📝 当前无孔位数据，等待用户加载DXF文件")
+        except Exception as e:
+            self.logger.error(f"延迟加载数据失败: {e}")
             
     def _on_panorama_region_selected(self, region_index, region_info):
         """处理全景图区域选择"""
@@ -677,26 +694,64 @@ class MainDetectionPage(QWidget):
             self.logger.error(f"导出报告失败: {e}")
             self.error_occurred.emit(f"导出报告失败: {e}")
     
-    def _on_start_simulation(self, params):
-        """开始模拟"""
+    def _on_start_simulation(self):
+        """开始模拟检测 - 使用蛇形路径渲染"""
         try:
-            self.logger.info(f"🧪 开始模拟: {params}")
+            self.logger.info("🐍 开始模拟检测")
             
-            speed = params.get('speed', '正常')
-            quality_rate = params.get('quality_rate', '90%')
-            
-            if self.controller and hasattr(self.controller, 'start_simulation'):
-                success = self.controller.start_simulation(speed, quality_rate)
-                if success:
-                    self.status_updated.emit(f"模拟已开始 - 速度:{speed}, 合格率:{quality_rate}")
-                else:
-                    self.error_occurred.emit("模拟启动失败")
+            if hasattr(self, 'native_view') and hasattr(self.native_view, 'start_snake_path_simulation'):
+                self.native_view.start_snake_path_simulation()
             else:
-                self.status_updated.emit(f"模拟功能 - 速度:{speed}, 合格率:{quality_rate} (待实现)")
-                
+                # 直接调用控制器的模拟功能
+                if self.controller and hasattr(self.controller, 'start_simulation'):
+                    self.controller.start_simulation()
+                else:
+                    self.status_updated.emit("模拟检测功能正在实现中")
+                    
         except Exception as e:
-            self.logger.error(f"开始模拟失败: {e}")
-            self.error_occurred.emit(f"模拟启动失败: {e}")
+            self.logger.error(f"开始模拟检测失败: {e}")
+            self.error_occurred.emit(f"模拟检测失败: {e}")
+    
+    def _on_pause_simulation(self):
+        """暂停/恢复模拟检测"""
+        try:
+            if self.controller:
+                if hasattr(self.controller, 'is_simulation_paused') and self.controller.is_simulation_paused:
+                    # 恢复模拟
+                    self.logger.info("▶️ 恢复模拟检测")
+                    self.controller.resume_simulation()
+                    self.status_updated.emit("模拟检测已恢复")
+                    # 更新按钮文本
+                    if hasattr(self.native_view.right_panel, 'pause_simulation_btn'):
+                        self.native_view.right_panel.pause_simulation_btn.setText("暂停模拟")
+                else:
+                    # 暂停模拟
+                    self.logger.info("⏸️ 暂停模拟检测")
+                    self.controller.pause_simulation()
+                    self.status_updated.emit("模拟检测已暂停")
+                    # 更新按钮文本
+                    if hasattr(self.native_view.right_panel, 'pause_simulation_btn'):
+                        self.native_view.right_panel.pause_simulation_btn.setText("恢复模拟")
+                    
+        except Exception as e:
+            self.logger.error(f"暂停/恢复模拟检测失败: {e}")
+            
+    def _on_stop_simulation(self):
+        """停止模拟检测"""
+        try:
+            self.logger.info("⏹️ 停止模拟检测")
+            
+            if self.controller and hasattr(self.controller, 'stop_simulation'):
+                self.controller.stop_simulation()
+                
+            # 重置按钮文本
+            if hasattr(self.native_view.right_panel, 'pause_simulation_btn'):
+                self.native_view.right_panel.pause_simulation_btn.setText("暂停模拟")
+                    
+            self.status_updated.emit("模拟检测已停止")
+                    
+        except Exception as e:
+            self.logger.error(f"停止模拟检测失败: {e}")
     
     def _on_hole_selected(self, hole_id):
         """处理孔位选择"""

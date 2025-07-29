@@ -69,13 +69,19 @@ class MainWindowController(QObject):
         self.snake_path_coordinator = None
         self.snake_sorted_holes = []
         self.snake_simulation_index = 0
+        self.simulation_timer = QTimer()
+        self.simulation_timer.timeout.connect(self._process_simulation_step)
+        self.is_simulation_running = False
+        self.is_simulation_paused = False
     
     @property
-    def batch_manager(self):
-        """延迟加载批次管理器"""
+    def batch_service(self):
+        """延迟加载批次服务"""
         if self._batch_manager is None:
-            from src.models.inspection_batch_model import get_batch_manager
-            self._batch_manager = get_batch_manager()
+            from src.domain.services.batch_service import BatchService
+            from src.infrastructure.repositories.batch_repository_impl import BatchRepositoryImpl
+            repository = BatchRepositoryImpl()
+            self._batch_manager = BatchService(repository)
         return self._batch_manager
     
     @property
@@ -84,7 +90,7 @@ class MainWindowController(QObject):
         if self._detection_service is None:
             from src.services.detection_service import DetectionService
             self._detection_service = DetectionService()
-            self._detection_service.set_batch_manager(self.batch_manager)
+            self._detection_service.set_batch_service(self.batch_service)
         return self._detection_service
         
     def initialize(self):
@@ -97,6 +103,15 @@ class MainWindowController(QObject):
         
         # 初始化蛇形路径协调器
         self.snake_path_coordinator = self.graphics_service.create_snake_path_coordinator()
+        
+        # 连接shared_data_manager的信号
+        try:
+            from src.core.shared_data_manager import SharedDataManager
+            shared_data = SharedDataManager()
+            shared_data.data_changed.connect(self._on_shared_data_changed)
+            self.logger.info("Connected to SharedDataManager signals")
+        except Exception as e:
+            self.logger.warning(f"Could not connect to SharedDataManager: {e}")
         
     def load_dxf_file(self, file_path: Optional[str] = None) -> bool:
         """
@@ -155,6 +170,14 @@ class MainWindowController(QObject):
             self.logger.error(f"Error loading DXF file: {e}")
             self.error_occurred.emit(str(e))
             return False
+    
+    def _on_shared_data_changed(self, data_type: str, data: Any):
+        """处理共享数据变化"""
+        if data_type == "hole_collection" and data:
+            self.logger.info(f"Received hole_collection from SharedDataManager: {len(data.holes)} holes")
+            self.hole_collection = data
+            # 发射文件加载信号，通知UI更新
+            self.file_loaded.emit("CAP1000.dxf")
             
     def select_product(self, product_name: str) -> bool:
         """选择产品"""
@@ -177,7 +200,7 @@ class MainWindowController(QObject):
         if not self.current_product_id:
             return None
             
-        batch = self.batch_manager.get_resumable_batch(self.current_product_id, is_mock)
+        batch = self.batch_service.get_resumable_batch(self.current_product_id, is_mock)
         if batch:
             return {
                 'batch_id': batch.batch_id,
@@ -200,8 +223,11 @@ class MainWindowController(QObject):
             
         # 创建新批次
         try:
-            batch = self.batch_manager.create_batch(
+            # 获取产品名称
+            product_name = self.current_product.model_name if self.current_product else "Unknown"
+            batch = self.batch_service.create_batch(
                 product_id=self.current_product_id,
+                product_name=product_name,
                 is_mock=is_mock
             )
             self.current_batch_id = batch.batch_id
@@ -231,7 +257,7 @@ class MainWindowController(QObject):
     def continue_detection(self, batch_id: str):
         """继续检测"""
         # 加载批次状态
-        detection_state = self.batch_manager.resume_batch(batch_id)
+        detection_state = self.batch_service.resume_batch(batch_id)
         if not detection_state:
             self.error_occurred.emit("无法恢复检测状态")
             return
@@ -269,7 +295,7 @@ class MainWindowController(QObject):
         
         # 终止批次
         if self.current_batch_id:
-            self.batch_manager.terminate_batch(self.current_batch_id)
+            self.batch_service.terminate_batch(self.current_batch_id)
             
         self.detection_stopped.emit()
         
@@ -359,6 +385,106 @@ class MainWindowController(QObject):
                 stats['pending'] += 1
                 
         return stats
+    
+    def start_simulation(self):
+        """开始蛇形路径模拟检测"""
+        try:
+            if not self.hole_collection:
+                self.logger.warning("没有加载孔位数据，无法开始模拟")
+                self.error_occurred.emit("请先加载DXF文件或选择产品")
+                return
+                
+            if not self.snake_path_coordinator:
+                self.logger.warning("蛇形路径协调器未初始化")
+                return
+                
+            self.logger.info(f"🐍 开始蛇形路径模拟，共 {len(self.hole_collection.holes)} 个孔位")
+            
+            # 获取蛇形路径排序后的孔位
+            holes_list = list(self.hole_collection.holes.values())
+            self.snake_sorted_holes = self.snake_path_coordinator.get_snake_path_order(holes_list)
+            
+            if not self.snake_sorted_holes:
+                self.error_occurred.emit("无法生成蛇形路径")
+                return
+                
+            # 重置索引
+            self.snake_simulation_index = 0
+            self.is_simulation_running = True
+            self.is_simulation_paused = False
+            
+            # 启动定时器，每100ms处理一个孔位
+            self.simulation_timer.start(100)
+            
+            self.logger.info(f"✅ 模拟开始，路径包含 {len(self.snake_sorted_holes)} 个孔位")
+            
+        except Exception as e:
+            self.logger.error(f"启动模拟失败: {e}")
+            self.error_occurred.emit(f"启动模拟失败: {e}")
+    
+    def pause_simulation(self):
+        """暂停模拟"""
+        if self.is_simulation_running and not self.is_simulation_paused:
+            self.is_simulation_paused = True
+            self.simulation_timer.stop()
+            self.logger.info("⏸️ 模拟已暂停")
+    
+    def resume_simulation(self):
+        """恢复模拟"""  
+        if self.is_simulation_running and self.is_simulation_paused:
+            self.is_simulation_paused = False
+            self.simulation_timer.start(100)
+            self.logger.info("▶️ 模拟已恢复")
+    
+    def stop_simulation(self):
+        """停止模拟"""
+        self.is_simulation_running = False
+        self.is_simulation_paused = False
+        self.simulation_timer.stop()
+        self.snake_simulation_index = 0
+        self.logger.info("⏹️ 模拟已停止")
+        
+        # 重置所有孔位状态
+        if self.hole_collection:
+            for hole in self.hole_collection.holes.values():
+                hole.status = "pending"
+    
+    def _process_simulation_step(self):
+        """处理模拟检测的单个步骤"""
+        try:
+            if not self.is_simulation_running or self.is_simulation_paused:
+                return
+                
+            if self.snake_simulation_index >= len(self.snake_sorted_holes):
+                # 模拟完成
+                self.stop_simulation()
+                self.logger.info("✅ 模拟检测完成")
+                return
+                
+            # 获取当前孔位
+            current_hole = self.snake_sorted_holes[self.snake_simulation_index]
+            
+            # 模拟检测结果（99.5%合格率）
+            import random
+            if random.random() < 0.995:
+                status = "qualified"
+            else:
+                status = "defective"
+                
+            # 更新孔位状态
+            current_hole.status = status
+            self.status_updated.emit(current_hole.hole_id, status)
+            
+            # 更新进度
+            progress = int((self.snake_simulation_index + 1) / len(self.snake_sorted_holes) * 100)
+            self.detection_progress.emit(self.snake_simulation_index + 1, len(self.snake_sorted_holes))
+            
+            # 移动到下一个孔位
+            self.snake_simulation_index += 1
+            
+        except Exception as e:
+            self.logger.error(f"模拟步骤处理失败: {e}")
+            self.stop_simulation()
         
     def cleanup(self):
         """清理资源"""

@@ -18,7 +18,7 @@ import math
 from typing import List, Dict, Optional, Tuple, Any
 from enum import Enum
 from dataclasses import dataclass
-from PySide6.QtCore import QObject, Signal, QPointF, QRectF
+from PySide6.QtCore import QObject, Signal, QPointF, QRectF, Qt
 from PySide6.QtGui import QPainter, QPen, QColor, QBrush, QPainterPath, QFont
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsPathItem, QGraphicsTextItem
 
@@ -442,6 +442,28 @@ class SnakePathRenderer(QObject):
         self.logger.info(f"渲染路径完成: {len(self.path_items)} 个图形项", "✅")
         self.path_rendered.emit(len(self.path_segments))
     
+    def render_path(self, holes: List[HoleData]):
+        """便捷方法：设置孔位并渲染路径
+        
+        Args:
+            holes: 按顺序排列的孔位列表
+        """
+        if not holes:
+            self.logger.warning("没有孔位数据，无法渲染路径", "⚠️")
+            return
+            
+        # 创建HoleCollection并设置
+        holes_dict = {hole.hole_id: hole for hole in holes}
+        hole_collection = HoleCollection(holes=holes_dict)
+        self.set_hole_collection(hole_collection)
+        
+        # 生成路径数据
+        path_ids = [hole.hole_id for hole in holes]
+        self.set_path_data(path_ids)
+        
+        # 渲染路径
+        self.render_paths()
+    
     def _render_simple_lines(self):
         """渲染简单直线路径"""
         for segment in self.path_segments:
@@ -496,9 +518,9 @@ class SnakePathRenderer(QObject):
         
         # 根据路径类型设置线型
         if segment.segment_type == PathSegmentType.CROSS_SIDE:
-            pen.setStyle(pen.DashLine)  # 跨A/B侧用虚线
+            pen.setStyle(Qt.DashLine)  # 跨A/B侧用虚线
         elif segment.segment_type == PathSegmentType.CROSS_COLUMN:
-            pen.setStyle(pen.DotLine)   # 跨列用点线
+            pen.setStyle(Qt.DotLine)   # 跨列用点线
         
         path_item.setPen(pen)
         

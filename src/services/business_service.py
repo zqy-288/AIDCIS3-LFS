@@ -146,7 +146,15 @@ class BusinessService:
                     resolved_path = self.path_manager.resolve_dxf_path(product.dxf_file_path)
                     if resolved_path and Path(resolved_path).exists():
                         print(f"自动加载产品关联的DXF文件: {resolved_path}")
-                        self.parse_dxf_file(resolved_path)
+                        hole_collection = self.parse_dxf_file(resolved_path)
+                        if hole_collection:
+                            # 应用孔位编号
+                            hole_collection = self.apply_hole_numbering(hole_collection, strategy="grid")
+                            # 保存到shared_data_manager
+                            self.set_hole_collection(hole_collection)
+                            print(f"✅ 成功加载 {len(hole_collection.holes)} 个孔位")
+                            # 通知数据已加载
+                            self.shared_data_manager.data_changed.emit("hole_collection", hole_collection)
                     else:
                         print(f"产品关联的DXF文件不存在: {product.dxf_file_path}")
                 
