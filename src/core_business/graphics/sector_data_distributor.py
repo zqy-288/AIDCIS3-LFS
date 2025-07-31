@@ -11,7 +11,7 @@ from PySide6.QtCore import QObject, Signal
 from src.core_business.models.hole_data import HoleCollection, HoleData
 from src.core_business.graphics.sector_controllers import UnifiedLogger
 from src.core_business.graphics.hole_data_adapter import HoleDataAdapter
-from src.core_business.graphics.dynamic_sector_view import SectorQuadrant
+from src.core_business.graphics.sector_types import SectorQuadrant
 
 
 @dataclass

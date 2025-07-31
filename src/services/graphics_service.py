@@ -42,7 +42,7 @@ class GraphicsService:
         
     def create_panorama_widget(self, parent: Optional[QWidget] = None) -> Any:
         """创建全景图组件"""
-        from src.core_business.graphics.panorama import CompletePanoramaWidget
+        from src.modules.panorama_view import CompletePanoramaWidget
         return CompletePanoramaWidget(parent)
         
     def create_sector_view(self, parent: Optional[QWidget] = None, quadrant: Any = None) -> Any:
@@ -128,7 +128,7 @@ class GraphicsService:
         
     def get_sector_quadrants(self) -> Dict[str, Any]:
         """获取所有扇形象限定义"""
-        from src.core_business.graphics.dynamic_sector_view import SectorQuadrant
+        from src.core_business.graphics.sector_types import SectorQuadrant
         
         return {
             "SECTOR_1": SectorQuadrant.SECTOR_1,

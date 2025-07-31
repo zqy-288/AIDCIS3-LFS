@@ -47,6 +47,12 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         self.setRenderHint(QPainter.Antialiasing, False)  # 禁用抗锯齿提升性能
         self.setRenderHint(QPainter.SmoothPixmapTransform, False)  # 禁用平滑变换
         self.setViewportUpdateMode(QGraphicsView.MinimalViewportUpdate)  # 最小更新模式
+        
+        # 防抖机制 - 避免重复的自适应调用
+        self._fit_timer = QTimer()
+        self._fit_timer.setSingleShot(True)
+        self._fit_timer.timeout.connect(self._do_fit_to_window_width)
+        self._fit_pending = False
         self.setOptimizationFlag(QGraphicsView.DontSavePainterState, True)
         self.setOptimizationFlag(QGraphicsView.DontAdjustForAntialiasing, True)
 
@@ -155,10 +161,10 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             
             self.logger.info(f"管孔加载完成，场景大小: {scene_rect}")
             
-            # 延迟执行默认适配到窗口宽度
+            # 默认适配到窗口宽度（防抖机制会处理延迟）
             # 但如果设置了 disable_auto_fit 标志，则不自动适配（用于扇形显示）
             if not getattr(self, 'disable_auto_fit', False):
-                QTimer.singleShot(100, self.fit_to_window_width)
+                self.fit_to_window_width()
                 
             # 验证图形项数量
             actual_items = len(self.scene.items())
@@ -200,11 +206,26 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         self.fit_in_view_all()
 
     def fit_to_window_width(self):
-        """适配到窗口宽度 - 默认显示模式"""
+        """适配到窗口宽度 - 使用防抖机制避免重复调用"""
         # 如果设置了 disable_auto_fit，则跳过自动适配
         if getattr(self, 'disable_auto_fit', False):
             self.logger.info("跳过自动适配（disable_auto_fit=True）")
             return
+            
+        # 防抖：如果已经有待处理的调用，重新设置定时器
+        if hasattr(self, '_fit_timer'):
+            if self._fit_pending:
+                self._fit_timer.stop()  # 停止之前的定时器
+            self._fit_pending = True
+            self._fit_timer.start(150)  # 150ms后执行，给足够时间合并多次调用
+            return
+            
+        # 如果没有防抖机制，直接执行
+        self._do_fit_to_window_width()
+        
+    def _do_fit_to_window_width(self):
+        """实际执行适配到窗口宽度的逻辑"""
+        self._fit_pending = False  # 重置待处理标志
             
         if not self.hole_collection:
             return
@@ -279,10 +300,25 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
                 return item
         return None
     
-    def update_hole_status(self, hole_id: str, status: HoleStatus):
+    def update_hole_status(self, hole_id: str, status: HoleStatus, color_override=None):
         """更新孔状态 - 统一接口实现"""
         if hole_id in self.hole_items:
+            # 先更新状态
             self.hole_items[hole_id].update_status(status)
+            
+            # 然后处理颜色覆盖 - 确保 None 时清除覆盖
+            if color_override is not None:
+                self.hole_items[hole_id].set_color_override(color_override)
+                # 调试日志
+                if hasattr(self, 'logger'):
+                    self.logger.debug(f"设置颜色覆盖: {hole_id} -> {color_override}")
+            elif hasattr(self.hole_items[hole_id], 'clear_color_override'):
+                # 明确清除颜色覆盖，确保显示最终状态颜色
+                self.hole_items[hole_id].clear_color_override()
+                # 调试日志
+                if hasattr(self, 'logger'):
+                    self.logger.debug(f"清除颜色覆盖: {hole_id} -> 显示状态颜色")
+                
             # 强制刷新图形项
             self.hole_items[hole_id].update()
             # 强制刷新场景区域
@@ -290,6 +326,14 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             self.scene.update(item_rect)
             # 强制刷新视图
             self.viewport().update()
+    
+    def set_hole_color_override(self, hole_id: str, color_override):
+        """设置指定孔位的颜色覆盖"""
+        if hole_id in self.hole_items:
+            self.hole_items[hole_id].set_color_override(color_override)
+            self.hole_items[hole_id].update()
+            item_rect = self.hole_items[hole_id].sceneBoundingRect()
+            self.scene.update(item_rect)
     
     def batch_update_status(self, status_updates: Dict[str, HoleStatus]):
         """批量更新状态"""
@@ -490,9 +534,9 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         self._update_status_legend_position()
         
         # 窗口大小变化时，重新适配到窗口宽度
-        # 但如果设置了 disable_auto_fit 标志，则不自动适配（用于扇形显示）
+        # 防抖机制会自动处理重复调用
         if self.hole_collection and not getattr(self, 'disable_auto_fit', False):
-            QTimer.singleShot(50, self.fit_to_window_width)
+            self.fit_to_window_width()
 
     def _update_status_legend_position(self):
         """更新状态图例位置到左上角"""

@@ -10,7 +10,7 @@
 5. 渲染检测路径的连接线和移动轨迹
 
 📝 注意：此模块仍在使用中，但建议逐步迁移到 
-    src.core_business.graphics.panorama.snake_path_renderer 新架构
+    src.modules.panorama_view.snake_path_renderer 新架构
 """
 
 import re
@@ -31,6 +31,7 @@ class PathStrategy(Enum):
     LABEL_BASED = "label_based"      # 先处理A侧，再处理B侧
     SPATIAL_SNAKE = "spatial_snake"  # 纯空间位置蛇形扫描
     HYBRID = "hybrid"                # 混合策略（A/B分组+空间优化）
+    INTERVAL_FOUR_S_SHAPE = "interval_four_s_shape"  # 间隔4列S形扫描策略
 
 
 class PathRenderStyle(Enum):
@@ -39,6 +40,7 @@ class PathRenderStyle(Enum):
     CURVED_ARROW = "curved_arrow"         # 曲线箭头
     SNAKE_FLOW = "snake_flow"             # 蛇形流动线
     AB_GROUPED = "ab_grouped"             # A/B侧分组显示
+    NUMBERED_SEQUENCE = "numbered_sequence"  # 编号序列显示
 
 
 class PathSegmentType(Enum):
@@ -61,6 +63,27 @@ class HolePosition:
     column_num: int  # 列号 (C001 -> 1)
     row_num: int     # 行号 (R001 -> 1)
     side: str        # 'A' 或 'B'
+
+
+@dataclass
+class HolePair:
+    """孔位对数据结构 - 用于间隔4列检测"""
+    holes: List[HoleData]  # 1-2个孔位
+    is_pair: bool = True   # 是否是配对（False表示单个孔位）
+    
+    @property
+    def primary_hole(self) -> HoleData:
+        """主要孔位（用于扇形判断）"""
+        return self.holes[0]
+    
+    @property
+    def hole_count(self) -> int:
+        """孔位数量"""
+        return len(self.holes)
+    
+    def get_hole_ids(self) -> List[str]:
+        """获取所有孔位ID"""
+        return [hole.hole_id for hole in self.holes]
 
 
 @dataclass
@@ -143,6 +166,7 @@ class SnakePathRenderer(QObject):
     
     def set_hole_collection(self, hole_collection: HoleCollection):
         """设置孔位集合，解析A/B侧编号信息"""
+        self.hole_collection = hole_collection  # 保存引用以供间隔4列策略使用
         self.hole_positions.clear()
         
         for hole_id, hole in hole_collection.holes.items():
@@ -158,9 +182,31 @@ class SnakePathRenderer(QObject):
         self.logger.info(f"A侧: {a_side_count}个, B侧: {b_side_count}个", "🔢")
     
     def _parse_hole_position(self, hole: HoleData) -> Optional[HolePosition]:
-        """解析孔位位置信息，支持A/B侧编号格式"""
+        """解析孔位位置信息，支持A/B侧编号格式
+        
+        优先从hole_id中解析行列信息，作为HoleData属性的备用方案
+        """
         try:
-            # 解析编号格式：AC097R001 或 BC097R001
+            column_num = None
+            row_num = None
+            side = None
+            
+            # 方案1: 优先使用HoleData对象的row和column属性（如果存在）
+            if hasattr(hole, 'row') and hole.row is not None and hasattr(hole, 'column') and hole.column is not None:
+                column_num = hole.column
+                row_num = hole.row
+                side = 'A' if hole.center_y > 0 else 'B'
+                
+                return HolePosition(
+                    hole_id=hole.hole_id,
+                    center_x=hole.center_x,
+                    center_y=hole.center_y,
+                    column_num=column_num,
+                    row_num=row_num,
+                    side=side
+                )
+            
+            # 方案2: 从hole_id中解析行列信息（适用于BC096R148格式）
             if hasattr(hole, 'hole_id') and hole.hole_id:
                 # 匹配格式：[AB]C(\d{3})R(\d{3})
                 match = re.match(r'([AB])C(\d{3})R(\d{3})', hole.hole_id)
@@ -168,6 +214,26 @@ class SnakePathRenderer(QObject):
                     side = match.group(1)
                     column_num = int(match.group(2))
                     row_num = int(match.group(3))
+                    
+                    self.logger.debug(f"从ID解析孔位信息: {hole.hole_id} -> 列{column_num} 行{row_num} {side}侧")
+                    
+                    return HolePosition(
+                        hole_id=hole.hole_id,
+                        center_x=hole.center_x,
+                        center_y=hole.center_y,
+                        column_num=column_num,
+                        row_num=row_num,
+                        side=side
+                    )
+                    
+                # 尝试其他格式匹配（如果有不同的命名规则）
+                match2 = re.match(r'.*C(\d{3}).*R(\d{3})', hole.hole_id)
+                if match2:
+                    column_num = int(match2.group(1))
+                    row_num = int(match2.group(2))
+                    side = 'A' if hole.center_y > 0 else 'B'
+                    
+                    self.logger.debug(f"从ID解析孔位信息(模式2): {hole.hole_id} -> 列{column_num} 行{row_num} {side}侧")
                     
                     return HolePosition(
                         hole_id=hole.hole_id,
@@ -178,24 +244,36 @@ class SnakePathRenderer(QObject):
                         side=side
                     )
             
-            # 如果没有标准编号，根据位置推断A/B侧
-            side = 'A' if hole.center_y > 0 else 'B'
+            # 方案3: 根据位置推断A/B侧和行列号（最后备选）
+            # 只对标准格式或者有有效HoleData属性的孔位使用位置推断
+            if column_num is None or row_num is None:
+                # 检查是否是完全无法识别的孔位格式
+                if hasattr(hole, 'hole_id') and hole.hole_id:
+                    # 如果hole_id不符合任何已知格式，且HoleData属性也无效，则跳过
+                    if not re.search(r'[CR]\d+', hole.hole_id):
+                        self.logger.warning(f"跳过无法识别的孔位格式: {hole.hole_id}", "⚠️")
+                        return None
+                
+                side = 'A' if hole.center_y > 0 else 'B'
+                # 根据位置估算（这里需要更精确的算法）
+                estimated_col = max(1, int(abs(hole.center_x) / 10) + 50)  # 调整基准偏移
+                estimated_row = max(1, int(abs(hole.center_y) / 10) + 150)  # 调整基准偏移
+                
+                self.logger.debug(f"位置推断孔位信息: {hole.hole_id} -> 列{estimated_col} 行{estimated_row} {side}侧")
+                
+                return HolePosition(
+                    hole_id=hole.hole_id or f"hole_{hole.center_x}_{hole.center_y}",
+                    center_x=hole.center_x,
+                    center_y=hole.center_y,
+                    column_num=estimated_col,
+                    row_num=estimated_row,
+                    side=side
+                )
             
-            # 尝试从位置推断列号和行号（简化逻辑）
-            estimated_col = max(1, int(hole.center_x / 10) + 1)  # 假设10mm列间距
-            estimated_row = max(1, int(abs(hole.center_y) / 10) + 1)  # 假设10mm行间距
-            
-            return HolePosition(
-                hole_id=hole.hole_id or f"hole_{hole.center_x}_{hole.center_y}",
-                center_x=hole.center_x,
-                center_y=hole.center_y,
-                column_num=estimated_col,
-                row_num=estimated_row,
-                side=side
-            )
+            return None
             
         except Exception as e:
-            self.logger.warning(f"解析孔位{hole.hole_id}失败: {e}", "⚠️")
+            self.logger.warning(f"解析孔位位置失败: {hole.hole_id if hasattr(hole, 'hole_id') else 'Unknown'} - {e}", "⚠️")
             return None
     
     def generate_snake_path(self, strategy: PathStrategy = PathStrategy.HYBRID) -> List[str]:
@@ -218,6 +296,8 @@ class SnakePathRenderer(QObject):
             return self._generate_label_based_path()
         elif strategy == PathStrategy.SPATIAL_SNAKE:
             return self._generate_spatial_snake_path()
+        elif strategy == PathStrategy.INTERVAL_FOUR_S_SHAPE:
+            return self._generate_interval_four_s_shape_path()
         else:
             return self._generate_hybrid_path()
     
@@ -335,6 +415,357 @@ class SnakePathRenderer(QObject):
             path.extend([hole.hole_id for hole in ordered_holes])
         
         return path
+        
+    def _generate_interval_four_s_shape_path(self) -> List[str]:
+        """生成间隔4列S形路径：全局配对优先，保持配对关系完整"""
+        # 获取所有孔位（不分象限）
+        all_holes = list(self.hole_positions.values())
+        
+        if not all_holes:
+            self.logger.warning("没有找到任何孔位", "⚠️")
+            return []
+        
+        # 生成全局的孔位配对列表
+        hole_pairs = self._create_global_hole_pairs(all_holes)
+        
+        if not hole_pairs:
+            self.logger.warning("无法生成孔位配对", "⚠️")
+            return []
+        
+        # 对配对列表进行智能排序（象限优先级 + S形路径）
+        sorted_pairs = self._sort_hole_pairs_by_priority(hole_pairs)
+        
+        # 转换为孔位ID列表
+        path = []
+        for pair in sorted_pairs:
+            path.extend(pair.get_hole_ids())
+        
+        total_holes = sum(len(pair.holes) for pair in sorted_pairs)
+        self.logger.info(f"生成间隔4列路径: {len(sorted_pairs)} 个检测单元，{total_holes} 个孔位", "🐍")
+        
+        return path
+        
+    def _create_global_hole_pairs(self, all_holes: List[HolePosition]) -> List[HolePair]:
+        """在全局范围内创建间隔4列的孔位配对"""
+        # 过滤掉无效的孔位数据
+        valid_holes = []
+        for hole in all_holes:
+            if hole.row_num is not None and hole.column_num is not None:
+                valid_holes.append(hole)
+            else:
+                self.logger.warning(f"跳过无效HolePosition: {hole.hole_id} (row={hole.row_num}, col={hole.column_num})", "⚠️")
+        
+        if len(valid_holes) != len(all_holes):
+            self.logger.warning(f"过滤无效HolePosition数据: {len(all_holes)} -> {len(valid_holes)} 个孔位", "🔍")
+        
+        # 按行分组所有有效孔位
+        holes_by_row = {}
+        for hole in valid_holes:
+            row = hole.row_num
+            if row not in holes_by_row:
+                holes_by_row[row] = []
+            holes_by_row[row].append(hole)
+        
+        # 每行内按列号排序
+        for row in holes_by_row:
+            holes_by_row[row].sort(key=lambda h: h.column_num)
+        
+        # 在所有行中创建间隔4列配对
+        all_pairs = []
+        for row_num, row_holes in holes_by_row.items():
+            row_pairs = self._create_row_interval_pairs(row_holes, row_num)
+            all_pairs.extend(row_pairs)
+        
+        self.logger.info(f"全局配对生成: {len(all_pairs)} 个检测单元", "🔗")
+        return all_pairs
+        
+    def _sort_hole_pairs_by_priority(self, hole_pairs: List[HolePair]) -> List[HolePair]:
+        """对孔位配对进行智能排序：象限优先级 + S形扫描模式"""
+        if not hole_pairs:
+            return []
+        
+        # 计算中心点用于象限判断
+        center_x, center_y = self._calculate_center_point()
+        
+        # 为每个配对计算排序键，过滤无效数据
+        pairs_with_keys = []
+        filtered_pairs = []
+        
+        for pair in hole_pairs:
+            primary_hole = pair.primary_hole
+            
+            # 从HolePosition中获取行列信息（而不是HoleData属性）
+            primary_hole_pos = self.hole_positions.get(primary_hole.hole_id)
+            if not primary_hole_pos or primary_hole_pos.row_num is None or primary_hole_pos.column_num is None:
+                self.logger.warning(f"跳过无效孔位数据: {primary_hole.hole_id} (HolePosition缺失或无效)", "⚠️")
+                continue
+                
+            # 计算象限（1-4，1为最高优先级）
+            sector_priority = self._get_sector_priority(primary_hole, center_x, center_y)
+            
+            # 从HolePosition获取行号和列号（较大行号优先，如R164>R163）
+            row_num = primary_hole_pos.row_num
+            col_num = primary_hole_pos.column_num
+            
+            # 创建排序键：(象限优先级, -行号, 列号修正值)
+            # 负行号是为了让较大行号排在前面
+            sort_key = (sector_priority, -row_num, col_num)
+            pairs_with_keys.append((sort_key, pair))
+            filtered_pairs.append(pair)
+        
+        if len(filtered_pairs) != len(hole_pairs):
+            self.logger.warning(f"过滤无效数据: {len(hole_pairs)} -> {len(filtered_pairs)} 个配对", "🔍")
+        
+        # 按象限分组并应用S形扫描
+        sorted_pairs = self._apply_s_shape_sorting(pairs_with_keys)
+        
+        self.logger.info(f"配对排序完成: {len(sorted_pairs)} 个检测单元", "📋")
+        return sorted_pairs
+        
+    def _calculate_center_point(self) -> Tuple[float, float]:
+        """计算所有孔位的几何中心点"""
+        if not hasattr(self, 'hole_collection') or not self.hole_collection:
+            return (0.0, 0.0)
+        
+        holes_list = list(self.hole_collection.holes.values())
+        if not holes_list:
+            return (0.0, 0.0)
+        
+        min_x = min(h.center_x for h in holes_list)
+        max_x = max(h.center_x for h in holes_list)
+        min_y = min(h.center_y for h in holes_list)
+        max_y = max(h.center_y for h in holes_list)
+        
+        return ((min_x + max_x) / 2, (min_y + max_y) / 2)
+        
+    def _get_sector_priority(self, hole: HoleData, center_x: float, center_y: float) -> int:
+        """获取孔位的象限优先级（1-4，1为最高优先级）"""
+        dx = hole.center_x - center_x
+        dy = hole.center_y - center_y
+        
+        # Qt坐标系象限优先级：第一象限(1) -> 第二象限(2) -> 第三象限(3) -> 第四象限(4)
+        if dx >= 0 and dy <= 0:  # 右上象限
+            return 1
+        elif dx < 0 and dy <= 0:  # 左上象限
+            return 2
+        elif dx < 0 and dy > 0:   # 左下象限
+            return 3
+        else:  # dx >= 0 and dy > 0, 右下象限
+            return 4
+            
+    def _apply_s_shape_sorting(self, pairs_with_keys: List[Tuple[Tuple, HolePair]]) -> List[HolePair]:
+        """应用S形扫描排序逻辑"""
+        # 按象限和行分组
+        groups = {}
+        for sort_key, pair in pairs_with_keys:
+            sector_priority, neg_row_num, col_num = sort_key
+            row_num = -neg_row_num
+            group_key = (sector_priority, row_num)
+            
+            if group_key not in groups:
+                groups[group_key] = []
+            groups[group_key].append((col_num, pair))
+        
+        # 对每个组内应用S形扫描
+        sorted_pairs = []
+        sorted_groups = sorted(groups.keys())  # 按象限和行号排序
+        
+        # 为每个象限维护行索引计数器
+        sector_row_counters = {}
+        
+        for group_key in sorted_groups:
+            sector_priority, row_num = group_key
+            
+            # 计算该象限内的行索引
+            if sector_priority not in sector_row_counters:
+                sector_row_counters[sector_priority] = 0
+            row_index = sector_row_counters[sector_priority]
+            sector_row_counters[sector_priority] += 1
+            
+            # S形扫描：奇数行从左到右，偶数行从右到左
+            group_pairs = groups[group_key]
+            if row_index % 2 == 0:  # 第0,2,4...行：从左到右
+                group_pairs.sort(key=lambda x: x[0])
+            else:  # 第1,3,5...行：从右到左
+                group_pairs.sort(key=lambda x: x[0], reverse=True)
+            
+            # 添加到结果中
+            for _, pair in group_pairs:
+                sorted_pairs.append(pair)
+        
+        return sorted_pairs
+        
+    def _get_all_sectors_holes(self) -> Dict[int, List[HolePosition]]:
+        """获取所有象限的孔位"""
+        sectors_holes = {1: [], 2: [], 3: [], 4: []}
+        
+        # 使用hole_collection获取所有孔位数据
+        if not hasattr(self, 'hole_collection') or not self.hole_collection:
+            self.logger.warning("没有设置hole_collection", "⚠️")
+            return sectors_holes
+        
+        # 计算中心点进行象限判断
+        holes_list = list(self.hole_collection.holes.values())
+        if not holes_list:
+            return sectors_holes
+            
+        # 使用边界计算中心
+        min_x = min(h.center_x for h in holes_list)
+        max_x = max(h.center_x for h in holes_list)
+        min_y = min(h.center_y for h in holes_list)
+        max_y = max(h.center_y for h in holes_list)
+        center_x = (min_x + max_x) / 2
+        center_y = (min_y + max_y) / 2
+        
+        # 分配孔位到对应象限
+        for hole_id, hole_pos in self.hole_positions.items():
+            dx = hole_pos.center_x - center_x
+            dy = hole_pos.center_y - center_y
+            
+            if dx >= 0 and dy <= 0:  # Qt坐标系右上象限
+                sectors_holes[1].append(hole_pos)
+            elif dx < 0 and dy <= 0:  # Qt坐标系左上象限
+                sectors_holes[2].append(hole_pos)
+            elif dx < 0 and dy > 0:   # Qt坐标系左下象限
+                sectors_holes[3].append(hole_pos)
+            else:  # dx >= 0 and dy > 0, Qt坐标系右下象限
+                sectors_holes[4].append(hole_pos)
+                
+        return sectors_holes
+        
+    def _get_sector_1_holes(self) -> List[HolePosition]:
+        """获取第一象限的孔位"""
+        sector_1_holes = []
+        
+        # 使用hole_collection获取所有孔位数据
+        if not hasattr(self, 'hole_collection') or not self.hole_collection:
+            self.logger.warning("没有设置hole_collection", "⚠️")
+            return []
+        
+        # 计算中心点进行象限判断
+        holes_list = list(self.hole_collection.holes.values())
+        if not holes_list:
+            return []
+            
+        # 使用边界计算中心
+        min_x = min(h.center_x for h in holes_list)
+        max_x = max(h.center_x for h in holes_list)
+        min_y = min(h.center_y for h in holes_list)
+        max_y = max(h.center_y for h in holes_list)
+        center_x = (min_x + max_x) / 2
+        center_y = (min_y + max_y) / 2
+        
+        # 过滤第一象限的孔位（右上：dx>=0, dy<=0）
+        for hole_id, hole_pos in self.hole_positions.items():
+            dx = hole_pos.center_x - center_x
+            dy = hole_pos.center_y - center_y
+            
+            if dx >= 0 and dy <= 0:  # Qt坐标系右上象限
+                sector_1_holes.append(hole_pos)
+                
+        return sector_1_holes
+        
+    def _group_holes_by_row_for_interval_four(self, holes: List[HolePosition]) -> Dict[int, List[HolePosition]]:
+        """按行号分组孔位"""
+        holes_by_row = {}
+        
+        for hole in holes:
+            row = hole.row_num
+            if row not in holes_by_row:
+                holes_by_row[row] = []
+            holes_by_row[row].append(hole)
+        
+        # 每行内按列号排序
+        for row in holes_by_row:
+            holes_by_row[row].sort(key=lambda h: h.column_num)
+            
+        return holes_by_row
+    
+    def _create_interval_four_pairs(self, holes_by_row: Dict[int, List[HolePosition]]) -> List[HolePair]:
+        """创建间隔4列的孔位对"""
+        hole_pairs = []
+        
+        # 按行号降序处理（从最上面的行开始，如R164, R163, ...）
+        sorted_rows = sorted(holes_by_row.keys(), reverse=True)
+        
+        for row_index, row_num in enumerate(sorted_rows):
+            row_holes = holes_by_row[row_num]
+            
+            # S形路径：奇数行从左到右，偶数行从右到左
+            if row_index % 2 == 1:  # 偶数行（R163, R161, ...）从右到左
+                row_holes = list(reversed(row_holes))
+            
+            # 生成间隔4列的配对
+            row_pairs = self._create_row_interval_pairs(row_holes, row_num)
+            hole_pairs.extend(row_pairs)
+            
+        return hole_pairs
+    
+    def _create_row_interval_pairs(self, row_holes: List[HolePosition], row_num: int) -> List[HolePair]:
+        """在单行内创建间隔4列的配对"""
+        pairs = []
+        processed_indices = set()
+        
+        # 创建孔位映射（列号到孔位的映射）
+        holes_by_col = {hole.column_num: hole for hole in row_holes}
+        
+        # 按列号排序
+        sorted_cols = sorted(holes_by_col.keys())
+        
+        i = 0
+        while i < len(sorted_cols):
+            if i in processed_indices:
+                i += 1
+                continue
+                
+            current_col = sorted_cols[i]
+            current_hole_pos = holes_by_col[current_col]
+            
+            # 寻找间隔4列的配对孔位
+            target_col = current_col + 4
+            pair_hole_pos = holes_by_col.get(target_col)
+            
+            if pair_hole_pos:
+                # 找到配对，创建孔位对
+                hole1 = self._position_to_hole_data(current_hole_pos)
+                hole2 = self._position_to_hole_data(pair_hole_pos)
+                
+                if hole1 and hole2:
+                    pair = HolePair(holes=[hole1, hole2], is_pair=True)
+                    pairs.append(pair)
+                    processed_indices.add(i)
+                    
+                    # 找到并标记配对孔位的索引
+                    pair_index = None
+                    for j, col in enumerate(sorted_cols):
+                        if col == target_col:
+                            pair_index = j
+                            break
+                    if pair_index is not None:
+                        processed_indices.add(pair_index)
+                    
+                    self.logger.debug(f"R{row_num}行创建配对: {current_hole_pos.hole_id} + {pair_hole_pos.hole_id}")
+                    i += 1
+                    continue
+            
+            # 无法配对，单独处理
+            hole = self._position_to_hole_data(current_hole_pos)
+            if hole:
+                pair = HolePair(holes=[hole], is_pair=False)
+                pairs.append(pair)
+                self.logger.debug(f"R{row_num}行单独处理: {current_hole_pos.hole_id}")
+            
+            i += 1
+            
+        return pairs
+    
+    def _position_to_hole_data(self, hole_pos: HolePosition) -> Optional[HoleData]:
+        """将HolePosition转换为HoleData"""
+        if not hasattr(self, 'hole_collection') or not self.hole_collection:
+            return None
+            
+        # 通过hole_id查找对应的HoleData
+        return self.hole_collection.holes.get(hole_pos.hole_id)
     
     def set_path_data(self, snake_path: List[str]):
         """
@@ -691,7 +1122,8 @@ class SnakePathRenderer(QObject):
             elif segment.sequence_number == current_sequence:
                 segment.segment_type = PathSegmentType.CURRENT
             else:
-                segment.segment_type = PathSegmentType.NORMAL
+                # 恢复到原始段类型，而不是不存在的NORMAL
+                segment.segment_type = PathSegmentType.A_SIDE_NORMAL  # 默认为A侧正常段
         
         # 重新渲染
         self.render_paths()

@@ -8,7 +8,7 @@ from .history_viewer import HistoryViewer
 from .main_detection_view import MainDetectionView
 from .endoscope_view import EndoscopeView
 from .annotation_tool import AnnotationTool
-from .workpiece_diagram import WorkpieceDiagram
+# from .workpiece_diagram import WorkpieceDiagram  # 已移至trash
 from .matplotlib_chart import MatplotlibChart
 from .realtime_chart import RealtimeChart
 from .worker_thread import WorkerThread
@@ -19,7 +19,7 @@ __all__ = [
     'MainDetectionView', 
     'EndoscopeView',
     'AnnotationTool',
-    'WorkpieceDiagram',
+    # 'WorkpieceDiagram',  # 已移至trash
     'MatplotlibChart',
     'RealtimeChart',
     'WorkerThread',

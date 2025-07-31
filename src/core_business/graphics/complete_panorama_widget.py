@@ -3,13 +3,13 @@
 显示所有孔位的全景视图，支持扇形交互和状态更新
 
 警告：此文件已被重构并迁移到新架构
-请使用 src.core_business.graphics.panorama 包中的新组件
+请使用 src.modules.panorama_view 包中的新组件
 此文件将在未来版本中移除
 """
 
 import warnings
 warnings.warn(
-    "CompletePanoramaWidget 已被弃用，请使用 src.core_business.graphics.panorama 包中的新架构",
+    "CompletePanoramaWidget 已被弃用，请使用 src.modules.panorama_view 包中的新架构",
     DeprecationWarning,
     stacklevel=2
 )
@@ -24,7 +24,20 @@ from PySide6.QtGui import QColor, QFont, QPen, QBrush, QTransform
 try:
     from PySide6 import shiboken6 as sip
 except ImportError:
-    import shiboken6 as sip
+    try:
+        import shiboken6 as sip
+    except ImportError:
+        # 如果都失败了，创建一个假的sip模块
+        class FakeSip:
+            @staticmethod
+            def isdeleted(obj):
+                try:
+                    # 尝试访问对象的属性来检查是否有效
+                    _ = obj.__class__
+                    return False
+                except:
+                    return True
+        sip = FakeSip()
 
 from src.core_business.graphics.graphics_view import OptimizedGraphicsView
 from src.core_business.graphics.sector_types import SectorQuadrant
@@ -379,11 +392,26 @@ class CompletePanoramaWidget(QWidget):
         for sector, highlight in list(self.sector_highlights.items()):
             try:
                 # 检查对象是否还有效
-                if highlight and not sip.isdeleted(highlight):
-                    if highlight.scene():
-                        scene = self._get_scene()
-                        if scene:
-                            scene.removeItem(highlight)
+                if highlight:
+                    try:
+                        # 使用sip.isdeleted，如果不存在则使用替代方法
+                        is_deleted = False
+                        if hasattr(sip, 'isdeleted'):
+                            is_deleted = sip.isdeleted(highlight)
+                        else:
+                            # 尝试访问对象属性来检查是否有效
+                            try:
+                                _ = highlight.scene
+                            except (RuntimeError, AttributeError):
+                                is_deleted = True
+                                
+                        if not is_deleted and highlight.scene():
+                            scene = self._get_scene()
+                            if scene:
+                                scene.removeItem(highlight)
+                    except (RuntimeError, AttributeError):
+                        # 对象已被删除
+                        pass
             except RuntimeError:
                 # 对象已被删除，忽略错误
                 pass
@@ -752,22 +780,23 @@ class CompletePanoramaWidget(QWidget):
             self.logger.error(f"扇形检测失败: {e}", "❌")
             return None
             
-    def update_hole_status(self, hole_id: str, status: HoleStatus):
+    def update_hole_status(self, hole_id: str, status: HoleStatus, color_override=None):
         """
         更新孔位状态 - 统一接口实现（支持批量更新）
         
         Args:
             hole_id: 孔位ID
             status: 新状态
+            color_override: 颜色覆盖（如蓝色检测中状态）
         """
         self.logger.debug(f"接收到状态更新: {hole_id} -> {status.value if hasattr(status, 'value') else status}", "📦")
         
         # 检查是否需要立即更新
         if self._should_update_immediately():
-            self._update_hole_immediately(hole_id, status)
+            self._update_hole_immediately(hole_id, status, color_override)
         else:
             # 添加到批量更新队列
-            self.pending_status_updates[hole_id] = status
+            self.pending_status_updates[hole_id] = (status, color_override)
             
             # 启动或重置批量更新定时器
             if self.batch_update_timer.isActive():
@@ -782,7 +811,7 @@ class CompletePanoramaWidget(QWidget):
         # 例如：某些关键状态需要立即更新
         return False
         
-    def _update_hole_immediately(self, hole_id: str, status: HoleStatus):
+    def _update_hole_immediately(self, hole_id: str, status: HoleStatus, color_override=None):
         """立即更新单个孔位状态"""
         try:
             if hasattr(self.panorama_view, 'hole_items') and hole_id in self.panorama_view.hole_items:
@@ -791,6 +820,12 @@ class CompletePanoramaWidget(QWidget):
                 # 更新状态
                 if hasattr(hole_item, 'update_status'):
                     hole_item.update_status(status)
+                    # 设置颜色覆盖（如果提供）
+                    if color_override and hasattr(hole_item, 'set_color_override'):
+                        hole_item.set_color_override(color_override)
+                    elif not color_override and hasattr(hole_item, 'clear_color_override'):
+                        # 清除颜色覆盖
+                        hole_item.clear_color_override()
                     hole_item.update()
                     
                 self.logger.debug(f"立即更新完成: {hole_id}", "✅")
@@ -814,13 +849,25 @@ class CompletePanoramaWidget(QWidget):
             updated_count = 0
             
             if hasattr(self.panorama_view, 'hole_items'):
-                for hole_id, status in self.pending_status_updates.items():
+                for hole_id, status_data in self.pending_status_updates.items():
                     if hole_id in self.panorama_view.hole_items:
                         hole_item = self.panorama_view.hole_items[hole_id]
+                        
+                        # 解析状态数据（可能是元组或单独的状态）
+                        if isinstance(status_data, tuple):
+                            status, color_override = status_data
+                        else:
+                            status, color_override = status_data, None
                         
                         # 更新状态
                         if hasattr(hole_item, 'update_status'):
                             hole_item.update_status(status)
+                            # 设置颜色覆盖（如果提供）
+                            if color_override and hasattr(hole_item, 'set_color_override'):
+                                hole_item.set_color_override(color_override)
+                            elif not color_override and hasattr(hole_item, 'clear_color_override'):
+                                # 清除颜色覆盖
+                                hole_item.clear_color_override()
                             updated_count += 1
                             
                 # 只在有实际更新时才刷新场景

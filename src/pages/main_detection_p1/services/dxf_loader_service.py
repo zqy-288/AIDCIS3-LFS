@@ -8,8 +8,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-# 使用本地的HoleCollection定义
-from ..components.enhanced_workpiece_diagram import HoleCollection
+# 使用核心业务模型的HoleCollection定义
+from src.core_business.models.hole_data import HoleCollection
 
 # 尝试导入DXF解析器，但不强制依赖
 HAS_DXF_PARSER = False
@@ -19,12 +19,10 @@ try:
     if project_root.exists():
         sys.path.insert(0, str(project_root))
         from src.core_business.dxf_parser import DXFParser
-        from src.core_business.coordinate_system import UnifiedCoordinateManager
         HAS_DXF_PARSER = True
 except ImportError as e:
     logging.warning(f"无法导入DXF解析器: {e}")
     DXFParser = None
-    UnifiedCoordinateManager = None
 
 
 class DXFLoaderService:
@@ -36,15 +34,12 @@ class DXFLoaderService:
         if HAS_DXF_PARSER:
             try:
                 self.dxf_parser = DXFParser()
-                self.coordinate_manager = UnifiedCoordinateManager()
                 self.logger.info("DXF解析器初始化成功")
             except Exception as e:
                 self.logger.error(f"DXF解析器初始化失败: {e}")
                 self.dxf_parser = None
-                self.coordinate_manager = None
         else:
             self.dxf_parser = None
-            self.coordinate_manager = None
             self.logger.warning("DXF解析器不可用")
     
     def load_dxf_file(self, file_path: str) -> Optional[HoleCollection]:
@@ -68,11 +63,7 @@ class DXFLoaderService:
                 self.logger.info(f"开始解析DXF文件: {file_path}")
                 hole_collection = self.dxf_parser.parse_file(file_path)
                 
-                # 如果有坐标管理器，应用坐标转换
-                if self.coordinate_manager and hole_collection:
-                    self.logger.info("应用坐标转换")
-                    # 坐标转换已经在DXFParser中完成，这里可以添加额外的转换
-                    pass
+                # 坐标转换已经在DXFParser中完成
                 
                 return hole_collection
             else:

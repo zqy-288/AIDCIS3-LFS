@@ -34,7 +34,7 @@ class SnakePathCoordinator(QObject):
         
         # 全局状态
         self.enabled = False
-        self.strategy = PathStrategy.HYBRID
+        self.strategy = PathStrategy.INTERVAL_FOUR_S_SHAPE  # 默认使用间隔4列S形策略
         self.style = PathRenderStyle.SIMPLE_LINE
         self.debug_mode = False
         self.current_progress = 0

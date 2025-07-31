@@ -22,11 +22,13 @@ try:
     from src.controllers.main_window_controller import MainWindowController
     from src.ui.factories import get_ui_factory
     from src.services import get_graphics_service
+    from src.pages.main_detection_p1.components.simulation_controller import SimulationController
 except ImportError as e:
     logging.warning(f"无法导入控制器/服务: {e}, 使用模拟实现")
     MainWindowController = None
     get_ui_factory = None
     get_graphics_service = None
+    SimulationController = None
 
 
 class MainDetectionPage(QWidget):
@@ -59,6 +61,11 @@ class MainDetectionPage(QWidget):
         self.ui_factory = MainDetectionPage._shared_ui_factory  
         self.graphics_service = MainDetectionPage._shared_graphics_service
         
+        # 注释掉，避免重复创建SimulationController
+        # 将使用 native_view 中的 simulation_controller
+        # self.simulation_controller = SimulationController() if SimulationController else None
+        self.simulation_controller = None  # 将在setup_connections中设置为native_view的controller
+        
         # UI组件 - 通过原生视图访问
         self.graphics_view = None
         self.panorama_widget = None
@@ -70,6 +77,7 @@ class MainDetectionPage(QWidget):
         
         self.setup_ui()
         self.setup_connections()
+        self._setup_simulation_controller()
         
         if self.controller:
             self.controller.initialize()
@@ -108,10 +116,12 @@ class MainDetectionPage(QWidget):
         self.native_view.detection_progress.connect(self.detection_progress)
         self.native_view.error_occurred.connect(self.error_occurred)
         
-        # 连接工具栏信号到具体功能
+        # 连接工具栏信号到具体功能 - 检查toolbar类型
         toolbar = self.native_view.toolbar
-        toolbar.product_selection_requested.connect(self._on_select_product)
-        toolbar.search_requested.connect(self._on_search_hole)
+        if toolbar and hasattr(toolbar, 'product_selection_requested'):
+            toolbar.product_selection_requested.connect(self._on_select_product)
+        if toolbar and hasattr(toolbar, 'search_requested'):
+            toolbar.search_requested.connect(self._on_search_hole)
         
         # 连接右侧面板的文件操作信号
         right_panel = self.native_view.right_panel
@@ -695,18 +705,24 @@ class MainDetectionPage(QWidget):
             self.error_occurred.emit(f"导出报告失败: {e}")
     
     def _on_start_simulation(self):
-        """开始模拟检测 - 使用蛇形路径渲染"""
+        """开始模拟检测 - 使用SimulationController的10秒定时器"""
         try:
-            self.logger.info("🐍 开始模拟检测")
+            self.logger.info("🐍 开始模拟检测 - 使用10秒/对定时器")
             
-            if hasattr(self, 'native_view') and hasattr(self.native_view, 'start_snake_path_simulation'):
-                self.native_view.start_snake_path_simulation()
-            else:
-                # 直接调用控制器的模拟功能
-                if self.controller and hasattr(self.controller, 'start_simulation'):
-                    self.controller.start_simulation()
+            # 使用SimulationController代替MainWindowController的100ms定时器
+            if self.simulation_controller:
+                # 确保有孔位数据
+                if self.controller and self.controller.hole_collection:
+                    # 加载孔位数据到模拟控制器
+                    self.simulation_controller.load_hole_collection(self.controller.hole_collection)
+                    # 启动模拟（使用10秒定时器）
+                    self.simulation_controller.start_simulation()
+                    # 更新UI状态
+                    self._update_simulation_ui_state(True)
                 else:
-                    self.status_updated.emit("模拟检测功能正在实现中")
+                    self.error_occurred.emit("请先加载DXF文件或选择产品")
+            else:
+                self.status_updated.emit("模拟检测功能正在实现中")
                     
         except Exception as e:
             self.logger.error(f"开始模拟检测失败: {e}")
@@ -715,11 +731,11 @@ class MainDetectionPage(QWidget):
     def _on_pause_simulation(self):
         """暂停/恢复模拟检测"""
         try:
-            if self.controller:
-                if hasattr(self.controller, 'is_simulation_paused') and self.controller.is_simulation_paused:
+            if self.simulation_controller:
+                if self.simulation_controller.is_paused:
                     # 恢复模拟
                     self.logger.info("▶️ 恢复模拟检测")
-                    self.controller.resume_simulation()
+                    self.simulation_controller.resume_simulation()
                     self.status_updated.emit("模拟检测已恢复")
                     # 更新按钮文本
                     if hasattr(self.native_view.right_panel, 'pause_simulation_btn'):
@@ -727,7 +743,7 @@ class MainDetectionPage(QWidget):
                 else:
                     # 暂停模拟
                     self.logger.info("⏸️ 暂停模拟检测")
-                    self.controller.pause_simulation()
+                    self.simulation_controller.pause_simulation()
                     self.status_updated.emit("模拟检测已暂停")
                     # 更新按钮文本
                     if hasattr(self.native_view.right_panel, 'pause_simulation_btn'):
@@ -741,8 +757,9 @@ class MainDetectionPage(QWidget):
         try:
             self.logger.info("⏹️ 停止模拟检测")
             
-            if self.controller and hasattr(self.controller, 'stop_simulation'):
-                self.controller.stop_simulation()
+            if self.simulation_controller:
+                self.simulation_controller.stop_simulation()
+                self._update_simulation_ui_state(False)
                 
             # 重置按钮文本
             if hasattr(self.native_view.right_panel, 'pause_simulation_btn'):
@@ -829,3 +846,65 @@ class MainDetectionPage(QWidget):
                 self.logger.info(f"统计信息更新: {stats}")
         except Exception as e:
             self.logger.error(f"更新统计信息失败: {e}")
+            
+    def _setup_simulation_controller(self):
+        """设置模拟控制器"""
+        # 使用 native_view 的 simulation_controller
+        if hasattr(self.native_view, 'simulation_controller'):
+            self.simulation_controller = self.native_view.simulation_controller
+            
+            # native_view 已经设置好了所有组件，这里只需要连接额外的信号
+            # 避免重复连接，只连接 MainDetectionPage 特有的处理
+            # 注意：simulation_progress 已经在 native_view 中连接了，这里不再重复连接
+            
+            self.logger.info("✅ 使用 NativeMainDetectionView 的 SimulationController")
+        else:
+            self.logger.warning("⚠️ NativeMainDetectionView 没有 simulation_controller")
+            
+    def _update_simulation_ui_state(self, running):
+        """更新模拟UI状态"""
+        if hasattr(self.native_view, 'right_panel'):
+            panel = self.native_view.right_panel
+            if hasattr(panel, 'start_simulation_btn'):
+                panel.start_simulation_btn.setEnabled(not running)
+            if hasattr(panel, 'pause_simulation_btn'):
+                panel.pause_simulation_btn.setEnabled(running)
+            if hasattr(panel, 'stop_simulation_btn'):
+                panel.stop_simulation_btn.setEnabled(running)
+                
+    def _on_simulation_progress(self, current, total):
+        """处理模拟进度"""
+        progress = int(current / total * 100) if total > 0 else 0
+        self.detection_progress.emit(progress)
+        # 移除重复的日志输出，native_view 已经输出了
+        # self.logger.info(f"模拟进度: {current}/{total} ({progress}%)")
+        
+    def _on_hole_status_updated(self, hole_id, status):
+        """处理孔位状态更新 - 增强版本"""
+        self.status_updated.emit(f"孔位 {hole_id} 状态更新")
+        
+        # 更新左侧面板信息
+        if hasattr(self, 'native_view') and self.native_view and hasattr(self.native_view, 'left_panel'):
+            try:
+                # 获取孔位数据
+                if self.controller and hasattr(self.controller, 'hole_collection'):
+                    hole_collection = self.controller.hole_collection
+                    if hole_collection and hole_id in hole_collection.holes:
+                        hole_data = hole_collection.holes[hole_id]
+                        # 构建信息字典
+                        hole_info = {
+                            'id': hole_id,
+                            'position': f'({hole_data.center_x:.1f}, {hole_data.center_y:.1f})',
+                            'status': status.value if hasattr(status, 'value') else str(status),
+                            'description': f'半径: {hole_data.radius:.2f}'
+                        }
+                        # 更新左侧面板
+                        self.native_view.left_panel.update_hole_info(hole_info)
+            except Exception as e:
+                self.logger.debug(f"更新左侧面板信息失败: {e}")
+        
+    def _on_simulation_completed(self):
+        """处理模拟完成"""
+        self._update_simulation_ui_state(False)
+        self.status_updated.emit("模拟检测完成")
+        self.logger.info("✅ 模拟检测完成")

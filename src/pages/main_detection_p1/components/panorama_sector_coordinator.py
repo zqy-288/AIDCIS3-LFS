@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QWidget
 
 from src.core_business.graphics.sector_types import SectorQuadrant
 from src.core_business.models.hole_data import HoleCollection, HoleData
+from .sector_assignment_manager import SectorAssignmentManager
 
 
 class PanoramaSectorCoordinator(QObject):
@@ -33,6 +34,12 @@ class PanoramaSectorCoordinator(QObject):
         # 组件引用
         self.panorama_widget = None
         self.graphics_view = None
+        
+        # 扇形分配管理器
+        self.sector_assignment_manager = SectorAssignmentManager()
+        self.sector_assignment_manager.sector_assignments_updated.connect(
+            self._on_sector_assignments_updated
+        )
         
         # 初始化
         self._initialize()
@@ -60,8 +67,11 @@ class PanoramaSectorCoordinator(QObject):
         """加载孔位集合数据"""
         self.hole_collection = hole_collection
         
-        # 构建扇形孔位映射
-        self._build_sector_holes_map()
+        # 使用扇形分配管理器进行分配
+        self.sector_assignment_manager.set_hole_collection(hole_collection)
+        
+        # 更新扇形孔位映射
+        self._update_sector_holes_map()
         
         # 更新全景图显示
         if self.panorama_widget and hasattr(self.panorama_widget, 'load_complete_view'):
@@ -69,45 +79,22 @@ class PanoramaSectorCoordinator(QObject):
             
         self.logger.info(f"✅ 加载孔位集合: {len(hole_collection.holes)} 个孔位")
         
-    def _build_sector_holes_map(self):
-        """构建扇形到孔位的映射关系"""
+    def _update_sector_holes_map(self):
+        """从扇形分配管理器更新扇形孔位映射"""
         self.sector_holes_map.clear()
         
-        if not self.hole_collection:
-            return
-            
-        # 初始化每个扇形的孔位列表
+        # 从管理器获取每个扇形的孔位
         for sector in SectorQuadrant:
-            self.sector_holes_map[sector] = []
-            
-        # 获取边界以计算中心点
-        bounds = self.hole_collection.get_bounds()
-        center_x = (bounds[0] + bounds[2]) / 2
-        center_y = (bounds[1] + bounds[3]) / 2
-        
-        # 分配孔位到各个扇形
-        for hole_id, hole in self.hole_collection.holes.items():
-            sector = self._determine_hole_sector(hole, center_x, center_y)
-            self.sector_holes_map[sector].append(hole)
+            self.sector_holes_map[sector] = self.sector_assignment_manager.get_sector_holes(sector)
             
         # 记录扇形统计
-        for sector, holes in self.sector_holes_map.items():
-            self.logger.info(f"扇形 {sector.value}: {len(holes)} 个孔位")
+        sector_counts = self.sector_assignment_manager.get_all_sector_counts()
+        for sector, count in sector_counts.items():
+            self.logger.info(f"扇形 {sector.value}: {count} 个孔位")
             
-    def _determine_hole_sector(self, hole: HoleData, center_x: float, center_y: float) -> SectorQuadrant:
-        """确定孔位所属的扇形区域"""
-        dx = hole.center_x - center_x
-        dy = hole.center_y - center_y
-        
-        # 根据相对位置确定扇形
-        if dx >= 0 and dy < 0:
-            return SectorQuadrant.SECTOR_1  # 右上
-        elif dx < 0 and dy < 0:
-            return SectorQuadrant.SECTOR_2  # 左上
-        elif dx < 0 and dy >= 0:
-            return SectorQuadrant.SECTOR_3  # 左下
-        else:
-            return SectorQuadrant.SECTOR_4  # 右下
+    def _on_sector_assignments_updated(self, update_data: dict):
+        """处理扇形分配更新事件"""
+        self.logger.info(f"扇形分配已更新: {update_data.get('sector_counts', {})}")
             
     def _on_panorama_sector_clicked(self, sector: SectorQuadrant):
         """处理全景图扇形点击事件"""
@@ -140,16 +127,13 @@ class PanoramaSectorCoordinator(QObject):
             return None
             
         # 创建新的孔位集合
-        filtered_collection = HoleCollection()
-        
-        # 添加过滤后的孔位
-        for hole in holes:
-            filtered_collection.add_hole(hole)
+        holes_dict = {hole.hole_id: hole for hole in holes}
+        filtered_collection = HoleCollection(holes_dict)
             
         return filtered_collection
         
     def _update_center_view(self, filtered_collection: HoleCollection):
-        """更新中心视图显示过滤后的孔位"""
+        """更新中心视图显示过滤后的孔位（带强制刷新）"""
         if hasattr(self.graphics_view, 'load_holes'):
             # 使用新的加载方法
             self.graphics_view.load_holes(filtered_collection)
@@ -157,6 +141,9 @@ class PanoramaSectorCoordinator(QObject):
         elif hasattr(self.graphics_view, 'scene'):
             # 使用场景过滤方法
             self._filter_scene_items(filtered_collection)
+            
+        # 强制刷新视图以确保扇形更新可见
+        self._force_refresh_center_view(filtered_collection)
             
     def _filter_scene_items(self, filtered_collection: HoleCollection):
         """通过场景项过滤显示孔位"""
@@ -170,7 +157,36 @@ class PanoramaSectorCoordinator(QObject):
             except:
                 pass
                 
-        if not scene:
+    def _force_refresh_center_view(self, filtered_collection=None):
+        """强制刷新中心视图以确保扇形更新可见"""
+        try:
+            if self.graphics_view:
+                # 强制重绘视图
+                self.graphics_view.viewport().update()
+                
+                # 如果有场景，也更新场景
+                scene = None
+                if hasattr(self.graphics_view, 'scene'):
+                    scene = self.graphics_view.scene
+                else:
+                    try:
+                        scene = self.graphics_view.scene()
+                    except:
+                        pass
+                        
+                if scene:
+                    scene.update()
+                    
+                # 额外强制刷新：触发视图重绘
+                if hasattr(self.graphics_view, 'update'):
+                    self.graphics_view.update()
+                    
+                self.logger.info("✨ 强制刷新中心视图完成")
+                    
+        except Exception as e:
+            self.logger.warning(f"强制刷新中心视图失败: {e}")
+                
+        if not scene or not filtered_collection:
             return
             
         # 获取过滤后的孔位ID集合
@@ -206,15 +222,30 @@ class PanoramaSectorCoordinator(QObject):
         
         for hole in holes:
             # 根据状态统计
-            status = hole.detection_status
-            if status:
-                status_value = status.value if hasattr(status, 'value') else str(status)
-                if 'qualified' in status_value:
-                    stats['qualified'] += 1
-                elif 'defective' in status_value:
-                    stats['defective'] += 1
-                else:
-                    stats['pending'] += 1
+            if hasattr(hole, 'status'):
+                status = hole.status
+                if status:
+                    status_value = status.value if hasattr(status, 'value') else str(status)
+                    if 'qualified' in status_value:
+                        stats['qualified'] += 1
+                    elif 'defective' in status_value:
+                        stats['defective'] += 1
+                    else:
+                        stats['pending'] += 1
+            elif hasattr(hole, 'status'):
+                # 使用status属性
+                status = hole.status
+                if status:
+                    status_value = status.value if hasattr(status, 'value') else str(status).lower()
+                    if 'qualified' in status_value:
+                        stats['qualified'] += 1
+                    elif 'defective' in status_value:
+                        stats['defective'] += 1
+                    else:
+                        stats['pending'] += 1
+            else:
+                # 默认为待检
+                stats['pending'] += 1
                     
             # 根据类型统计
             if hasattr(hole, 'is_blind') and hole.is_blind:
@@ -223,6 +254,19 @@ class PanoramaSectorCoordinator(QObject):
                 stats['tie_rod'] += 1
                 
         return stats
+        
+    def select_sector(self, sector: SectorQuadrant):
+        """选择并切换到指定扇形（带强制刷新）"""
+        self.logger.info(f"🎯 选择扇形: {sector.value}")
+        
+        # 更新当前扇形
+        self.current_sector = sector
+        
+        # 触发扇形点击处理
+        self._on_panorama_sector_clicked(sector)
+        
+        # 额外强制刷新以确保扇形切换可见
+        self._force_refresh_center_view()
         
     def highlight_sector(self, sector: SectorQuadrant):
         """高亮指定扇形"""

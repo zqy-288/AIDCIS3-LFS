@@ -10,9 +10,9 @@ from PySide6.QtGui import QColor
 
 from src.core_business.graphics.sector_types import SectorQuadrant
 from src.core_business.models.hole_data import HoleStatus
-from src.core_business.graphics.panorama.di_container import PanoramaDIContainer
-from src.core_business.graphics.panorama.legacy_adapter import CompletePanoramaWidgetAdapter
-from src.core_business.graphics.panorama.event_bus import PanoramaEventBus
+from src.modules.panorama_view.core import PanoramaDIContainer
+from src.modules.panorama_view.adapters import CompletePanoramaWidgetAdapter
+from src.modules.panorama_view.core import PanoramaEventBus
 
 
 class PanoramaController(QObject):
@@ -34,7 +34,7 @@ class PanoramaController(QObject):
             self.sidebar_panorama = sidebar_panorama
         else:
             # 创建新的全景图组件
-            self.sidebar_panorama = CompletePanoramaWidgetAdapter(self.di_container)
+            self.sidebar_panorama = CompletePanoramaWidgetAdapter()
         
         self.dynamic_sector_display = dynamic_sector_display
         

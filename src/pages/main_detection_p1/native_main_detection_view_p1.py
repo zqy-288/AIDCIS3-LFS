@@ -14,7 +14,8 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QPushButton, QProgressBar, QGroupBox,
     QLineEdit, QTextEdit, QFrame, QSplitter, QCompleter,
-    QComboBox, QCheckBox, QScrollArea, QSizePolicy
+    QComboBox, QCheckBox, QScrollArea, QSizePolicy, QTableWidget,
+    QTableWidgetItem, QHeaderView
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QStringListModel
 from PySide6.QtGui import QFont, QColor
@@ -25,27 +26,30 @@ sys.path.insert(0, str(project_root))
 
 # 导入现有的重构后功能模块
 try:
-    # 控制器和服务
-    from src.controllers.main_window_controller import MainWindowController
-    from src.controllers.services.search_service import SearchService
-    from src.controllers.services.status_service import StatusService
-    from src.controllers.services.file_service import FileService
+    # 控制器和服务 - 使用P1本地版本
+    from .controllers.main_window_controller import MainWindowController
+    from .controllers.services.search_service import SearchService
+    from .controllers.services.status_service import StatusService
+    from .controllers.services.file_service import FileService
     
-    # UI组件
-    from src.ui.components.toolbar_component import ToolbarComponent
-    from src.ui.components.info_panel_component import InfoPanelComponent
-    from src.ui.components.operations_panel_component import OperationsPanelComponent
-    from src.ui.view_models.main_view_model import MainViewModel
+    # UI组件 - 使用P1本地版本
+    from .ui.components.toolbar_component import ToolbarComponent
     
     # 图形组件
     from src.core_business.graphics.graphics_view import OptimizedGraphicsView
-    from src.core_business.graphics.dynamic_sector_view import DynamicSectorDisplayWidget
-    from src.core_business.graphics.complete_panorama_widget import CompletePanoramaWidget
+    from src.pages.main_detection_p1.components.graphics.dynamic_sector_view import DynamicSectorDisplayWidget
+    # CompletePanoramaWidget已移至中间栏显示
     
     # 数据模型
     from src.core_business.models.hole_data import HoleCollection
     from src.models.product_model import get_product_manager
-    from src.modules.product_selection import ProductSelectionDialog
+    from .modules.product_selection import ProductSelectionDialog
+    
+    # 扇形协调器
+    from src.pages.main_detection_p1.components.panorama_sector_coordinator import PanoramaSectorCoordinator
+    
+    # 模拟控制器
+    from src.pages.main_detection_p1.components.simulation_controller import SimulationController
     
     HAS_REFACTORED_MODULES = True
 except ImportError as e:
@@ -106,15 +110,13 @@ class NativeLeftInfoPanel(QWidget):
         self.file_info_group = self._create_file_info_group(group_font)
         layout.addWidget(self.file_info_group)
 
-        # 5. 全景预览组 (old版本关键组件: 360×420px)
+        # 5. 全景预览组 - 设置为扩展以填充可用空间
         self.panorama_group = self._create_panorama_group(group_font)
-        layout.addWidget(self.panorama_group)
+        layout.addWidget(self.panorama_group, 1)  # 添加拉伸因子1，使其扩展
 
         # 6. 选中扇形组
         self.sector_stats_group = self._create_sector_stats_group(group_font)
         layout.addWidget(self.sector_stats_group)
-
-        layout.addStretch()
 
     def _create_progress_group(self, group_font):
         """创建检测进度组 - 恢复old版本设计"""
@@ -254,31 +256,37 @@ class NativeLeftInfoPanel(QWidget):
         layout.addWidget(self.product_label, 1, 1)
 
         return group
-
+    
     def _create_panorama_group(self, group_font):
-        """创建全景预览组 - old版本关键组件 (360×420px)"""
+        """创建全景预览组"""
         group = QGroupBox("全景预览")
         group.setFont(group_font)
         layout = QVBoxLayout(group)
         layout.setContentsMargins(5, 5, 5, 5)
-
-        # 创建全景预览组件 (使用重构后的CompletePanoramaWidget)
-        if HAS_REFACTORED_MODULES:
-            try:
-                self.sidebar_panorama = CompletePanoramaWidget()
-                self.sidebar_panorama.setFixedSize(360, 420)  # old版本精确尺寸
-                self.sidebar_panorama.setObjectName("PanoramaWidget")
-                layout.addWidget(self.sidebar_panorama)
-                self.logger.info("✅ 使用重构后的CompletePanoramaWidget")
-            except Exception as e:
-                self.logger.warning(f"CompletePanoramaWidget创建失败: {e}")
-                self.sidebar_panorama = self._create_fallback_panorama()
-                layout.addWidget(self.sidebar_panorama)
-        else:
-            self.sidebar_panorama = self._create_fallback_panorama()
-            layout.addWidget(self.sidebar_panorama)
-
+        
+        # 使用具有用户缩放功能的完整全景图组件
+        from src.pages.main_detection_p1.components.graphics.complete_panorama_widget import CompletePanoramaWidget
+        self.sidebar_panorama = CompletePanoramaWidget()
+        # 设置默认缩放比例为10%，解决圆形缩放不够的问题
+        if hasattr(self.sidebar_panorama, 'set_user_hole_scale_factor'):
+            self.sidebar_panorama.set_user_hole_scale_factor(0.1)
+        # 设置为自适应大小，使用合适的尺寸策略
+        self.sidebar_panorama.setMinimumHeight(200)  # 最小高度
+        self.sidebar_panorama.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        
+        # 设置样式
+        self.sidebar_panorama.setStyleSheet("""
+            CompletePanoramaWidget {
+                background-color: #2a2a2a;
+                border: 1px solid #555;
+                border-radius: 5px;
+            }
+        """)
+        
+        layout.addWidget(self.sidebar_panorama)
+        
         return group
+
 
     def _create_sector_stats_group(self, group_font):
         """创建选中扇形组"""
@@ -286,25 +294,60 @@ class NativeLeftInfoPanel(QWidget):
         group.setFont(group_font)
         layout = QVBoxLayout(group)
         layout.setContentsMargins(5, 5, 5, 5)
-
-        # 扇形统计信息标签 (old版本样式)
-        self.sector_stats_label = QLabel("扇形统计信息")
-        self.sector_stats_label.setFont(QFont("Arial", 10))
-        self.sector_stats_label.setWordWrap(True)
-        self.sector_stats_label.setMinimumHeight(120)
-        self.sector_stats_label.setAlignment(Qt.AlignTop)
-        self.sector_stats_label.setObjectName("SectorStatsLabel")
-        layout.addWidget(self.sector_stats_label)
+        
+        # 当前扇形标签
+        self.current_sector_label = QLabel("当前扇形: 未选择")
+        self.current_sector_label.setFont(QFont("Arial", 10, QFont.Bold))
+        layout.addWidget(self.current_sector_label)
+        
+        # 扇形统计表格
+        self.sector_stats_table = QTableWidget(6, 2)  # 6行2列
+        self.sector_stats_table.setHorizontalHeaderLabels(["状态", "数量"])
+        self.sector_stats_table.verticalHeader().hide()
+        self.sector_stats_table.horizontalHeader().setStretchLastSection(True)
+        self.sector_stats_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.sector_stats_table.setMinimumHeight(180)
+        self.sector_stats_table.setMaximumHeight(200)
+        
+        # 设置表格样式
+        self.sector_stats_table.setStyleSheet("""
+            QTableWidget {
+                border: 1px solid #ddd;
+                gridline-color: #ddd;
+                font-size: 10px;
+            }
+            QTableWidget::item {
+                padding: 2px;
+            }
+        """)
+        
+        # 初始化表格行
+        status_labels = [
+            ("pending", "待检"),
+            ("qualified", "合格"),
+            ("defective", "异常"),
+            ("blind", "盲孔"),
+            ("tie_rod", "拉杆"),
+            ("total", "总计")
+        ]
+        
+        for i, (key, label) in enumerate(status_labels):
+            self.sector_stats_table.setItem(i, 0, QTableWidgetItem(label))
+            self.sector_stats_table.setItem(i, 1, QTableWidgetItem("0"))
+            # 设置总计行为粗体
+            if key == "total":
+                font = self.sector_stats_table.item(i, 0).font()
+                font.setBold(True)
+                self.sector_stats_table.item(i, 0).setFont(font)
+                self.sector_stats_table.item(i, 1).setFont(font)
+        
+        layout.addWidget(self.sector_stats_table)
+        
+        # 保留兼容性
+        self.sector_stats_label = self.current_sector_label
 
         return group
 
-    def _create_fallback_panorama(self):
-        """创建备用全景图"""
-        label = QLabel("全景图组件\n加载中...")
-        label.setAlignment(Qt.AlignCenter)
-        label.setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;")
-        label.setFixedSize(360, 420)  # 保持old版本尺寸
-        return label
 
     def initialize_data(self):
         """初始化数据"""
@@ -371,6 +414,80 @@ class NativeLeftInfoPanel(QWidget):
             self.product_label.setText(product_name)
         else:
             self.product_label.setText("--")
+    
+    def update_selected_sector(self, sector):
+        """更新选中的扇形信息"""
+        if hasattr(self, 'current_sector_label'):
+            sector_name = sector.value if hasattr(sector, 'value') else str(sector)
+            self.current_sector_label.setText(f"当前扇形: {sector_name}")
+    
+    def update_sector_stats(self, stats_data):
+        """更新扇形统计表格"""
+        if hasattr(self, 'sector_stats_table') and stats_data:
+            # 更新表格数据
+            row_mapping = {
+                'pending': 0,
+                'qualified': 1,
+                'defective': 2,
+                'blind': 3,
+                'tie_rod': 4,
+                'total': 5
+            }
+            
+            for status, row in row_mapping.items():
+                count = stats_data.get(status, 0)
+                self.sector_stats_table.item(row, 1).setText(str(count))
+
+
+    def update_sector_stats_text(self, stats_text):
+        """更新扇形统计文本（兼容方法）"""
+        if hasattr(self, 'current_sector_label') and stats_text:
+            # 解析文本并更新表格
+            lines = stats_text.strip().split('\n')
+            if lines:
+                # 更新当前扇形标签
+                if lines[0].startswith('当前扇形:'):
+                    self.current_sector_label.setText(lines[0])
+                
+                # 解析统计数据
+                stats_dict = {}
+                for line in lines[1:]:
+                    if ':' in line:
+                        parts = line.split(':')
+                        if len(parts) == 2:
+                            status = parts[0].strip()
+                            count_str = parts[1].strip()
+                            # 提取数字
+                            count = 0
+                            for word in count_str.split():
+                                if word.isdigit():
+                                    count = int(word)
+                                    break
+                            
+                            # 映射状态名
+                            status_map = {
+                                'blind': 'blind',
+                                '盲孔': 'blind',
+                                'defective': 'defective',
+                                '异常': 'defective',
+                                'pending': 'pending',
+                                '待检': 'pending',
+                                'qualified': 'qualified',
+                                '合格': 'qualified',
+                                'tie_rod': 'tie_rod',
+                                '拉杆': 'tie_rod',
+                                'total': 'total',
+                                '总计': 'total'
+                            }
+                            
+                            for key, mapped in status_map.items():
+                                if key in status.lower():
+                                    stats_dict[mapped] = count
+                                    break
+                
+                # 更新表格
+                if stats_dict:
+                    self.update_sector_stats(stats_dict)
 
 
 class NativeCenterVisualizationPanel(QWidget):
@@ -379,14 +496,13 @@ class NativeCenterVisualizationPanel(QWidget):
     # 信号定义
     hole_selected = Signal(str)
     view_mode_changed = Signal(str)
-    sector_navigation_requested = Signal(str)
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self.logger = logging.getLogger(__name__)
         
         # 组件状态
-        self.current_view_mode = "macro"
+        self.current_view_mode = "micro"  # 默认为微观扇形视图
         self.current_sector = None
         
         # 初始化UI
@@ -437,49 +553,28 @@ class NativeCenterVisualizationPanel(QWidget):
         view_label.setFont(QFont("Arial", 11, QFont.Bold))
         layout.addWidget(view_label)
         
-        # 宏观区域视图按钮 (old版本样式)
+        # 宏观区域视图按钮 (显示完整圆形全景)
         self.macro_view_btn = QPushButton("📊 宏观区域视图")
         self.macro_view_btn.setCheckable(True)
-        self.macro_view_btn.setChecked(True)
+        self.macro_view_btn.setChecked(False)  # 不再默认选中
         self.macro_view_btn.setMinimumHeight(35)
         self.macro_view_btn.setMinimumWidth(140)
         self.macro_view_btn.setToolTip("显示整个管板的全貌，适合快速浏览和状态概览")
         
-        # 微观孔位视图按钮
+        # 微观孔位视图按钮（默认选中）
         self.micro_view_btn = QPushButton("🔍 微观孔位视图")
         self.micro_view_btn.setCheckable(True)
+        self.micro_view_btn.setChecked(True)  # 默认选中扇形视图
         self.micro_view_btn.setMinimumHeight(35)
         self.micro_view_btn.setMinimumWidth(140)
         self.micro_view_btn.setToolTip("显示孔位的详细信息，适合精确检测和分析")
         
-        # 全景总览视图按钮
-        self.panorama_view_btn = QPushButton("🌍 全景总览视图")
-        self.panorama_view_btn.setCheckable(True)
-        self.panorama_view_btn.setMinimumHeight(35)
-        self.panorama_view_btn.setMinimumWidth(140)
-        self.panorama_view_btn.setToolTip("显示完整的管板全景图，适合整体分析")
         
         layout.addWidget(self.macro_view_btn)
         layout.addWidget(self.micro_view_btn)
-        layout.addWidget(self.panorama_view_btn)
         
         layout.addSpacing(20)
         
-        # 扇形导航控制 (old版本样式)
-        nav_label = QLabel("扇形导航:")
-        nav_label.setFont(QFont("Arial", 11, QFont.Bold))
-        layout.addWidget(nav_label)
-        
-        self.prev_sector_btn = QPushButton("◀ 上一扇形")
-        self.prev_sector_btn.setMinimumHeight(35)
-        self.prev_sector_btn.setMinimumWidth(100)
-        
-        self.next_sector_btn = QPushButton("下一扇形 ▶")
-        self.next_sector_btn.setMinimumHeight(35)
-        self.next_sector_btn.setMinimumWidth(100)
-        
-        layout.addWidget(self.prev_sector_btn)
-        layout.addWidget(self.next_sector_btn)
         
         layout.addStretch()
         return control_frame
@@ -571,18 +666,13 @@ class NativeCenterVisualizationPanel(QWidget):
         # 视图模式按钮连接
         self.macro_view_btn.clicked.connect(lambda: self._on_view_mode_changed("macro"))
         self.micro_view_btn.clicked.connect(lambda: self._on_view_mode_changed("micro"))
-        self.panorama_view_btn.clicked.connect(lambda: self._on_view_mode_changed("panorama"))
         
-        # 扇形导航按钮连接
-        self.prev_sector_btn.clicked.connect(lambda: self.sector_navigation_requested.emit("previous"))
-        self.next_sector_btn.clicked.connect(lambda: self.sector_navigation_requested.emit("next"))
 
     def _on_view_mode_changed(self, mode):
         """处理视图模式变化"""
         # 更新按钮状态
         self.macro_view_btn.setChecked(mode == "macro")
         self.micro_view_btn.setChecked(mode == "micro")
-        self.panorama_view_btn.setChecked(mode == "panorama")
         
         self.current_view_mode = mode
         self.view_mode_changed.emit(mode)
@@ -864,6 +954,18 @@ class NativeMainDetectionView(QWidget):
         self.selected_hole = None
         self.detection_running = False
         
+        # 扇形协调器 - 提前初始化
+        self.coordinator = None
+        if HAS_REFACTORED_MODULES:
+            try:
+                self.coordinator = PanoramaSectorCoordinator()
+                self.logger.info("✅ 扇形协调器预初始化成功")
+            except Exception as e:
+                self.logger.error(f"扇形协调器预初始化失败: {e}")
+        
+        # 模拟控制器
+        self.simulation_controller = None
+        
         # 设置UI
         self.setup_ui()
         self.setup_connections()
@@ -919,41 +1021,56 @@ class NativeMainDetectionView(QWidget):
             except Exception as e:
                 self.logger.warning(f"ToolbarComponent创建失败: {e}")
         
-        # 备用工具栏实现
-        toolbar = QFrame()
-        toolbar.setFrameStyle(QFrame.StyledPanel)
-        toolbar.setMaximumHeight(70)
+        # 备用工具栏实现 - 创建带有信号的自定义QFrame
+        from PySide6.QtCore import Signal
         
-        layout = QHBoxLayout(toolbar)
+        class BackupToolbar(QFrame):
+            product_selection_requested = Signal()
+            search_requested = Signal(str)
+            
+            def __init__(self):
+                super().__init__()
+                self.setFrameStyle(QFrame.StyledPanel)
+                self.setMaximumHeight(70)
+                
+                layout = QHBoxLayout(self)
+                
+                # 产品选择按钮
+                product_btn = QPushButton("产品型号选择")
+                product_btn.setMinimumSize(140, 45)
+                product_btn.clicked.connect(self.product_selection_requested.emit)
+                layout.addWidget(product_btn)
+                
+                layout.addSpacing(20)
+                
+                # 搜索区域
+                layout.addWidget(QLabel("搜索:"))
+                self.search_input = QLineEdit()
+                self.search_input.setPlaceholderText("输入孔位ID...")
+                self.search_input.setMinimumSize(220, 35)
+                layout.addWidget(self.search_input)
+                
+                search_btn = QPushButton("搜索")
+                search_btn.setMinimumSize(70, 35)
+                search_btn.clicked.connect(self._on_search_clicked)
+                layout.addWidget(search_btn)
+                
+                layout.addSpacing(20)
+                
+                # 视图控制
+                layout.addWidget(QLabel("视图:"))
+                view_combo = QComboBox()
+                view_combo.addItems(["全部孔位", "待检孔位", "合格孔位", "异常孔位"])
+                view_combo.setMinimumHeight(35)
+                layout.addWidget(view_combo)
+                
+                layout.addStretch()
+            
+            def _on_search_clicked(self):
+                query = self.search_input.text().strip()
+                self.search_requested.emit(query)
         
-        # 产品选择按钮
-        product_btn = QPushButton("产品型号选择")
-        product_btn.setMinimumSize(140, 45)
-        layout.addWidget(product_btn)
-        
-        layout.addSpacing(20)
-        
-        # 搜索区域
-        layout.addWidget(QLabel("搜索:"))
-        search_input = QLineEdit()
-        search_input.setPlaceholderText("输入孔位ID...")
-        search_input.setMinimumSize(220, 35)
-        layout.addWidget(search_input)
-        
-        search_btn = QPushButton("搜索")
-        search_btn.setMinimumSize(70, 35)
-        layout.addWidget(search_btn)
-        
-        layout.addSpacing(20)
-        
-        # 视图控制
-        layout.addWidget(QLabel("视图:"))
-        view_combo = QComboBox()
-        view_combo.addItems(["全部孔位", "待检孔位", "合格孔位", "异常孔位"])
-        view_combo.setMinimumHeight(35)
-        layout.addWidget(view_combo)
-        
-        layout.addStretch()
+        toolbar = BackupToolbar()
         return toolbar
 
     def setup_connections(self):
@@ -961,22 +1078,26 @@ class NativeMainDetectionView(QWidget):
         # 左侧面板信号连接
         if self.left_panel:
             self.left_panel.hole_info_updated.connect(self._on_hole_info_updated)
+            
             # 连接全景图扇形点击信号
-            if hasattr(self.left_panel, 'sidebar_panorama') and self.left_panel.sidebar_panorama:
-                self.left_panel.sidebar_panorama.sector_clicked.connect(self._on_panorama_sector_clicked)
+            if hasattr(self.left_panel, 'sidebar_panorama'):
+                if hasattr(self.left_panel.sidebar_panorama, 'sector_clicked'):
+                    self.left_panel.sidebar_panorama.sector_clicked.connect(self._on_panorama_sector_clicked)
         
         # 中间面板信号连接
         if self.center_panel:
             self.center_panel.hole_selected.connect(self._on_hole_selected)
             self.center_panel.view_mode_changed.connect(self._on_view_mode_changed)
-            self.center_panel.sector_navigation_requested.connect(self._on_sector_navigation)
         
         # 右侧面板信号连接
         if self.right_panel:
             self.right_panel.start_detection.connect(self._on_start_detection)
             self.right_panel.pause_detection.connect(self._on_pause_detection)
             self.right_panel.stop_detection.connect(self._on_stop_detection)
-            # right_panel.simulation_start信号连接已删除 (按用户要求)
+            # 模拟控制信号连接
+            self.right_panel.start_simulation.connect(self._on_start_simulation)
+            self.right_panel.pause_simulation.connect(self._on_pause_simulation)
+            self.right_panel.stop_simulation.connect(self._on_stop_simulation)
             self.right_panel.file_operation_requested.connect(self._on_file_operation)
         
         # 重构后服务信号连接 (低耦合集成)
@@ -1000,6 +1121,55 @@ class NativeMainDetectionView(QWidget):
                 self.controller.initialize()
             except Exception as e:
                 self.logger.warning(f"控制器初始化失败: {e}")
+                
+        # 完成扇形协调器的设置（协调器已在__init__中创建）
+        if self.coordinator:
+            try:
+                # 设置图形视图
+                if hasattr(self.center_panel, 'graphics_view'):
+                    self.coordinator.set_graphics_view(self.center_panel.graphics_view)
+                
+                # 设置全景组件
+                if hasattr(self.left_panel, 'sidebar_panorama'):
+                    self.coordinator.set_panorama_widget(self.left_panel.sidebar_panorama)
+                    
+                # 连接信号（coordinator内部会处理panorama的信号）
+                self.coordinator.sector_stats_updated.connect(self._on_sector_stats_updated)
+                
+                self.logger.info("✅ 扇形协调器设置完成")
+            except Exception as e:
+                self.logger.error(f"扇形协调器设置失败: {e}")
+        
+        # 初始化模拟控制器
+        if HAS_REFACTORED_MODULES:
+            try:
+                self.simulation_controller = SimulationController()
+                
+                # 设置图形视图
+                if hasattr(self.center_panel, 'graphics_view'):
+                    self.simulation_controller.set_graphics_view(self.center_panel.graphics_view)
+                
+                # 设置全景组件
+                if hasattr(self.left_panel, 'sidebar_panorama'):
+                    self.simulation_controller.set_panorama_widget(self.left_panel.sidebar_panorama)
+                
+                # 设置扇形分配管理器（如果协调器有的话）
+                if self.coordinator and hasattr(self.coordinator, 'sector_assignment_manager'):
+                    self.simulation_controller.set_sector_assignment_manager(
+                        self.coordinator.sector_assignment_manager
+                    )
+                
+                # 连接模拟控制器信号
+                self.simulation_controller.simulation_progress.connect(self._on_simulation_progress)
+                self.simulation_controller.hole_status_updated.connect(self._on_hole_status_updated)
+                self.simulation_controller.simulation_completed.connect(self._on_simulation_completed)
+                self.simulation_controller.simulation_started.connect(self._on_simulation_started)
+                self.simulation_controller.simulation_paused.connect(self._on_simulation_paused)
+                self.simulation_controller.simulation_stopped.connect(self._on_simulation_stopped)
+                
+                self.logger.info("✅ 模拟控制器初始化成功")
+            except Exception as e:
+                self.logger.error(f"模拟控制器初始化失败: {e}")
 
     # === 事件处理方法 (高内聚逻辑) ===
     
@@ -1022,47 +1192,47 @@ class NativeMainDetectionView(QWidget):
         """处理视图模式变化"""
         self.logger.info(f"🔄 视图模式变化: {mode}")
         
-        # 这里可以集成重构后的视图切换逻辑
-        if self.controller and hasattr(self.controller, 'switch_view_mode'):
-            try:
-                self.controller.switch_view_mode(mode)
-            except Exception as e:
-                self.logger.warning(f"视图模式切换失败: {e}")
+        # 中间面板已经处理了视图切换，这里不需要额外操作
+        if mode == "macro":
+            self.logger.info("🌍 切换到宏观全景视图")
+        else:  # micro
+            self.logger.info("🔍 切换到微观扇形视图")
 
-    def _on_sector_navigation(self, direction):
-        """处理扇形导航"""
-        self.logger.info(f"🧭 扇形导航: {direction}")
     
     def _on_panorama_sector_clicked(self, sector):
         """处理全景图扇形点击"""
         from src.core_business.graphics.sector_types import SectorQuadrant
         
-        self.logger.info(f"🎯 全景图扇形点击: {sector.value if hasattr(sector, 'value') else sector}")
+        # 安全获取扇形值，处理字符串和枚举两种情况
+        sector_str = sector.value if hasattr(sector, 'value') else str(sector)
+        self.logger.info(f"🎯 全景图扇形点击: {sector_str}")
         
-        # 更新选中扇形信息
-        if self.left_panel:
-            self.left_panel.update_selected_sector(sector)
-        
-        # 在中间视图显示对应扇形的孔位
-        if self.current_hole_collection and self.center_panel and hasattr(self.center_panel, 'graphics_view'):
-            # 过滤该扇形的孔位
-            filtered_holes = self._filter_holes_by_sector(self.current_hole_collection, sector)
+        # 使用协调器处理扇形点击
+        if self.coordinator:
+            self.coordinator._on_panorama_sector_clicked(sector)
             
-            if filtered_holes:
+            # 获取当前扇形的孔位
+            holes = self.coordinator.get_current_sector_holes()
+            
+            if holes:
                 # 创建新的HoleCollection只包含该扇形的孔位
                 from src.core_business.models.hole_data import HoleCollection
-                filtered_dict = {hole.hole_id: hole for hole in filtered_holes}
+                filtered_dict = {hole.hole_id: hole for hole in holes}
                 filtered_collection = HoleCollection(filtered_dict)
                 
                 # 加载到中间视图
-                if hasattr(self.center_panel.graphics_view, 'load_holes'):
-                    self.center_panel.graphics_view.load_holes(filtered_collection)
-                    self.logger.info(f"✅ 中间视图已加载扇形 {sector.value} 的 {len(filtered_holes)} 个孔位")
-                    
-                    # 适应视图到内容
-                    scene = self._get_center_scene()
-                    if scene and hasattr(self.center_panel.graphics_view, 'fitInView'):
-                        self.center_panel.graphics_view.fitInView(scene.itemsBoundingRect(), Qt.KeepAspectRatio)
+                if self.center_panel and hasattr(self.center_panel, 'graphics_view'):
+                    if hasattr(self.center_panel.graphics_view, 'load_holes'):
+                        self.center_panel.graphics_view.load_holes(filtered_collection)
+                        sector_str = sector.value if hasattr(sector, 'value') else str(sector)
+                        self.logger.info(f"✅ 中间视图已加载扇形 {sector_str} 的 {len(holes)} 个孔位")
+                        
+                        # 让graphics_view的内置自适应机制处理，避免额外的fitInView调用
+                        # 这样可以防止视图大小的反复变化
+                            
+            # 更新选中扇形信息
+            if self.left_panel and hasattr(self.left_panel, 'update_selected_sector'):
+                self.left_panel.update_selected_sector(sector)
     
     def _filter_holes_by_sector(self, hole_collection, sector):
         """根据扇形过滤孔位"""
@@ -1148,59 +1318,254 @@ class NativeMainDetectionView(QWidget):
         # 更新右侧面板状态
         if self.right_panel:
             self.right_panel.update_detection_state(running=False)
+    
+    def _on_start_simulation(self):
+        """处理开始模拟"""
+        self.logger.info("🚀 开始模拟检测")
+        if self.simulation_controller and self.current_hole_collection:
+            # 加载孔位数据到模拟控制器
+            self.simulation_controller.load_hole_collection(self.current_hole_collection)
+            # 开始模拟
+            self.simulation_controller.start_simulation()
+        else:
+            self.logger.warning("模拟控制器未初始化或无孔位数据")
+    
+    def _on_pause_simulation(self):
+        """处理暂停模拟"""
+        self.logger.info("⏸️ 暂停模拟")
+        if self.simulation_controller:
+            self.simulation_controller.pause_simulation()
+    
+    def _on_stop_simulation(self):
+        """处理停止模拟"""
+        self.logger.info("⏹️ 停止模拟")
+        if self.simulation_controller:
+            self.simulation_controller.stop_simulation()
+    
+    def _on_simulation_started(self):
+        """处理模拟开始事件"""
+        self.logger.info("模拟已开始")
+        # 更新按钮状态
+        if self.right_panel:
+            self.right_panel.start_simulation_btn.setEnabled(False)
+            self.right_panel.pause_simulation_btn.setEnabled(True)
+            self.right_panel.stop_simulation_btn.setEnabled(True)
+    
+    def _on_simulation_paused(self):
+        """处理模拟暂停事件"""
+        self.logger.info("模拟已暂停")
+        # 更新按钮状态
+        if self.right_panel:
+            self.right_panel.start_simulation_btn.setEnabled(True)
+            self.right_panel.pause_simulation_btn.setEnabled(False)
+    
+    def _on_simulation_stopped(self):
+        """处理模拟停止事件"""
+        self.logger.info("模拟已停止")
+        # 更新按钮状态
+        if self.right_panel:
+            self.right_panel.start_simulation_btn.setEnabled(True)
+            self.right_panel.pause_simulation_btn.setEnabled(False)
+            self.right_panel.stop_simulation_btn.setEnabled(False)
+    
+    def _on_simulation_progress(self, current, total):
+        """处理模拟进度更新"""
+        progress = int((current / total * 100) if total > 0 else 0)
+        self.logger.info(f"模拟进度: {current}/{total} ({progress}%)")
+        
+        # 更新左侧面板进度
+        if self.left_panel and hasattr(self.left_panel, 'update_progress_display'):
+            # 构造进度数据
+            progress_data = {
+                'progress': progress,
+                'completed': current,
+                'total': total,
+                'pending': total - current
+            }
+            self.left_panel.update_progress_display(progress_data)
+    
+    def _on_hole_status_updated(self, hole_id, status):
+        """处理孔位状态更新"""
+        self.logger.info(f"孔位状态更新: {hole_id} -> {status}")
+        
+        # 更新扇形统计信息
+        if self.coordinator and self.coordinator.current_sector:
+            # 获取当前扇形的孔位
+            sector_holes = self.coordinator.get_current_sector_holes()
+            if sector_holes:
+                # 重新计算统计
+                stats = self.coordinator._calculate_sector_stats(sector_holes)
+                self._on_sector_stats_updated(stats)
+        
+        # 更新整体进度统计
+        if self.current_hole_collection:
+            stats_data = self._calculate_overall_stats()
+            if self.left_panel and hasattr(self.left_panel, 'update_progress_display'):
+                self.left_panel.update_progress_display(stats_data)
+    
+    def _on_simulation_completed(self):
+        """处理模拟完成事件"""
+        self.logger.info("🏁 模拟检测完成")
+        # 更新按钮状态
+        if self.right_panel:
+            self.right_panel.start_simulation_btn.setEnabled(True)
+            self.right_panel.pause_simulation_btn.setEnabled(False)
+            self.right_panel.stop_simulation_btn.setEnabled(False)
+    
+    def _calculate_overall_stats(self):
+        """计算整体统计数据"""
+        if not self.current_hole_collection:
+            return {}
+        
+        from src.core_business.models.hole_data import HoleStatus
+        
+        total = len(self.current_hole_collection.holes)
+        qualified = 0
+        defective = 0
+        pending = 0
+        blind = 0
+        tie_rod = 0
+        
+        for hole in self.current_hole_collection.holes.values():
+            # 统计状态
+            if hole.status == HoleStatus.QUALIFIED:
+                qualified += 1
+            elif hole.status == HoleStatus.DEFECTIVE:
+                defective += 1
+            else:
+                pending += 1
+            
+            # 统计类型
+            if hasattr(hole, 'is_blind') and hole.is_blind:
+                blind += 1
+            if hasattr(hole, 'is_tie_rod') and hole.is_tie_rod:
+                tie_rod += 1
+        
+        completed = qualified + defective
+        progress = int((completed / total * 100) if total > 0 else 0)
+        qualification_rate = int((qualified / completed * 100) if completed > 0 else 0)
+        
+        return {
+            'total': total,
+            'qualified': qualified,
+            'unqualified': defective,
+            'not_detected': pending,
+            'completed': completed,
+            'pending': pending,
+            'progress': progress,
+            'completion_rate': progress,
+            'qualification_rate': qualification_rate,
+            'blind': blind,
+            'tie_rod': tie_rod
+        }
 
     
     def load_hole_collection(self, hole_collection):
         """加载孔位数据到视图 - 支持CAP1000和其他DXF"""
+        # 更新当前孔位集合
+        self.current_hole_collection = hole_collection
+        
+        # 加载到协调器触发扇形分配
+        if self.coordinator and hole_collection:
+            self.coordinator.load_hole_collection(hole_collection)
+            self.logger.info("✅ 数据已加载到协调器，扇形分配完成")
+        
         # 清空初始提示文本
         if hasattr(self.center_panel, 'graphics_view') and self.center_panel.graphics_view:
             try:
-                # 获取scene - 注意scene是属性不是方法
+                # 获取scene - 兼容属性和方法两种方式，添加详细调试
+                scene = None
                 if hasattr(self.center_panel.graphics_view, 'scene'):
-                    scene = self.center_panel.graphics_view.scene
-                else:
-                    scene = self.center_panel.graphics_view.scene()
+                    scene_attr = getattr(self.center_panel.graphics_view, 'scene')
+                    self.logger.debug(f"scene_attr类型: {type(scene_attr)}, 值: {scene_attr}")
                     
+                    if callable(scene_attr):
+                        try:
+                            scene = scene_attr()
+                            self.logger.debug(f"调用scene()后获得: {type(scene)}")
+                        except Exception as e:
+                            self.logger.error(f"调用scene()失败: {e}")
+                    else:
+                        scene = scene_attr
+                        self.logger.debug(f"直接使用scene属性: {type(scene)}")
+                        
                 if scene:
-                    scene.clear()
+                    self.logger.debug(f"准备清空scene: {type(scene)}, hasattr(clear): {hasattr(scene, 'clear')}")
+                    if hasattr(scene, 'clear') and callable(getattr(scene, 'clear')):
+                        scene.clear()
+                        self.logger.debug("scene.clear()执行成功")
+                    else:
+                        self.logger.warning(f"scene没有可调用的clear方法: {type(scene)}")
                 
-                # 使用OptimizedGraphicsView的load_holes方法
-                if hasattr(self.center_panel.graphics_view, 'load_holes'):
-                    self.center_panel.graphics_view.load_holes(hole_collection)
-                    self.logger.info(f"✅ 成功加载 {len(hole_collection.holes) if hasattr(hole_collection, 'holes') else 0} 个孔位数据")
-                else:
-                    # 手动绘制孔位
-                    self._draw_holes_to_scene(scene, hole_collection)
+                        # 加载数据到中间面板（同时适用于扇形和全景视图）
+                if hasattr(self.center_panel, 'load_hole_collection'):
+                    self.center_panel.load_hole_collection(self.current_hole_collection)
+                    self.logger.info("✅ 中间面板数据加载完成")
+                
+                # 延迟加载默认扇形，等待扇形分配完成
+                from PySide6.QtCore import QTimer
+                QTimer.singleShot(1000, self._load_default_sector1)
+                
+                self.logger.info("✅ 中间视图准备显示默认扇形")
                     
             except Exception as e:
                 self.logger.error(f"加载孔位数据失败: {e}")
+    
+    def _load_default_sector1(self):
+        """加载默认的sector1区域到中间视图 - 增强版"""
+        try:
+            self.logger.info("🎯 开始加载默认sector1区域")
+            
+            # 导入所需的枚举
+            from src.core_business.graphics.sector_types import SectorQuadrant
+            
+            # 检查必要组件是否就绪
+            if not self.coordinator:
+                self.logger.warning("⚠️ 协调器未初始化，尝试延迟重试")
+                # 延迟3秒重试
+                from PySide6.QtCore import QTimer
+                QTimer.singleShot(3000, self._load_default_sector1)
+                return
+            
+            if not hasattr(self.coordinator, 'select_sector'):
+                self.logger.error("❌ 协调器缺少select_sector方法")
+                return
                 
-        # 更新左侧面板全景预览
-        if self.left_panel and hasattr(self.left_panel, 'sidebar_panorama'):
-            try:
-                if hasattr(self.left_panel.sidebar_panorama, 'load_hole_collection'):
-                    self.left_panel.sidebar_panorama.load_hole_collection(hole_collection)
-                    self.logger.info("✅ 全景预览数据已更新")
-                elif hasattr(self.left_panel.sidebar_panorama, 'update_hole_data'):
-                    self.left_panel.sidebar_panorama.update_hole_data(hole_collection)
-                    self.logger.info("✅ 全景预览数据已更新(兼容方法)")
-            except Exception as e:
-                self.logger.warning(f"全景预览更新失败: {e}")
+            # 检查孔位数据是否已加载
+            if not self.current_hole_collection or len(self.current_hole_collection.holes) == 0:
+                self.logger.warning("⚠️ 孔位数据未加载，无法加载默认sector1")
+                return
+            
+            # 触发sector1区域选择
+            self.coordinator.select_sector(SectorQuadrant.SECTOR_1)
+            self.logger.info("✅ 已自动选择sector1区域")
+            
+            # 确保中间视图正确更新
+            if self.center_panel and hasattr(self.center_panel, 'graphics_view'):
+                    # 中间视图已通过load_hole_collection加载数据
+                self.logger.info("✅ 中间视图已准备显示sector1区域")
+                    
+        except Exception as e:
+            self.logger.error(f"❌ 加载默认sector1失败: {e}")
+            import traceback
+            traceback.print_exc()
+                
+        # 全景显示已集成到中间面板的宏观视图中
         
         # 更新状态统计
-        if self.left_panel:
-            hole_count = len(hole_collection.holes) if hasattr(hole_collection, 'holes') else 0
-            self.left_panel.update_progress_display({
-                'total': hole_count,
-                'qualified': 0,
-                'unqualified': 0,
-                'not_detected': hole_count,
-                'completed': 0,
-                'pending': hole_count,
-                'progress': 0.0,
-                'completion_rate': 0.0,
-                'qualification_rate': 0.0
-            })
+        if self.left_panel and self.current_hole_collection:
+            # 计算整体统计
+            overall_stats = self._calculate_overall_stats()
+            
+            # 更新状态统计显示
+            self.left_panel.update_progress_display(overall_stats)
+            
+            # 同时更新扇形统计（如果有选中的扇形）
+            if self.coordinator and self.coordinator.current_sector:
+                sector_holes = self.coordinator.get_current_sector_holes()
+                if sector_holes:
+                    sector_stats = self.coordinator._calculate_sector_stats(sector_holes)
+                    self._on_sector_stats_updated(sector_stats)
     
     def _draw_holes_to_scene(self, scene, hole_collection):
         """手动绘制孔位到场景"""
@@ -1269,6 +1634,117 @@ class NativeMainDetectionView(QWidget):
     def _on_status_updated(self, hole_id, status):
         """处理状态更新"""
         pass
+    
+    def update_detection_progress(self, progress):
+        """更新检测进度 - 接收来自main_detection_page的进度更新"""
+        if isinstance(progress, tuple) and len(progress) == 2:
+            # 处理 (current, total) 格式
+            current, total = progress
+            progress_percent = int(current / total * 100) if total > 0 else 0
+            self.logger.info(f"📊 进度更新: {current}/{total} = {progress_percent}%")
+        else:
+            # 处理百分比格式
+            progress_percent = int(progress)
+            self.logger.info(f"📊 进度更新: {progress_percent}%")
+        
+        # 更新左侧面板的进度显示
+        if self.left_panel:
+            # 获取当前统计数据
+            stats_data = {
+                'progress': progress_percent,
+                'completion_rate': progress_percent,
+                'qualification_rate': 99.5  # 模拟合格率
+            }
+            
+            # 如果有hole_collection，获取真实统计数据
+            if hasattr(self, 'center_panel') and hasattr(self.center_panel, 'graphics_view'):
+                graphics_view = self.center_panel.graphics_view
+                if hasattr(graphics_view, 'hole_collection'):
+                    hole_collection = graphics_view.hole_collection
+                    if hole_collection:
+                        stats = hole_collection.get_statistics()
+                        stats_data.update({
+                            'total': stats.get('total', 0),
+                            'qualified': stats.get('qualified', 0),
+                            'unqualified': stats.get('unqualified', 0),
+                            'not_detected': stats.get('not_detected', 0),
+                            'blind': stats.get('blind', 0),
+                            'tie_rod': stats.get('tie_rod', 0),
+                            'completed': stats.get('qualified', 0) + stats.get('unqualified', 0),
+                            'pending': stats.get('not_detected', 0)
+                        })
+            
+            self.left_panel.update_progress_display(stats_data)
+    
+    def _on_hole_status_updated(self, hole_id, status):
+        """处理孔位状态更新 - 确保左侧面板信息同步"""
+        self.logger.debug(f"孔位状态更新: {hole_id} -> {status}")
+        
+        # 更新左侧面板信息
+        if self.left_panel and hasattr(self.left_panel, 'update_hole_info'):
+            try:
+                # 获取孔位数据
+                if self.current_hole_collection and hole_id in self.current_hole_collection.holes:
+                    hole_data = self.current_hole_collection.holes[hole_id]
+                    
+                    # 构建信息字典
+                    hole_info = {
+                        'id': hole_id,
+                        'position': f'({hole_data.center_x:.1f}, {hole_data.center_y:.1f})',
+                        'status': str(status.value if hasattr(status, 'value') else status),
+                        'description': '检测更新'
+                    }
+                    
+                    # 更新左侧面板
+                    self.left_panel.update_hole_info(hole_info)
+                    self.logger.debug(f"✅ 左侧面板已更新孔位信息: {hole_id}")
+                    
+            except Exception as e:
+                self.logger.warning(f"更新左侧面板失败: {e}")
+    
+    def _on_sector_stats_updated(self, stats):
+        """处理扇形统计更新"""
+        if self.left_panel:
+            # 更新当前扇形标签
+            if hasattr(self.left_panel, 'current_sector_label'):
+                if self.coordinator and self.coordinator.current_sector:
+                    self.left_panel.current_sector_label.setText(f"当前扇形: {self.coordinator.current_sector.value}")
+                else:
+                    self.left_panel.current_sector_label.setText("当前扇形: 未选择")
+            
+            # 更新扇形统计表格
+            if hasattr(self.left_panel, 'update_sector_stats') and stats:
+                self.left_panel.update_sector_stats(stats)
+                self.logger.info(f"📊 扇形统计表格已更新")
+            elif hasattr(self.left_panel, 'update_sector_stats_text'):
+                # 向后兼容：如果还需要文本格式
+                stats_text = self._format_sector_stats_text(stats)
+                self.left_panel.update_sector_stats_text(stats_text)
+                self.logger.info(f"📊 扇形统计文本已更新")
+    
+    def _format_sector_stats_text(self, stats):
+        """格式化扇形统计为文本（向后兼容）"""
+        if not stats:
+            return "扇形统计信息加载中..."
+        
+        # 检查stats的格式
+        if isinstance(stats, dict):
+            # 如果是扇形->数量的映射
+            if any(hasattr(k, 'value') for k in stats.keys()):
+                stats_text = ""
+                for sector, count in stats.items():
+                    sector_name = sector.value if hasattr(sector, 'value') else str(sector)
+                    stats_text += f"{sector_name}: {count} 个孔位\n"
+                return stats_text.strip()
+            # 如果是状态统计格式
+            else:
+                return (f"待检: {stats.get('pending', 0)}\n"
+                       f"合格: {stats.get('qualified', 0)}\n"
+                       f"异常: {stats.get('defective', 0)}\n"
+                       f"盲孔: {stats.get('blind', 0)}\n"
+                       f"拉杆: {stats.get('tie_rod', 0)}\n"
+                       f"总计: {stats.get('total', 0)}")
+        return "扇形统计信息格式错误"
 
     # === 业务逻辑方法 (集成重构后功能) ===
     
@@ -1281,8 +1757,21 @@ class NativeMainDetectionView(QWidget):
                     product = dialog.selected_product
                     if product:
                         self.logger.info(f"✅ 选择产品: {product}")
+                        
+                        # 更新左侧面板文件信息
                         if self.left_panel:
                             self.left_panel.update_file_info(product_name=str(product))
+                        
+                        # 关键：加载产品数据到控制器和视图
+                        if self.controller and hasattr(self.controller, 'load_product'):
+                            try:
+                                self.controller.load_product(product)
+                                self.logger.info(f"✅ 产品数据加载请求已发送: {product}")
+                            except Exception as e:
+                                self.logger.error(f"加载产品数据失败: {e}")
+                        else:
+                            self.logger.warning("⚠️ 控制器不可用或没有load_product方法")
+                            
             except Exception as e:
                 self.logger.error(f"产品选择失败: {e}")
 
@@ -1298,6 +1787,27 @@ class NativeMainDetectionView(QWidget):
             self.logger.info(f"📁 加载DXF文件: {file_path}")
             if self.left_panel:
                 self.left_panel.update_file_info(dxf_path=file_path)
+            
+            # 使用DXF加载服务加载文件
+            try:
+                from src.pages.main_detection_p1.services.dxf_loader_service import DXFLoaderService
+                loader = DXFLoaderService()
+                hole_collection = loader.load_dxf_file(file_path)
+                
+                if hole_collection:
+                    self.logger.info(f"✅ DXF加载成功: {len(hole_collection.holes)} 个孔位")
+                    
+                    # 加载到视图（内部会处理协调器和扇形分配）
+                    self.load_hole_collection(hole_collection)
+                    
+                else:
+                    self.logger.error("❌ DXF文件加载失败")
+                    
+            except Exception as e:
+                self.logger.error(f"❌ 加载DXF文件出错: {e}")
+                import traceback
+                traceback.print_exc()
+                
             self.file_loaded.emit(file_path)
 
     # === 公共接口方法 ===

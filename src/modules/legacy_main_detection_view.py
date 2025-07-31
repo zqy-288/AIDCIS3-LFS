@@ -17,7 +17,7 @@ try:
     from src.ui.components.toolbar_component import ToolbarComponent
     from src.ui.components.operations_panel_component import OperationsPanelComponent
     from src.ui.components.info_panel_component import InfoPanelComponent
-    from src.ui.components.visualization_panel_component import VisualizationPanelComponent
+    from src.pages.main_detection_p1.ui.components.visualization_panel_component import VisualizationPanelComponent
     from src.ui.view_models.main_view_model import MainViewModel
     from src.controllers.main_window_controller import MainWindowController
     from src.services import get_graphics_service
@@ -28,9 +28,9 @@ except ImportError as e:
 
 # 导入全景图组件
 try:
-    from src.core_business.graphics.panorama.panorama_widget import PanoramaWidget
-    from src.core_business.graphics.panorama.view_controller import PanoramaViewController
-    from src.core_business.graphics.panorama.di_container import DIContainer
+    from src.modules.panorama_view.panorama_widget import PanoramaWidget
+    from src.modules.panorama_view.view_controller import PanoramaViewController
+    from src.modules.panorama_view.di_container import DIContainer
     HAS_PANORAMA = True
 except ImportError as e:
     logging.warning(f"无法导入全景图组件: {e}")

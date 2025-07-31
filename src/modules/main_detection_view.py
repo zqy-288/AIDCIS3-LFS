@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
 from PySide6.QtCore import Qt, Signal, QTimer, QStringListModel
 from PySide6.QtGui import QFont
 
-from .workpiece_diagram import WorkpieceDiagram, DetectionStatus
+# from .workpiece_diagram import WorkpieceDiagram, DetectionStatus  # 已移至trash
 
 
 class MainDetectionView(QWidget):

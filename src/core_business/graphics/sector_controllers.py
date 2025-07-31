@@ -312,7 +312,7 @@ class UnifiedPanoramaController(QObject):
         layout.addWidget(title_label)
         
         # 创建迷你全景图组件
-        from src.core_business.graphics.dynamic_sector_view import CompletePanoramaWidget
+        from src.pages.main_detection_p1.components.graphics.complete_panorama_widget import CompletePanoramaWidget
         mini_panorama = CompletePanoramaWidget()
         mini_panorama.setFixedSize(200, 150)
         

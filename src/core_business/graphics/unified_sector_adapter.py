@@ -7,18 +7,18 @@ from typing import Dict, List, Optional, Any
 from PySide6.QtCore import QObject, Signal, QPointF
 from PySide6.QtGui import QColor
 
-from src.core_business.coordinate_system import (
-    UnifiedCoordinateManager, CoordinateConfig, CoordinateSystem
-)
 from src.core_business.graphics.sector_types import SectorQuadrant, SectorProgress
 from src.core_business.models.hole_data import HoleData, HoleCollection, HoleStatus
 from src.core_business.geometry.adaptive_angle_calculator import AdaptiveAngleCalculator, AdaptiveAngleConfig
+
+# 导入新的扇形分配管理器
+from src.pages.main_detection_p1.components.sector_assignment_manager import SectorAssignmentManager
 
 
 class UnifiedSectorAdapter(QObject):
     """
     统一扇形管理适配器
-    提供与现有SectorManager兼容的接口，内部使用UnifiedCoordinateManager
+    提供与现有SectorManager兼容的接口，内部使用SectorAssignmentManager
     使用单例模式避免重复初始化和数据处理
     """
     
@@ -31,7 +31,6 @@ class UnifiedSectorAdapter(QObject):
     overall_progress_updated = Signal(dict)  # DEPRECATED
     
     # 新增信号
-    coordinate_system_changed = Signal(CoordinateSystem)
     unified_debug_info = Signal(str)
     
     def __new__(cls, parent=None, debug_enabled: bool = True):
@@ -58,24 +57,10 @@ class UnifiedSectorAdapter(QObject):
             'geometry_bounds': None   # 缓存几何边界信息
         }
         
-        # 旋转功能已全面禁用，注释掉相关代码
-        # # from src.core_business.graphics.rotation_stub import get_rotation_manager  # 旋转功能已禁用
-        # # rotation_manager = get_rotation_manager()  # 旋转功能已禁用
-        
-        # 创建统一坐标管理器 - 旋转功能已禁用
-        config = CoordinateConfig(
-            rotation_enabled=False,  # 旋转功能已禁用
-            rotation_angle=0.0,      # 角度设为0
-            rotation_center_mode="geometric_center",
-            sector_center_mode="geometric_center",
-            debug_enabled=debug_enabled,
-            debug_sample_count=5
-        )
-        
-        # 使用类级别的坐标管理器，确保所有实例共享同一个
-        if not hasattr(self.__class__, '_unified_manager'):
-            self.__class__._unified_manager = UnifiedCoordinateManager(config)
-        self.unified_manager = self.__class__._unified_manager
+        # 使用类级别的扇形分配管理器，确保所有实例共享同一个
+        if not hasattr(self.__class__, '_sector_manager'):
+            self.__class__._sector_manager = SectorAssignmentManager()
+        self.sector_manager = self.__class__._sector_manager
         
         # 创建自适应角度计算器 - 使用单例模式
         if not hasattr(self.__class__, '_angle_calculator'):
@@ -89,9 +74,8 @@ class UnifiedSectorAdapter(QObject):
         self.angle_calculator = self.__class__._angle_calculator
         
         # 连接信号
-        self.unified_manager.coordinate_system_changed.connect(self.coordinate_system_changed.emit)
-        self.unified_manager.sector_assignments_updated.connect(self._on_sector_assignments_updated)
-        self.unified_manager.debug_info_updated.connect(self.unified_debug_info.emit)
+        self.sector_manager.sector_assignments_updated.connect(self._on_sector_assignments_updated)
+        self.sector_manager.debug_info_updated.connect(self.unified_debug_info.emit)
         
         # 兼容性数据
         self.hole_collection: Optional[HoleCollection] = None
@@ -137,11 +121,12 @@ class UnifiedSectorAdapter(QObject):
         print(f"🔄 [统一适配器] 开始加载孔位集合: {len(hole_collection.holes)} 个孔位")
         
         self.hole_collection = hole_collection
+        self._current_hole_collection = hole_collection  # 内部缓存
         
-        # 使用统一坐标管理器处理
-        print(f"🔍 [统一适配器] 调用 unified_manager.initialize_from_hole_collection")
-        self.unified_manager.initialize_from_hole_collection(hole_collection)
-        print(f"🔍 [统一适配器] 初始化完成，sector_assignments: {len(self.unified_manager.sector_assignments)}")
+        # 使用扇形分配管理器处理
+        print(f"🔍 [统一适配器] 调用 sector_manager.set_hole_collection")
+        self.sector_manager.set_hole_collection(hole_collection)
+        print(f"🔍 [统一适配器] 初始化完成，sector_assignments: {len(self.sector_manager.sector_assignments)}")
         
         # 计算自适应角度（使用缓存）
         self._calculate_adaptive_angles(hole_collection)
@@ -160,10 +145,10 @@ class UnifiedSectorAdapter(QObject):
     def _sync_compatibility_data(self):
         """同步数据到兼容性接口"""
         # 同步扇形分配
-        self.sector_assignments = self.unified_manager.sector_assignments.copy()
+        self.sector_assignments = self.sector_manager.sector_assignments.copy()
         
         # 同步中心点
-        self.center_point = self.unified_manager.sector_center
+        self.center_point = self.sector_manager.sector_center
         
         print(f"🔄 [统一适配器] 数据同步完成: {len(self.sector_assignments)} 个扇形分配")
     
@@ -181,7 +166,7 @@ class UnifiedSectorAdapter(QObject):
     
     def _initialize_sector_progress(self):
         """初始化各扇形区域的进度统计"""
-        sector_counts = self.unified_manager.get_all_sector_counts()
+        sector_counts = self.sector_manager.get_all_sector_counts()
         
         # 创建进度对象
         for sector in SectorQuadrant:
@@ -205,7 +190,7 @@ class UnifiedSectorAdapter(QObject):
             return
         
         # 获取该扇形的所有孔位
-        sector_holes = self.unified_manager.get_sector_holes(sector)
+        sector_holes = self.sector_manager.get_sector_holes(sector)
         
         # 统计各状态数量
         completed = 0
@@ -280,7 +265,7 @@ class UnifiedSectorAdapter(QObject):
                 return []
             
             # 从内部缓存的扇形分配中获取
-            sector_hole_ids = [hole_id for hole_id, assigned_sector in self.unified_manager.sector_assignments.items() 
+            sector_hole_ids = [hole_id for hole_id, assigned_sector in self.sector_manager.sector_assignments.items() 
                               if assigned_sector == sector]
             
             sector_holes = [self._current_hole_collection.holes[hole_id] 
@@ -299,12 +284,12 @@ class UnifiedSectorAdapter(QObject):
         """获取孔位所属的扇形区域 - 修复循环依赖"""
         try:
             # 修复循环依赖：使用内部扇形分配数据
-            if not hasattr(self.unified_manager, 'sector_assignments'):
+            if not hasattr(self.sector_manager, 'sector_assignments'):
                 print(f"⚠️ [UnifiedSectorAdapter] 扇形分配数据未初始化")
                 return None
             
             # 从内部扇形分配中查找
-            assigned_sector = self.unified_manager.sector_assignments.get(hole_id)
+            assigned_sector = self.sector_manager.sector_assignments.get(hole_id)
             if assigned_sector:
                 print(f"✅ [UnifiedSectorAdapter] 孔位 {hole_id} 属于扇形 {assigned_sector.name}")
             else:
@@ -341,11 +326,11 @@ class UnifiedSectorAdapter(QObject):
     
     def get_sector_for_hole(self, hole_id: str) -> Optional[SectorQuadrant]:
         """获取指定孔位所属的扇形区域"""
-        return self.unified_manager.get_hole_sector(hole_id)
+        return self.sector_manager.get_hole_sector(hole_id)
     
     def cleanup_resources(self) -> None:
         """清理资源"""
-        self.unified_manager.clear()
+        self.sector_manager.clear()
         self.sector_assignments.clear()
         self.sector_progresses.clear()
         self.hole_collection = None
@@ -357,25 +342,19 @@ class UnifiedSectorAdapter(QObject):
     # 新增的统一管理功能
     # =================================
     
-    def get_coordinate_system(self) -> CoordinateSystem:
-        """获取当前坐标系"""
-        return self.unified_manager.current_coordinate_system
     
-    def get_coordinate_transformation(self, hole_id: str) -> Optional[Dict]:
-        """获取孔位的坐标变换信息"""
-        return self.unified_manager.get_coordinate_transformation(hole_id)
     
     def get_unified_sector_info(self, sector: SectorQuadrant):
         """获取统一的扇形信息"""
-        return self.unified_manager.get_sector_info(sector)
+        return self.sector_manager.get_sector_info(sector)
     
     def get_all_unified_sector_info(self):
         """获取所有统一的扇形信息"""
-        return self.unified_manager.get_all_sector_info()
+        return self.sector_manager.get_all_sector_info()
     
     def get_performance_stats(self) -> Dict[str, Any]:
         """获取性能统计信息"""
-        unified_stats = self.unified_manager.get_performance_stats()
+        unified_stats = self.sector_manager.get_performance_stats()
         return {
             **unified_stats,
             'adapter_info': {
@@ -387,13 +366,8 @@ class UnifiedSectorAdapter(QObject):
     
     def enable_debug(self, enabled: bool = True):
         """启用/禁用调试模式"""
-        self.unified_manager.enable_debug(enabled)
+        self.sector_manager.enable_debug(enabled)
     
-    def reconfigure_coordinate_system(self, config: CoordinateConfig):
-        """重新配置坐标系统"""
-        self.unified_manager.reconfigure(config)
-        self._sync_compatibility_data()
-        self._initialize_sector_progress()
     
     def set_dynamic_mode(self, enabled: bool, sector_count: int = 4):
         """设置是否使用动态扇形模式（兼容性方法）"""
@@ -418,7 +392,7 @@ class UnifiedSectorAdapter(QObject):
     
     def get_manager_type(self) -> str:
         """获取管理器类型"""
-        return "UnifiedCoordinateManager"
+        return "SectorAssignmentManager"
     
     def is_enhanced_mode(self) -> bool:
         """是否为增强模式"""
@@ -426,7 +400,7 @@ class UnifiedSectorAdapter(QObject):
     
     def get_enhanced_manager(self):
         """获取增强管理器"""
-        return self.unified_manager
+        return self.sector_manager
     
     def get_sector_by_index(self, index: int):
         """根据索引获取扇形"""
@@ -441,11 +415,11 @@ class UnifiedSectorAdapter(QObject):
     
     def get_manager(self):
         """获取管理器实例"""
-        return self.unified_manager
+        return self.sector_manager
     
     def export_debug_report(self) -> Dict[str, Any]:
         """导出调试报告"""
-        unified_info = self.unified_manager.get_all_sector_info()
+        unified_info = self.sector_manager.get_all_sector_info()
         
         report = {
             'coordinate_system': self.get_coordinate_system().value,
@@ -455,7 +429,7 @@ class UnifiedSectorAdapter(QObject):
             },
             'sector_assignments': {
                 sector.value: {
-                    'hole_count': self.unified_manager.get_sector_count(sector),
+                    'hole_count': self.sector_manager.get_sector_count(sector),
                     'quadrant_definition': info.quadrant_definition if info else 'Unknown',
                     'sample_holes': [sample['hole_id'] for sample in info.sample_holes[:3]] if info else []
                 }
@@ -497,7 +471,7 @@ class UnifiedSectorAdapter(QObject):
         """更新缓存数据"""
         self._cache.update({
             'processed_collection': hole_collection,
-            'coordinate_manager': self.unified_manager,
+            'sector_manager': self.sector_manager,
             'last_rotation': 90.0,  # 当前固定旋转角度
             'last_center': self.center_point,
             'hole_collection_hash': data_hash
@@ -523,7 +497,7 @@ class UnifiedSectorAdapter(QObject):
             'sector_assignments': self.sector_assignments.copy(),
             'center_point': self.center_point,
             'sector_progresses': self.sector_progresses.copy(),
-            'coordinate_manager': self.unified_manager,
+            'sector_manager': self.sector_manager,
             'is_cached': self._cache['hole_collection_hash'] is not None,
             'adaptive_angles': self._cache.get('adaptive_angles'),  # 提供自适应角度数据
             'geometry_bounds': self._cache.get('geometry_bounds')   # 提供几何边界数据

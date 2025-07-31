@@ -1,6 +1,6 @@
 """
 中间可视化面板组件 - 独立高内聚模块
-负责显示管孔检测视图，包括视图模式切换、扇形导航、图形显示等
+负责显示管孔检测视图，包括视图模式切换、图形显示等
 """
 
 import logging
@@ -21,17 +21,17 @@ class CenterVisualizationPanel(QWidget):
     # 信号定义
     hole_selected = Signal(str)
     view_mode_changed = Signal(str)
-    sector_navigation_requested = Signal(str)
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self.logger = logging.getLogger(__name__)
         
         # 组件状态
-        self.current_view_mode = "macro"
+        self.current_view_mode = "micro"  # 默认为微观扇形视图
         self.current_sector = None
         self.graphics_view = None
         self.workpiece_diagram = None  # 兼容性引用
+        self.panorama_widget = None  # 全景组件（宏观视图时使用）
         
         # 初始化UI
         self.setup_ui()
@@ -80,49 +80,25 @@ class CenterVisualizationPanel(QWidget):
         view_label.setFont(QFont("Arial", 11, QFont.Bold))
         layout.addWidget(view_label)
         
-        # 宏观区域视图按钮 (old版本样式)
+        # 宏观区域视图按钮 (显示完整圆形全景)
         self.macro_view_btn = QPushButton("📊 宏观区域视图")
         self.macro_view_btn.setCheckable(True)
-        self.macro_view_btn.setChecked(True)
+        self.macro_view_btn.setChecked(False)  # 不再默认选中
         self.macro_view_btn.setMinimumHeight(35)
         self.macro_view_btn.setMinimumWidth(140)
-        self.macro_view_btn.setToolTip("显示整个管板的全貌，适合快速浏览和状态概览")
+        self.macro_view_btn.setToolTip("显示完整的管板全景图，适合快速浏览和状态概览")
         
-        # 微观孔位视图按钮
+        # 微观孔位视图按钮（默认选中）
         self.micro_view_btn = QPushButton("🔍 微观孔位视图")
         self.micro_view_btn.setCheckable(True)
+        self.micro_view_btn.setChecked(True)  # 默认选中扇形视图
         self.micro_view_btn.setMinimumHeight(35)
         self.micro_view_btn.setMinimumWidth(140)
-        self.micro_view_btn.setToolTip("显示孔位的详细信息，适合精确检测和分析")
-        
-        # 全景总览视图按钮
-        self.panorama_view_btn = QPushButton("🌍 全景总览视图")
-        self.panorama_view_btn.setCheckable(True)
-        self.panorama_view_btn.setMinimumHeight(35)
-        self.panorama_view_btn.setMinimumWidth(140)
-        self.panorama_view_btn.setToolTip("显示完整的管板全景图，适合整体分析")
+        self.micro_view_btn.setToolTip("显示扇形区域的详细信息，适合精确检测和分析")
         
         layout.addWidget(self.macro_view_btn)
         layout.addWidget(self.micro_view_btn)
-        layout.addWidget(self.panorama_view_btn)
         
-        layout.addSpacing(20)
-        
-        # 扇形导航控制 (old版本样式)
-        nav_label = QLabel("扇形导航:")
-        nav_label.setFont(QFont("Arial", 11, QFont.Bold))
-        layout.addWidget(nav_label)
-        
-        self.prev_sector_btn = QPushButton("◀ 上一扇形")
-        self.prev_sector_btn.setMinimumHeight(35)
-        self.prev_sector_btn.setMinimumWidth(100)
-        
-        self.next_sector_btn = QPushButton("下一扇形 ▶")
-        self.next_sector_btn.setMinimumHeight(35)
-        self.next_sector_btn.setMinimumWidth(100)
-        
-        layout.addWidget(self.prev_sector_btn)
-        layout.addWidget(self.next_sector_btn)
         
         layout.addStretch()
         return control_frame
@@ -147,11 +123,11 @@ class CenterVisualizationPanel(QWidget):
         view.setMinimumSize(800, 700)
         
         # 显示初始提示信息
-        text_item = QGraphicsTextItem("请选择产品型号 (CAP1000) 或加载DXF文件")
+        text_item = QGraphicsTextItem("请选择产品型号或加载DXF文件\n默认显示扇形视图")
         font = QFont()
         font.setPointSize(14)
         text_item.setFont(font)
-        text_item.setPos(250, 350)
+        text_item.setPos(200, 300)
         scene.addItem(text_item)
         
         return view
@@ -178,20 +154,22 @@ class CenterVisualizationPanel(QWidget):
         # 视图模式按钮连接
         self.macro_view_btn.clicked.connect(lambda: self._on_view_mode_changed("macro"))
         self.micro_view_btn.clicked.connect(lambda: self._on_view_mode_changed("micro"))
-        self.panorama_view_btn.clicked.connect(lambda: self._on_view_mode_changed("panorama"))
         
-        # 扇形导航按钮连接
-        self.prev_sector_btn.clicked.connect(lambda: self.sector_navigation_requested.emit("previous"))
-        self.next_sector_btn.clicked.connect(lambda: self.sector_navigation_requested.emit("next"))
 
     def _on_view_mode_changed(self, mode):
         """处理视图模式变化"""
         # 更新按钮状态
         self.macro_view_btn.setChecked(mode == "macro")
         self.micro_view_btn.setChecked(mode == "micro")
-        self.panorama_view_btn.setChecked(mode == "panorama")
         
         self.current_view_mode = mode
+        
+        # 根据模式切换显示的组件
+        if mode == "macro":
+            self._show_panorama_view()
+        else:  # micro
+            self._show_sector_view()
+            
         self.view_mode_changed.emit(mode)
         self.logger.info(f"🔄 视图模式切换到: {mode}")
 
@@ -219,6 +197,63 @@ class CenterVisualizationPanel(QWidget):
         self.current_sector = sector
         self.logger.info(f"扇形显示已更新: {sector}")
 
+    def _show_panorama_view(self):
+        """显示全景视图（宏观模式）"""
+        if not self.panorama_widget:
+            self._create_panorama_widget()
+            
+        # 隐藏原有的graphics_view
+        if self.graphics_view:
+            self.graphics_view.hide()
+            
+        # 显示全景组件
+        if self.panorama_widget:
+            self.panorama_widget.show()
+            
+    def _show_sector_view(self):
+        """显示扇形视图（微观模式）"""
+        # 隐藏全景组件
+        if self.panorama_widget:
+            self.panorama_widget.hide()
+            
+        # 显示原有的graphics_view
+        if self.graphics_view:
+            self.graphics_view.show()
+            
+    def _create_panorama_widget(self):
+        """创建全景组件"""
+        try:
+            from src.pages.main_detection_p1.components.graphics.complete_panorama_widget import CompletePanoramaWidget
+            
+            self.panorama_widget = CompletePanoramaWidget()
+            # 设置适合中间栏的尺寸
+            self.panorama_widget.setMinimumSize(600, 600)
+            
+            # 将全景组件添加到主显示区域
+            main_widget = self.findChild(QWidget)
+            if main_widget and main_widget.layout():
+                main_widget.layout().addWidget(self.panorama_widget)
+                
+            # 初始时隐藏
+            self.panorama_widget.hide()
+            
+            self.logger.info("✅ 全景组件创建成功")
+            
+        except Exception as e:
+            self.logger.warning(f"全景组件创建失败: {e}")
+            
+    def load_hole_collection(self, hole_collection):
+        """加载孔位集合到两个视图"""
+        # 加载到扇形视图
+        if self.graphics_view and hasattr(self.graphics_view, 'load_holes'):
+            self.graphics_view.load_holes(hole_collection)
+            
+        # 加载到全景视图
+        if self.panorama_widget and hasattr(self.panorama_widget, 'load_complete_view'):
+            self.panorama_widget.load_complete_view(hole_collection)
+            
+        self.logger.info("✅ 孔位集合已加载到两个视图")
+
     def clear_display(self):
         """清空显示"""
         scene = self.get_scene()
@@ -226,9 +261,9 @@ class CenterVisualizationPanel(QWidget):
             scene.clear()
             
             # 重新显示提示信息
-            text_item = QGraphicsTextItem("请选择产品型号 (CAP1000) 或加载DXF文件")
+            text_item = QGraphicsTextItem("请选择产品型号或加载DXF文件\n默认显示扇形视图")
             font = QFont()
             font.setPointSize(14)
             text_item.setFont(font)
-            text_item.setPos(250, 350)
+            text_item.setPos(200, 300)
             scene.addItem(text_item)

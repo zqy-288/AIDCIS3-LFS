@@ -31,15 +31,15 @@ from .components import (
 
 # 导入现有的重构后功能模块
 try:
-    from src.controllers.main_window_controller import MainWindowController
-    from src.controllers.services.search_service import SearchService
-    from src.controllers.services.status_service import StatusService
-    from src.controllers.services.file_service import FileService
+    from .controllers.main_window_controller import MainWindowController
+    from .controllers.services.search_service import SearchService
+    from .controllers.services.status_service import StatusService
+    from .controllers.services.file_service import FileService
     from src.core_business.graphics.graphics_view import OptimizedGraphicsView
     from src.core_business.graphics.complete_panorama_widget import CompletePanoramaWidget
     from src.core.shared_data_manager import SharedDataManager
     shared_data_manager = SharedDataManager()
-    from src.modules.product_selection import ProductSelectionDialog
+    from .modules.product_selection import ProductSelectionDialog
     HAS_REFACTORED_MODULES = True
 except ImportError as e:
     logging.warning(f"部分重构模块导入失败: {e}")
@@ -258,7 +258,6 @@ class NativeMainDetectionView(QWidget):
         # 中间面板信号
         self.center_panel.hole_selected.connect(self._on_hole_selected)
         self.center_panel.view_mode_changed.connect(self._on_view_mode_changed)
-        self.center_panel.sector_navigation_requested.connect(self._on_sector_navigation)
         
         # 全景扇形协调器信号
         self.panorama_coordinator.sector_clicked.connect(self._on_sector_clicked)
@@ -375,7 +374,7 @@ class NativeMainDetectionView(QWidget):
                 hole_info = {
                     'id': hole.hole_id,
                     'position': f"({hole.center_x:.1f}, {hole.center_y:.1f})",
-                    'status': hole.detection_status.value if hole.detection_status else '待检',
+                    'status': hole.status.value if hole.status else '待检',
                     'description': f"半径: {hole.radius:.1f}mm"
                 }
                 self.left_panel.update_hole_info(hole_info)
@@ -383,10 +382,6 @@ class NativeMainDetectionView(QWidget):
     def _on_view_mode_changed(self, mode):
         """处理视图模式变化"""
         self.logger.info(f"视图模式: {mode}")
-        
-    def _on_sector_navigation(self, direction):
-        """处理扇形导航"""
-        self.logger.info(f"扇形导航: {direction}")
         
     def _on_sector_clicked(self, sector):
         """处理扇形点击"""

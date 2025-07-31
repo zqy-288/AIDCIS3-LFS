@@ -19,7 +19,7 @@ from ..exceptions.main_exceptions import ViewControllerError
 from .view_models.main_view_model import MainViewModel, MessageLevel
 from .components.toolbar_component import ToolbarComponent
 from .components.info_panel_component import InfoPanelComponent  
-from .components.visualization_panel_component import VisualizationPanelComponent
+from ..pages.main_detection_p1.ui.components.visualization_panel_component import VisualizationPanelComponent
 from .components.operations_panel_component import OperationsPanelComponent
 
 

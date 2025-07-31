@@ -126,7 +126,7 @@ class SharedDataManager(QObject):
         
         # 更新共享状态并保存扇形分配结果
         self.current_hole_collection = hole_collection
-        self.sector_assignments = self.unified_adapter.unified_manager.sector_assignments.copy()
+        self.sector_assignments = self.unified_adapter.sector_manager.sector_assignments.copy()
         self.sector_progresses = self.unified_adapter.sector_progresses.copy()
         self.processed_data_available = True
         
