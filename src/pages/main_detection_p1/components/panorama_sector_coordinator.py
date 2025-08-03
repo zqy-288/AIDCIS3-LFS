@@ -101,6 +101,10 @@ class PanoramaSectorCoordinator(QObject):
         self.logger.info(f"🖱️ 扇形点击: {sector.value}")
         
         # 更新当前扇形
+        self.set_current_sector(sector)
+        
+    def set_current_sector(self, sector: SectorQuadrant):
+        """设置当前扇形（可由外部调用，如模拟控制器）"""
         self.current_sector = sector
         
         # 获取扇形孔位
@@ -133,14 +137,15 @@ class PanoramaSectorCoordinator(QObject):
         return filtered_collection
         
     def _update_center_view(self, filtered_collection: HoleCollection):
-        """更新中心视图显示过滤后的孔位（带强制刷新）"""
-        if hasattr(self.graphics_view, 'load_holes'):
-            # 使用新的加载方法
-            self.graphics_view.load_holes(filtered_collection)
-            self.logger.info(f"✅ 中心视图已更新: {len(filtered_collection.holes)} 个孔位")
-        elif hasattr(self.graphics_view, 'scene'):
-            # 使用场景过滤方法
+        """更新中心视图显示过滤后的孔位（使用场景过滤避免重新加载）"""
+        # 优先使用场景过滤方法，避免重新加载导致的闪烁
+        if hasattr(self.graphics_view, 'scene'):
             self._filter_scene_items(filtered_collection)
+            self.logger.info(f"✅ 中心视图已过滤: {len(filtered_collection.holes)} 个孔位")
+        elif hasattr(self.graphics_view, 'load_holes'):
+            # 备选方案：重新加载（会导致闪烁）
+            self.graphics_view.load_holes(filtered_collection)
+            self.logger.info(f"✅ 中心视图已重新加载: {len(filtered_collection.holes)} 个孔位")
             
         # 强制刷新视图以确保扇形更新可见
         self._force_refresh_center_view(filtered_collection)
@@ -156,6 +161,53 @@ class PanoramaSectorCoordinator(QObject):
                 scene = self.graphics_view.scene()
             except:
                 pass
+                
+        if not scene or not filtered_collection:
+            return
+            
+        # 获取过滤后的孔位ID集合
+        filtered_ids = set(filtered_collection.holes.keys())
+        
+        # 收集可见项的边界，用于后续fitInView
+        visible_bounds = None
+        visible_count = 0
+        hidden_count = 0
+        
+        # 遍历场景中的所有项
+        for item in scene.items():
+            # 检查是否为孔位项
+            hole_id = item.data(0)  # Qt.UserRole = 0
+            if hole_id:
+                if hole_id in filtered_ids:
+                    item.setVisible(True)
+                    visible_count += 1
+                    # 更新可见项的边界
+                    item_rect = item.boundingRect()
+                    item_pos = item.pos()
+                    scene_rect = item_rect.translated(item_pos)
+                    if visible_bounds is None:
+                        visible_bounds = scene_rect
+                    else:
+                        visible_bounds = visible_bounds.united(scene_rect)
+                else:
+                    item.setVisible(False)
+                    hidden_count += 1
+                    
+        self.logger.info(f"场景过滤完成: 显示 {visible_count}, 隐藏 {hidden_count}")
+        
+        # 调整视图以适应可见项
+        if visible_bounds and hasattr(self.graphics_view, 'fitInView'):
+            from PySide6.QtCore import Qt, QRectF
+            # 添加边距
+            margin = 50
+            view_rect = QRectF(
+                visible_bounds.x() - margin,
+                visible_bounds.y() - margin,
+                visible_bounds.width() + 2 * margin,
+                visible_bounds.height() + 2 * margin
+            )
+            self.graphics_view.fitInView(view_rect, Qt.KeepAspectRatio)
+            self.logger.info(f"✅ 视图已调整到扇形区域")
                 
     def _force_refresh_center_view(self, filtered_collection=None):
         """强制刷新中心视图以确保扇形更新可见"""
@@ -177,37 +229,10 @@ class PanoramaSectorCoordinator(QObject):
                 if scene:
                     scene.update()
                     
-                # 额外强制刷新：触发视图重绘
-                if hasattr(self.graphics_view, 'update'):
-                    self.graphics_view.update()
-                    
                 self.logger.info("✨ 强制刷新中心视图完成")
                     
         except Exception as e:
             self.logger.warning(f"强制刷新中心视图失败: {e}")
-                
-        if not scene or not filtered_collection:
-            return
-            
-        # 获取过滤后的孔位ID集合
-        filtered_ids = set(filtered_collection.holes.keys())
-        
-        # 遍历场景中的所有项
-        visible_count = 0
-        hidden_count = 0
-        
-        for item in scene.items():
-            # 检查是否为孔位项
-            hole_id = item.data(0)  # Qt.UserRole = 0
-            if hole_id:
-                if hole_id in filtered_ids:
-                    item.setVisible(True)
-                    visible_count += 1
-                else:
-                    item.setVisible(False)
-                    hidden_count += 1
-                    
-        self.logger.info(f"场景过滤完成: 显示 {visible_count}, 隐藏 {hidden_count}")
         
     def _calculate_sector_stats(self, holes: List[HoleData]) -> dict:
         """计算扇形统计信息"""
@@ -220,31 +245,29 @@ class PanoramaSectorCoordinator(QObject):
             'tie_rod': 0
         }
         
+        # 导入HoleStatus枚举以进行准确比较
+        from src.core_business.models.hole_data import HoleStatus
+        
         for hole in holes:
             # 根据状态统计
             if hasattr(hole, 'status'):
                 status = hole.status
                 if status:
-                    status_value = status.value if hasattr(status, 'value') else str(status)
-                    if 'qualified' in status_value:
+                    # 直接比较枚举值
+                    if status == HoleStatus.QUALIFIED:
                         stats['qualified'] += 1
-                    elif 'defective' in status_value:
+                    elif status == HoleStatus.DEFECTIVE:
                         stats['defective'] += 1
-                    else:
+                    elif status == HoleStatus.PENDING:
                         stats['pending'] += 1
-            elif hasattr(hole, 'status'):
-                # 使用status属性
-                status = hole.status
-                if status:
-                    status_value = status.value if hasattr(status, 'value') else str(status).lower()
-                    if 'qualified' in status_value:
-                        stats['qualified'] += 1
-                    elif 'defective' in status_value:
-                        stats['defective'] += 1
                     else:
+                        # 其他状态也归为待检
                         stats['pending'] += 1
+                else:
+                    # 状态为None时归为待检
+                    stats['pending'] += 1
             else:
-                # 默认为待检
+                # 没有status属性时默认为待检
                 stats['pending'] += 1
                     
             # 根据类型统计

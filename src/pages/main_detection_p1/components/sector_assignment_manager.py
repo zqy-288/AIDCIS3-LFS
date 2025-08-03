@@ -1,6 +1,6 @@
 """
 扇形分配管理器
-负责根据Qt坐标系正确分配孔位到对应扇形
+负责根据数学坐标系（Y轴向上）正确分配孔位到对应扇形
 """
 
 from typing import Dict, List, Optional, Tuple
@@ -25,7 +25,7 @@ class SectorInfo:
     
 
 class SectorAssignmentManager(QObject):
-    """扇形分配管理器 - 处理Qt坐标系下的扇形分配"""
+    """扇形分配管理器 - 处理数学坐标系下的扇形分配"""
     
     # 信号
     sector_assignments_updated = Signal(dict)  # 扇形分配更新信号
@@ -49,12 +49,12 @@ class SectorAssignmentManager(QObject):
             SectorQuadrant.SECTOR_4: QColor(156, 39, 176),  # 紫色 - 右下
         }
         
-        # Qt坐标系下的象限定义
+        # Qt坐标系下的象限定义（Y轴向下）
         self.quadrant_definitions = {
-            SectorQuadrant.SECTOR_1: "dx>=0, dy<=0 (Qt右上)",
-            SectorQuadrant.SECTOR_2: "dx<0,  dy<=0 (Qt左上)",
-            SectorQuadrant.SECTOR_3: "dx<0,  dy>0  (Qt左下)",
-            SectorQuadrant.SECTOR_4: "dx>=0, dy>0  (Qt右下)"
+            SectorQuadrant.SECTOR_1: "dx>=0, dy<0  (右上)",
+            SectorQuadrant.SECTOR_2: "dx<0,  dy<0  (左上)",
+            SectorQuadrant.SECTOR_3: "dx<0,  dy>=0 (左下)",
+            SectorQuadrant.SECTOR_4: "dx>=0, dy>=0 (右下)"
         }
         
     def set_hole_collection(self, hole_collection: HoleCollection) -> None:
@@ -101,7 +101,7 @@ class SectorAssignmentManager(QObject):
         print(f"计算中心点: ({center_x}, {center_y}), sector_center设置为: {self.sector_center}")
             
     def _perform_sector_assignment(self) -> None:
-        """执行扇形分配 - 考虑Qt坐标系"""
+        """执行扇形分配 - 使用Qt坐标系"""
         if not self.hole_collection:
             print("警告：无法执行扇形分配，缺少孔位集合")
             return
@@ -120,16 +120,29 @@ class SectorAssignmentManager(QObject):
             dx = hole.center_x - center_x
             dy = hole.center_y - center_y
             
-            # 确定扇形（考虑Qt坐标系Y轴向下）
-            # 在数据中 y>0 表示上方，但在Qt显示中会在下方
-            if dx >= 0 and dy <= 0:
-                sector = SectorQuadrant.SECTOR_1  # Qt显示的右上（y<0在屏幕上方）
-            elif dx < 0 and dy <= 0:
-                sector = SectorQuadrant.SECTOR_2  # Qt显示的左上（y<0在屏幕上方）
-            elif dx < 0 and dy > 0:
-                sector = SectorQuadrant.SECTOR_3  # Qt显示的左下（y>0在屏幕下方）
-            else:  # dx >= 0 and dy > 0
-                sector = SectorQuadrant.SECTOR_4  # Qt显示的右下（y>0在屏幕下方）
+            # 确定扇形（使用Qt坐标系，Y轴向下）
+            # 处理x接近0的特殊情况
+            tolerance = 1.0
+            if abs(hole.center_x) < tolerance:
+                # x接近0，根据hole_id判断
+                if hole_id.startswith('B'):
+                    # B侧孔位，x应该为正
+                    x_sign = 1
+                else:
+                    # A侧孔位，x应该为负
+                    x_sign = -1
+            else:
+                x_sign = 1 if dx >= 0 else -1
+            
+            # Qt坐标系：Y轴向下
+            if x_sign >= 0 and dy < 0:
+                sector = SectorQuadrant.SECTOR_1  # 右上
+            elif x_sign < 0 and dy < 0:
+                sector = SectorQuadrant.SECTOR_2  # 左上
+            elif x_sign < 0 and dy >= 0:
+                sector = SectorQuadrant.SECTOR_3  # 左下
+            else:  # x_sign >= 0 and dy >= 0
+                sector = SectorQuadrant.SECTOR_4  # 右下
                 
             self.sector_assignments[hole_id] = sector
             

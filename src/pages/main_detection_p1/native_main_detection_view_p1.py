@@ -71,8 +71,8 @@ class NativeLeftInfoPanel(QWidget):
         self.current_hole_data = None
         self.detection_stats = {}
         
-        # 设置固定宽度 (old版本: 380px)
-        self.setFixedWidth(380)
+        # 设置固定宽度，增大以适应更大的全景预览
+        self.setFixedWidth(400)  # 从380px增加到400px
         
         # 初始化UI
         self.setup_ui()
@@ -106,11 +106,7 @@ class NativeLeftInfoPanel(QWidget):
         self.hole_info_group = self._create_hole_info_group(group_font)
         layout.addWidget(self.hole_info_group)
 
-        # 4. 文件信息组
-        self.file_info_group = self._create_file_info_group(group_font)
-        layout.addWidget(self.file_info_group)
-
-        # 5. 全景预览组 - 设置为扩展以填充可用空间
+        # 4. 全景预览组 - 设置为扩展以填充可用空间
         self.panorama_group = self._create_panorama_group(group_font)
         layout.addWidget(self.panorama_group, 1)  # 添加拉伸因子1，使其扩展
 
@@ -231,36 +227,13 @@ class NativeLeftInfoPanel(QWidget):
 
         return group
 
-    def _create_file_info_group(self, group_font):
-        """创建文件信息组"""
-        group = QGroupBox("文件信息")
-        group.setFont(group_font)
-        layout = QGridLayout(group)
-        layout.setSpacing(2)
-        layout.setContentsMargins(5, 5, 5, 5)
-
-        label_font = QFont()
-        label_font.setPointSize(9)
-
-        # DXF文件信息 (old版本样式)
-        layout.addWidget(QLabel("DXF文件:"), 0, 0)
-        self.dxf_file_label = QLabel("未加载")
-        self.dxf_file_label.setFont(label_font)
-        self.dxf_file_label.setMaximumWidth(200)
-        self.dxf_file_label.setWordWrap(False)
-        layout.addWidget(self.dxf_file_label, 0, 1)
-
-        layout.addWidget(QLabel("产品型号:"), 1, 0)
-        self.product_label = QLabel("--")
-        self.product_label.setFont(label_font)
-        layout.addWidget(self.product_label, 1, 1)
-
-        return group
     
     def _create_panorama_group(self, group_font):
         """创建全景预览组"""
         group = QGroupBox("全景预览")
         group.setFont(group_font)
+        # 设置组框的最小高度，确保能容纳大的全景预览
+        group.setMinimumHeight(400)  # 增加组框高度
         layout = QVBoxLayout(group)
         layout.setContentsMargins(5, 5, 5, 5)
         
@@ -270,9 +243,11 @@ class NativeLeftInfoPanel(QWidget):
         # 设置默认缩放比例为10%，解决圆形缩放不够的问题
         if hasattr(self.sidebar_panorama, 'set_user_hole_scale_factor'):
             self.sidebar_panorama.set_user_hole_scale_factor(0.1)
-        # 设置为自适应大小，使用合适的尺寸策略
-        self.sidebar_panorama.setMinimumHeight(200)  # 最小高度
-        self.sidebar_panorama.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        # 设置固定大小，使全景预览更大更清晰
+        self.sidebar_panorama.setFixedSize(380, 380)  # 增大到380x380的正方形，留出边距
+        # 或者设置最小尺寸
+        # self.sidebar_panorama.setMinimumSize(350, 350)
+        # self.sidebar_panorama.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
         
         # 设置样式
         self.sidebar_panorama.setStyleSheet("""
@@ -300,46 +275,104 @@ class NativeLeftInfoPanel(QWidget):
         self.current_sector_label.setFont(QFont("Arial", 10, QFont.Bold))
         layout.addWidget(self.current_sector_label)
         
-        # 扇形统计表格
-        self.sector_stats_table = QTableWidget(6, 2)  # 6行2列
-        self.sector_stats_table.setHorizontalHeaderLabels(["状态", "数量"])
+        # 扇形统计表格 - 改为4列更紧凑的布局
+        self.sector_stats_table = QTableWidget(2, 4)  # 2行4列（去掉盲孔和拉杆）
+        self.sector_stats_table.setHorizontalHeaderLabels(["状态", "数量", "状态", "数量"])
         self.sector_stats_table.verticalHeader().hide()
-        self.sector_stats_table.horizontalHeader().setStretchLastSection(True)
-        self.sector_stats_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.sector_stats_table.setMinimumHeight(180)
-        self.sector_stats_table.setMaximumHeight(200)
+        # 设置列宽比例 - 增加宽度以适应内容
+        header = self.sector_stats_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Fixed)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)
+        header.setSectionResizeMode(2, QHeaderView.Fixed)
+        header.setSectionResizeMode(3, QHeaderView.Fixed)
+        self.sector_stats_table.setColumnWidth(0, 90)  # 状态列（增加到90）
+        self.sector_stats_table.setColumnWidth(1, 100)  # 数量列（增加到100，适应5位数）
+        self.sector_stats_table.setColumnWidth(2, 90)  # 状态列（增加到90）
+        self.sector_stats_table.setColumnWidth(3, 100)  # 数量列（增加到100）
+        # 设置紧凑的行高
+        self.sector_stats_table.verticalHeader().setDefaultSectionSize(24)  # 设置行高为24像素
+        self.sector_stats_table.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)  # 固定行高
+        # 根据内容计算精确高度：header(24) + 2 rows(24*2) + borders(4)
+        total_height = 24 + 24 * 2 + 4
+        self.sector_stats_table.setFixedHeight(total_height)
         
-        # 设置表格样式
+        # 设置表格的整体背景色
+        self.sector_stats_table.setAlternatingRowColors(False)  # 禁用交替行颜色
+        from PySide6.QtGui import QPalette
+        palette = self.sector_stats_table.palette()
+        palette.setColor(QPalette.Base, QColor("#e8e8e8"))
+        palette.setColor(QPalette.AlternateBase, QColor("#e8e8e8"))
+        self.sector_stats_table.setPalette(palette)
+        
+        # 设置表格样式 - 确保背景色正确应用
         self.sector_stats_table.setStyleSheet("""
             QTableWidget {
                 border: 1px solid #ddd;
                 gridline-color: #ddd;
-                font-size: 10px;
+                font-size: 11px;
+                background-color: #e8e8e8;
+                alternate-background-color: #e8e8e8;
             }
             QTableWidget::item {
                 padding: 2px;
+                text-align: center;
+                background-color: #e8e8e8;
+                color: #333;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #d0d0d0;
+                color: #333;
+            }
+            QHeaderView::section {
+                background-color: #d0d0d0;
+                font-weight: bold;
+                padding: 2px;
+                border: 1px solid #bbb;
+                font-size: 11px;
             }
         """)
         
-        # 初始化表格行
+        # 初始化表格行 - 4列布局（去掉盲孔和拉杆）
         status_labels = [
-            ("pending", "待检"),
-            ("qualified", "合格"),
-            ("defective", "异常"),
-            ("blind", "盲孔"),
-            ("tie_rod", "拉杆"),
-            ("total", "总计")
+            ("待检", "0", "合格", "0"),
+            ("异常", "0", "总计", "0")
         ]
         
-        for i, (key, label) in enumerate(status_labels):
-            self.sector_stats_table.setItem(i, 0, QTableWidgetItem(label))
-            self.sector_stats_table.setItem(i, 1, QTableWidgetItem("0"))
-            # 设置总计行为粗体
-            if key == "total":
-                font = self.sector_stats_table.item(i, 0).font()
+        # 保存状态映射，用于更新
+        self.status_cells = {
+            "pending": (0, 1),     # 待检
+            "qualified": (0, 3),   # 合格
+            "defective": (1, 1),   # 异常
+            "total": (1, 3)        # 总计（移到第二行）
+        }
+        
+        for row, (label1, val1, label2, val2) in enumerate(status_labels):
+            # 创建表格项
+            item1 = QTableWidgetItem(label1)
+            item2 = QTableWidgetItem(val1)
+            item3 = QTableWidgetItem(label2)
+            item4 = QTableWidgetItem(val2)
+            
+            # 设置每个单元格的背景色
+            background_color = QColor("#e8e8e8")
+            item1.setBackground(background_color)
+            item2.setBackground(background_color)
+            item3.setBackground(background_color)
+            item4.setBackground(background_color)
+            
+            # 设置到表格
+            self.sector_stats_table.setItem(row, 0, item1)
+            self.sector_stats_table.setItem(row, 1, item2)
+            self.sector_stats_table.setItem(row, 2, item3)
+            self.sector_stats_table.setItem(row, 3, item4)
+            
+            # 设置总计为粗体
+            if row == 1:  # 第二行（最后一行）
+                font = QFont()
                 font.setBold(True)
-                self.sector_stats_table.item(i, 0).setFont(font)
-                self.sector_stats_table.item(i, 1).setFont(font)
+                self.sector_stats_table.item(row, 2).setFont(font)
+                self.sector_stats_table.item(row, 3).setFont(font)
         
         layout.addWidget(self.sector_stats_table)
         
@@ -388,6 +421,8 @@ class NativeLeftInfoPanel(QWidget):
         self.not_detected_label.setText(f"待检: {data.get('not_detected', 0)}")
         self.blind_label.setText(f"盲孔: {data.get('blind', 0)}")
         self.tie_rod_label.setText(f"拉杆: {data.get('tie_rod', 0)}")
+        
+        # 注意：不要在这里更新扇形统计表格，它应该只显示当前扇形的数据
 
     def update_hole_info(self, hole_data):
         """更新孔位信息"""
@@ -402,18 +437,6 @@ class NativeLeftInfoPanel(QWidget):
             self.selected_hole_status_label.setText("--")
             self.selected_hole_desc_label.setText("--")
 
-    def update_file_info(self, dxf_path=None, product_name=None):
-        """更新文件信息"""
-        if dxf_path:
-            file_name = Path(dxf_path).name
-            self.dxf_file_label.setText(file_name)
-        else:
-            self.dxf_file_label.setText("未加载")
-            
-        if product_name:
-            self.product_label.setText(product_name)
-        else:
-            self.product_label.setText("--")
     
     def update_selected_sector(self, sector):
         """更新选中的扇形信息"""
@@ -422,21 +445,46 @@ class NativeLeftInfoPanel(QWidget):
             self.current_sector_label.setText(f"当前扇形: {sector_name}")
     
     def update_sector_stats(self, stats_data):
-        """更新扇形统计表格"""
-        if hasattr(self, 'sector_stats_table') and stats_data:
+        """更新扇形统计表格 - 适配4列布局"""
+        self.logger.info(f"📊 update_sector_stats called with data: {stats_data}")
+        if hasattr(self, 'sector_stats_table') and hasattr(self, 'status_cells') and stats_data:
             # 更新表格数据
-            row_mapping = {
-                'pending': 0,
-                'qualified': 1,
-                'defective': 2,
-                'blind': 3,
-                'tie_rod': 4,
-                'total': 5
-            }
-            
-            for status, row in row_mapping.items():
-                count = stats_data.get(status, 0)
-                self.sector_stats_table.item(row, 1).setText(str(count))
+            for status, (row, col) in self.status_cells.items():
+                if status in stats_data:
+                    value = stats_data.get(status, 0)
+                    # 确保单元格存在
+                    if row < self.sector_stats_table.rowCount() and col < self.sector_stats_table.columnCount():
+                        item = self.sector_stats_table.item(row, col)
+                        if item:
+                            item.setText(str(value))
+                        else:
+                            item = QTableWidgetItem(str(value))
+                            item.setBackground(QColor("#e8e8e8"))
+                            self.sector_stats_table.setItem(row, col, item)
+                            
+            # 使用提供的total值，如果有的话
+            if 'total' in stats_data:
+                row, col = self.status_cells['total']
+                if row < self.sector_stats_table.rowCount() and col < self.sector_stats_table.columnCount():
+                    item = self.sector_stats_table.item(row, col)
+                    if item:
+                        item.setText(str(stats_data['total']))
+                    else:
+                        item = QTableWidgetItem(str(stats_data['total']))
+                        item.setBackground(QColor("#e8e8e8"))
+                        self.sector_stats_table.setItem(row, col, item)
+            else:
+                # 计算总计（如果没有提供）- 只统计待检、合格、异常
+                total = sum(stats_data.get(k, 0) for k in ['pending', 'qualified', 'defective'])
+                row, col = self.status_cells['total']
+                if row < self.sector_stats_table.rowCount() and col < self.sector_stats_table.columnCount():
+                    item = self.sector_stats_table.item(row, col)
+                    if item:
+                        item.setText(str(total))
+                    else:
+                        item = QTableWidgetItem(str(total))
+                        item.setBackground(QColor("#e8e8e8"))
+                        self.sector_stats_table.setItem(row, col, item)
 
 
     def update_sector_stats_text(self, stats_text):
@@ -553,6 +601,10 @@ class NativeCenterVisualizationPanel(QWidget):
         view_label.setFont(QFont("Arial", 11, QFont.Bold))
         layout.addWidget(view_label)
         
+        # 创建按钮组确保单选
+        from PySide6.QtWidgets import QButtonGroup
+        self.view_button_group = QButtonGroup()
+        
         # 宏观区域视图按钮 (显示完整圆形全景)
         self.macro_view_btn = QPushButton("📊 宏观区域视图")
         self.macro_view_btn.setCheckable(True)
@@ -569,6 +621,9 @@ class NativeCenterVisualizationPanel(QWidget):
         self.micro_view_btn.setMinimumWidth(140)
         self.micro_view_btn.setToolTip("显示孔位的详细信息，适合精确检测和分析")
         
+        # 添加到按钮组
+        self.view_button_group.addButton(self.macro_view_btn)
+        self.view_button_group.addButton(self.micro_view_btn)
         
         layout.addWidget(self.macro_view_btn)
         layout.addWidget(self.micro_view_btn)
@@ -690,7 +745,11 @@ class NativeRightOperationsPanel(QScrollArea):
     start_simulation = Signal()  # 模拟检测信号
     pause_simulation = Signal()
     stop_simulation = Signal()
-    file_operation_requested = Signal(str, dict)
+    file_operation_requested = Signal(str, dict)  # 文件操作信号
+    # 导航信号
+    realtime_detection_requested = Signal()  # 跳转到P2页面
+    history_statistics_requested = Signal()  # 跳转到P3页面
+    report_generation_requested = Signal()   # 跳转到P4页面
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -731,9 +790,9 @@ class NativeRightOperationsPanel(QScrollArea):
         simulation_group = self._create_simulation_group(group_title_font, button_font)
         layout.addWidget(simulation_group)
 
-        # 3. 文件操作组 (old版本第三组)
-        file_group = self._create_file_operations_group(group_title_font, button_font)
-        layout.addWidget(file_group)
+        # 3. 页面导航组 (替换文件操作组)
+        navigation_group = self._create_navigation_group(group_title_font, button_font)
+        layout.addWidget(navigation_group)
 
         # 4. 视图控制组 (old版本第四组)
         view_group = self._create_view_control_group(group_title_font, button_font)
@@ -807,28 +866,43 @@ class NativeRightOperationsPanel(QScrollArea):
 
         return group
 
-    def _create_file_operations_group(self, group_font, button_font):
-        """创建文件操作组"""
-        group = QGroupBox("文件操作")
+    def _create_navigation_group(self, group_font, button_font):
+        """创建页面导航组"""
+        group = QGroupBox("页面导航")
         group.setFont(group_font)
         layout = QVBoxLayout(group)
 
-        # 文件操作按钮
-        self.load_dxf_btn = QPushButton("加载DXF文件")
-        self.load_dxf_btn.setMinimumHeight(40)
-        self.load_dxf_btn.setFont(button_font)
+        # 导航按钮
+        self.realtime_btn = QPushButton("实时检测")
+        self.realtime_btn.setMinimumHeight(40)
+        self.realtime_btn.setFont(button_font)
+        self.realtime_btn.setStyleSheet(
+            "QPushButton { background-color: #2196F3; color: white; border-radius: 5px; }"
+            "QPushButton:hover { background-color: #1976D2; }"
+            "QPushButton:pressed { background-color: #0D47A1; }"
+        )
 
-        self.load_product_btn = QPushButton("选择产品型号")
-        self.load_product_btn.setMinimumHeight(40)
-        self.load_product_btn.setFont(button_font)
+        self.history_btn = QPushButton("历史统计")
+        self.history_btn.setMinimumHeight(40)
+        self.history_btn.setFont(button_font)
+        self.history_btn.setStyleSheet(
+            "QPushButton { background-color: #4CAF50; color: white; border-radius: 5px; }"
+            "QPushButton:hover { background-color: #388E3C; }"
+            "QPushButton:pressed { background-color: #1B5E20; }"
+        )
 
-        self.export_data_btn = QPushButton("导出数据")
-        self.export_data_btn.setMinimumHeight(40)
-        self.export_data_btn.setFont(button_font)
+        self.report_btn = QPushButton("报告生成")
+        self.report_btn.setMinimumHeight(40)
+        self.report_btn.setFont(button_font)
+        self.report_btn.setStyleSheet(
+            "QPushButton { background-color: #FF9800; color: white; border-radius: 5px; }"
+            "QPushButton:hover { background-color: #F57C00; }"
+            "QPushButton:pressed { background-color: #E65100; }"
+        )
 
-        layout.addWidget(self.load_dxf_btn)
-        layout.addWidget(self.load_product_btn)
-        layout.addWidget(self.export_data_btn)
+        layout.addWidget(self.realtime_btn)
+        layout.addWidget(self.history_btn)
+        layout.addWidget(self.report_btn)
 
         return group
 
@@ -885,10 +959,10 @@ class NativeRightOperationsPanel(QScrollArea):
         self.pause_simulation_btn.clicked.connect(self.pause_simulation.emit)
         self.stop_simulation_btn.clicked.connect(self.stop_simulation.emit)
 
-        # 文件操作信号
-        self.load_dxf_btn.clicked.connect(lambda: self.file_operation_requested.emit("load_dxf", {}))
-        self.load_product_btn.clicked.connect(lambda: self.file_operation_requested.emit("load_product", {}))
-        self.export_data_btn.clicked.connect(lambda: self.file_operation_requested.emit("export_data", {}))
+        # 导航信号
+        self.realtime_btn.clicked.connect(self.realtime_detection_requested.emit)
+        self.history_btn.clicked.connect(self.history_statistics_requested.emit)
+        self.report_btn.clicked.connect(self.report_generation_requested.emit)
 
         # 其他操作信号
         self.generate_report_btn.clicked.connect(lambda: self.file_operation_requested.emit("generate_report", {}))
@@ -953,6 +1027,7 @@ class NativeMainDetectionView(QWidget):
         self.current_hole_collection = None
         self.selected_hole = None
         self.detection_running = False
+        self._initial_sector_loaded = False  # 防止重复加载初始扇形
         
         # 扇形协调器 - 提前初始化
         self.coordinator = None
@@ -960,6 +1035,11 @@ class NativeMainDetectionView(QWidget):
             try:
                 self.coordinator = PanoramaSectorCoordinator()
                 self.logger.info("✅ 扇形协调器预初始化成功")
+                
+                # 设置默认扇形为sector_1
+                from src.core_business.graphics.sector_types import SectorQuadrant
+                self.coordinator.current_sector = SectorQuadrant.SECTOR_1
+                self.logger.info("✅ 设置默认扇形为sector_1")
             except Exception as e:
                 self.logger.error(f"扇形协调器预初始化失败: {e}")
         
@@ -1166,6 +1246,8 @@ class NativeMainDetectionView(QWidget):
                 self.simulation_controller.simulation_started.connect(self._on_simulation_started)
                 self.simulation_controller.simulation_paused.connect(self._on_simulation_paused)
                 self.simulation_controller.simulation_stopped.connect(self._on_simulation_stopped)
+                # 连接扇形聚焦信号以更新统计
+                self.simulation_controller.sector_focused.connect(self._on_simulation_sector_focused)
                 
                 self.logger.info("✅ 模拟控制器初始化成功")
             except Exception as e:
@@ -1190,13 +1272,33 @@ class NativeMainDetectionView(QWidget):
 
     def _on_view_mode_changed(self, mode):
         """处理视图模式变化"""
-        self.logger.info(f"🔄 视图模式变化: {mode}")
+        self.logger.info(f"🔄 视图模式切换到: {mode}")
         
-        # 中间面板已经处理了视图切换，这里不需要额外操作
+        if not self.center_panel or not hasattr(self.center_panel, 'graphics_view'):
+            return
+            
+        graphics_view = self.center_panel.graphics_view
+        
         if mode == "macro":
             self.logger.info("🌍 切换到宏观全景视图")
+            # 宏观视图显示所有孔位
+            graphics_view.current_view_mode = 'macro'
+            graphics_view.disable_auto_fit = False  # 宏观视图允许自动适配
+            graphics_view.show_all_holes()
         else:  # micro
             self.logger.info("🔍 切换到微观扇形视图")
+            # 微观视图显示当前扇形
+            graphics_view.current_view_mode = 'micro'
+            graphics_view.disable_auto_fit = True  # 微观视图禁止自动适配
+            
+            if self.coordinator and self.coordinator.current_sector:
+                self._show_sector_in_view(self.coordinator.current_sector)
+            else:
+                # 如果没有选中扇形，默认选择sector1
+                self.logger.info("📍 没有选中扇形，默认选择sector1")
+                from src.core_business.graphics.sector_types import SectorQuadrant
+                if self.coordinator and hasattr(self.coordinator, 'select_sector'):
+                    self.coordinator.select_sector(SectorQuadrant.SECTOR_1)
 
     
     def _on_panorama_sector_clicked(self, sector):
@@ -1210,29 +1312,140 @@ class NativeMainDetectionView(QWidget):
         # 使用协调器处理扇形点击
         if self.coordinator:
             self.coordinator._on_panorama_sector_clicked(sector)
+        
+        # 自动切换到微观视图模式
+        if self.center_panel:
+            # 更新按钮状态
+            self.center_panel.micro_view_btn.setChecked(True)
+            self.center_panel.macro_view_btn.setChecked(False)
+            self.center_panel.current_view_mode = "micro"
             
-            # 获取当前扇形的孔位
-            holes = self.coordinator.get_current_sector_holes()
+            # 触发视图模式变化
+            self.center_panel.view_mode_changed.emit("micro")
             
-            if holes:
-                # 创建新的HoleCollection只包含该扇形的孔位
-                from src.core_business.models.hole_data import HoleCollection
-                filtered_dict = {hole.hole_id: hole for hole in holes}
-                filtered_collection = HoleCollection(filtered_dict)
+        # 显示选中的扇形
+        self._show_sector_in_view(sector)
+            
+        # 更新选中扇形信息
+        if self.left_panel and hasattr(self.left_panel, 'update_selected_sector'):
+            self.left_panel.update_selected_sector(sector)
+    
+    def _show_sector_in_view(self, sector):
+        """在视图中显示指定扇形（不重新加载数据）"""
+        if not self.coordinator:
+            self.logger.warning("❌ 协调器未初始化")
+            return
+            
+        # 获取当前扇形的孔位
+        holes = self.coordinator.get_current_sector_holes()
+        if not holes:
+            self.logger.warning(f"❌ 扇形 {sector} 没有孔位数据")
+            return
+        
+        self.logger.info(f"📊 扇形 {sector} 包含 {len(holes)} 个孔位")
+            
+        # 使用场景过滤而非重新加载
+        if self.center_panel and hasattr(self.center_panel, 'graphics_view'):
+            graphics_view = self.center_panel.graphics_view
+            
+            # 确保视图处于微观模式
+            graphics_view.current_view_mode = 'micro'
+            graphics_view.disable_auto_fit = True
+            
+            # 获取场景
+            scene = None
+            if hasattr(graphics_view, 'scene'):
+                scene = graphics_view.scene
+            elif hasattr(graphics_view, 'scene') and callable(graphics_view.scene):
+                scene = graphics_view.scene()
                 
-                # 加载到中间视图
-                if self.center_panel and hasattr(self.center_panel, 'graphics_view'):
-                    if hasattr(self.center_panel.graphics_view, 'load_holes'):
-                        self.center_panel.graphics_view.load_holes(filtered_collection)
-                        sector_str = sector.value if hasattr(sector, 'value') else str(sector)
-                        self.logger.info(f"✅ 中间视图已加载扇形 {sector_str} 的 {len(holes)} 个孔位")
+            if scene:
+                # 获取扇形孔位ID集合
+                sector_hole_ids = {hole.hole_id for hole in holes}
+                self.logger.info(f"📋 扇形孔位ID数量: {len(sector_hole_ids)}")
+                
+                # 获取场景中的所有项
+                all_items = scene.items()
+                self.logger.info(f"🎯 场景中总项数: {len(all_items)}")
+                
+                # 过滤显示
+                visible_items = []
+                hidden_count = 0
+                for item in all_items:
+                    hole_id = item.data(0)  # Qt.UserRole = 0
+                    if hole_id:
+                        is_visible = hole_id in sector_hole_ids
+                        item.setVisible(is_visible)
+                        if is_visible:
+                            visible_items.append(item)
+                        else:
+                            hidden_count += 1
+                
+                # 适配视图到可见项
+                if visible_items:
+                    # 使用sceneBoundingRect获取准确的场景坐标
+                    scene_rects = [item.sceneBoundingRect() for item in visible_items]
+                    
+                    if scene_rects:
+                        # 计算所有可见项的边界
+                        min_x = min(rect.left() for rect in scene_rects)
+                        max_x = max(rect.right() for rect in scene_rects)
+                        min_y = min(rect.top() for rect in scene_rects)
+                        max_y = max(rect.bottom() for rect in scene_rects)
                         
-                        # 让graphics_view的内置自适应机制处理，避免额外的fitInView调用
-                        # 这样可以防止视图大小的反复变化
-                            
-            # 更新选中扇形信息
-            if self.left_panel and hasattr(self.left_panel, 'update_selected_sector'):
-                self.left_panel.update_selected_sector(sector)
+                        from PySide6.QtCore import QRectF
+                        # 增加边距以获得更合适的显示比例
+                        margin = 200  # 增加边距从50到200
+                        bounding_rect = QRectF(
+                            min_x - margin, 
+                            min_y - margin, 
+                            max_x - min_x + 2 * margin, 
+                            max_y - min_y + 2 * margin
+                        )
+                        
+                        # 完全禁用自动适配，避免任何重复缩放
+                        graphics_view.disable_auto_fit = True
+                        
+                        # 停止所有待处理的定时器
+                        if hasattr(graphics_view, '_fit_timer') and graphics_view._fit_timer:
+                            graphics_view._fit_timer.stop()
+                            graphics_view._fit_pending = False
+                        
+                        # 清除任何可能的定时器
+                        if hasattr(graphics_view, '_auto_fit_timer'):
+                            graphics_view._auto_fit_timer.stop()
+                        
+                        # 设置缩放锁
+                        graphics_view._is_fitting = True
+                        
+                        # 适配视图到扇形区域（只调用一次）
+                        graphics_view.fitInView(bounding_rect, Qt.KeepAspectRatio)
+                        
+                        # 设置标志，告诉 set_micro_view_scale 跳过额外缩放
+                        graphics_view._fitted_to_sector = True
+                        
+                        self.logger.info(f"✅ 视图已适配到扇形区域，边界: ({min_x:.1f}, {min_y:.1f}) - ({max_x:.1f}, {max_y:.1f})")
+                        
+                        # 延迟更长时间恢复状态，或者在微观模式下保持禁用
+                        # 只有在切换到宏观视图时才恢复
+                        QTimer.singleShot(1000, lambda: setattr(graphics_view, '_is_fitting', False))
+                        # 注意：不恢复 disable_auto_fit，让它在微观模式下保持 True
+                
+                self.logger.info(f"✅ 视图已过滤：显示 {len(visible_items)} 个，隐藏 {hidden_count} 个")
+                self.logger.info(f"✅ 扇形 {sector.value if hasattr(sector, 'value') else str(sector)} 视图更新完成")
+                
+                # 调试验证：检查第一个可见项和第一个隐藏项
+                if visible_items:
+                    first_visible = visible_items[0]
+                    self.logger.debug(f"🔍 第一个可见项: ID={first_visible.data(0)}, 位置=({first_visible.x()}, {first_visible.y()}), isVisible={first_visible.isVisible()}")
+                
+                # 验证过滤效果
+                total_after_filter = sum(1 for item in scene.items() if item.isVisible())
+                self.logger.info(f"🎯 过滤验证：场景中实际可见项数={total_after_filter}, 预期={len(visible_items)}")
+                
+                # 强制刷新场景
+                scene.update()
+                graphics_view.viewport().update()
     
     def _filter_holes_by_sector(self, hole_collection, sector):
         """根据扇形过滤孔位"""
@@ -1371,18 +1584,27 @@ class NativeMainDetectionView(QWidget):
     def _on_simulation_progress(self, current, total):
         """处理模拟进度更新"""
         progress = int((current / total * 100) if total > 0 else 0)
-        self.logger.info(f"模拟进度: {current}/{total} ({progress}%)")
+        self.logger.info(f"模拟进度: {current}/{total} 个孔位 ({progress}%)")
         
         # 更新左侧面板进度
         if self.left_panel and hasattr(self.left_panel, 'update_progress_display'):
-            # 构造进度数据
-            progress_data = {
-                'progress': progress,
-                'completed': current,
-                'total': total,
-                'pending': total - current
-            }
-            self.left_panel.update_progress_display(progress_data)
+            # 重新计算完整的统计数据，包括状态统计
+            if self.current_hole_collection:
+                stats_data = self._calculate_overall_stats()
+                # 更新进度相关字段
+                stats_data['progress'] = progress
+                stats_data['completed'] = current
+                stats_data['pending'] = total - current
+                self.left_panel.update_progress_display(stats_data)
+            else:
+                # 如果没有孔位集合，使用最小数据
+                progress_data = {
+                    'progress': progress,
+                    'completed': current,
+                    'total': total,
+                    'pending': total - current
+                }
+                self.left_panel.update_progress_display(progress_data)
     
     def _on_hole_status_updated(self, hole_id, status):
         """处理孔位状态更新"""
@@ -1452,6 +1674,7 @@ class NativeMainDetectionView(QWidget):
             'not_detected': pending,
             'completed': completed,
             'pending': pending,
+            'defective': defective,  # 添加这个键用于扇形统计表格
             'progress': progress,
             'completion_rate': progress,
             'qualification_rate': qualification_rate,
@@ -1465,10 +1688,50 @@ class NativeMainDetectionView(QWidget):
         # 更新当前孔位集合
         self.current_hole_collection = hole_collection
         
-        # 加载到协调器触发扇形分配
+        # 重置初始扇形加载标志，确保新文件可以加载默认扇形
+        self._initial_sector_loaded = False
+        
+        # 1. 首先强制设置为微观视图模式（在加载数据之前）
+        if self.center_panel:
+            self.center_panel.micro_view_btn.setChecked(True)
+            self.center_panel.macro_view_btn.setChecked(False)
+            self.center_panel.current_view_mode = "micro"
+            self.logger.info("✅ 强制设置为微观视图模式")
+            
+            # 确保 graphics_view 也处于微观模式
+            if hasattr(self.center_panel, 'graphics_view') and self.center_panel.graphics_view:
+                graphics_view = self.center_panel.graphics_view
+                graphics_view.current_view_mode = 'micro'
+                graphics_view.disable_auto_fit = True
+                
+                # 停止所有可能的适配定时器
+                if hasattr(graphics_view, '_fit_timer'):
+                    graphics_view._fit_timer.stop()
+                    graphics_view._fit_pending = False
+                self.logger.info("✅ graphics_view 已设置为微观模式，禁用自动适配")
+        
+        # 2. 加载到协调器触发扇形分配
         if self.coordinator and hole_collection:
             self.coordinator.load_hole_collection(hole_collection)
             self.logger.info("✅ 数据已加载到协调器，扇形分配完成")
+        
+        # 更新状态统计显示
+        if self.left_panel and hole_collection:
+            overall_stats = self._calculate_overall_stats()
+            self.left_panel.update_progress_display(overall_stats)
+            self.logger.info(f"✅ 状态统计已更新: 总数 {overall_stats.get('total', 0)}")
+            
+            # 如果有当前扇形，更新扇形统计
+            if self.coordinator and self.coordinator.current_sector:
+                sector_holes = self.coordinator.get_current_sector_holes()
+                if sector_holes:
+                    sector_stats = self.coordinator._calculate_sector_stats(sector_holes)
+                    self.logger.info(f"📊 扇形统计数据: total={sector_stats.get('total', 0)}, "
+                                   f"pending={sector_stats.get('pending', 0)}, "
+                                   f"扇形孔位数={len(sector_holes)}")
+                    if hasattr(self.left_panel, 'update_sector_stats'):
+                        self.left_panel.update_sector_stats(sector_stats)
+                        self.logger.info(f"✅ 扇形统计已更新: {self.coordinator.current_sector.value}")
         
         # 清空初始提示文本
         if hasattr(self.center_panel, 'graphics_view') and self.center_panel.graphics_view:
@@ -1497,22 +1760,78 @@ class NativeMainDetectionView(QWidget):
                     else:
                         self.logger.warning(f"scene没有可调用的clear方法: {type(scene)}")
                 
-                        # 加载数据到中间面板（同时适用于扇形和全景视图）
-                if hasattr(self.center_panel, 'load_hole_collection'):
-                    self.center_panel.load_hole_collection(self.current_hole_collection)
-                    self.logger.info("✅ 中间面板数据加载完成")
+                # 检查当前视图模式 - 默认应该是微观视图
+                # 如果按钮状态还未初始化，默认使用微观视图
+                is_micro_view = True  # 默认使用微观视图
+                if self.center_panel and hasattr(self.center_panel, 'micro_view_btn'):
+                    # 如果按钮已初始化，则使用按钮状态
+                    is_micro_view = self.center_panel.micro_view_btn.isChecked()
+                    # 但如果两个按钮都未选中（初始状态），强制使用微观视图
+                    if (hasattr(self.center_panel, 'macro_view_btn') and 
+                        not self.center_panel.macro_view_btn.isChecked() and 
+                        not self.center_panel.micro_view_btn.isChecked()):
+                        is_micro_view = True
+                        # 同时更新按钮状态
+                        self.center_panel.micro_view_btn.setChecked(True)
+                        self.center_panel.macro_view_btn.setChecked(False)
                 
-                # 延迟加载默认扇形，等待扇形分配完成
-                from PySide6.QtCore import QTimer
-                QTimer.singleShot(1000, self._load_default_sector1)
+                # 加载数据到中间面板的graphics_view
+                if hasattr(self.center_panel, 'graphics_view') and self.center_panel.graphics_view:
+                    graphics_view = self.center_panel.graphics_view
+                    
+                    if is_micro_view:
+                        # 微观视图模式：加载数据但不显示，等待扇形选择
+                        self.logger.info("🔍 微观视图模式，加载数据但暂不显示")
+                        if hasattr(graphics_view, 'load_holes'):
+                            # 确保在微观视图模式下加载
+                            graphics_view.current_view_mode = 'micro'
+                            graphics_view.disable_auto_fit = True
+                            
+                            # 加载数据
+                            graphics_view.load_holes(self.current_hole_collection)
+                            self.logger.info("✅ 数据已加载到场景")
+                            
+                            # 立即隐藏所有项，等待扇形选择
+                            if hasattr(graphics_view, 'scene') and callable(graphics_view.scene):
+                                scene = graphics_view.scene()
+                                if scene:
+                                    for item in scene.items():
+                                        item.setVisible(False)
+                                    self.logger.info("✅ 已隐藏所有孔位，等待扇形选择")
+                            
+                            # 保持 disable_auto_fit = True，不要立即恢复
+                            # 让它在扇形显示完成后再恢复
+                    else:
+                        # 宏观视图模式：正常加载并显示所有数据
+                        self.logger.info("🌍 宏观视图模式，显示全部孔位")
+                        if hasattr(graphics_view, 'load_holes'):
+                            graphics_view.load_holes(self.current_hole_collection)
+                            self.logger.info("✅ 中间面板graphics_view数据加载完成")
+                            
+                            # 确保数据加载后正确显示
+                            if hasattr(graphics_view, 'fit_in_view_with_margin'):
+                                graphics_view.fit_in_view_with_margin()
+                                self.logger.info("✅ 视图已调整到合适大小")
+                else:
+                    self.logger.warning("⚠️ 中间面板没有 graphics_view 属性")
                 
-                self.logger.info("✅ 中间视图准备显示默认扇形")
+                # 5. 立即显示默认扇形（不延迟）
+                if is_micro_view:
+                    self.logger.info("🔍 准备加载默认扇形sector1")
+                    # 使用与视图切换相同的逻辑
+                    from PySide6.QtCore import QTimer
+                    QTimer.singleShot(100, lambda: self._on_view_mode_changed("micro"))
                     
             except Exception as e:
                 self.logger.error(f"加载孔位数据失败: {e}")
     
     def _load_default_sector1(self):
         """加载默认的sector1区域到中间视图 - 增强版"""
+        # 检查是否已经加载过
+        if self._initial_sector_loaded:
+            self.logger.info("✅ 初始扇形已加载，跳过重复加载")
+            return
+            
         try:
             self.logger.info("🎯 开始加载默认sector1区域")
             
@@ -1522,9 +1841,9 @@ class NativeMainDetectionView(QWidget):
             # 检查必要组件是否就绪
             if not self.coordinator:
                 self.logger.warning("⚠️ 协调器未初始化，尝试延迟重试")
-                # 延迟3秒重试
+                # 延迟1秒重试（减少延迟时间）
                 from PySide6.QtCore import QTimer
-                QTimer.singleShot(3000, self._load_default_sector1)
+                QTimer.singleShot(1000, self._load_default_sector1)
                 return
             
             if not hasattr(self.coordinator, 'select_sector'):
@@ -1536,14 +1855,34 @@ class NativeMainDetectionView(QWidget):
                 self.logger.warning("⚠️ 孔位数据未加载，无法加载默认sector1")
                 return
             
-            # 触发sector1区域选择
-            self.coordinator.select_sector(SectorQuadrant.SECTOR_1)
-            self.logger.info("✅ 已自动选择sector1区域")
+            # 检查是否已经在显示 sector1，但即使已选中也需要显示
+            if self.coordinator.current_sector == SectorQuadrant.SECTOR_1:
+                self.logger.info("✅ sector1已选中，强制刷新显示")
+                # 不要返回，继续执行显示逻辑
             
-            # 确保中间视图正确更新
-            if self.center_panel and hasattr(self.center_panel, 'graphics_view'):
-                    # 中间视图已通过load_hole_collection加载数据
-                self.logger.info("✅ 中间视图已准备显示sector1区域")
+            # 确保中间面板按钮状态正确（微观视图）
+            if self.center_panel:
+                self.center_panel.micro_view_btn.setChecked(True)
+                self.center_panel.macro_view_btn.setChecked(False)
+                self.center_panel.current_view_mode = "micro"
+                
+                # 更新graphics_view的视图模式
+                if hasattr(self.center_panel, 'graphics_view') and self.center_panel.graphics_view:
+                    graphics_view = self.center_panel.graphics_view
+                    if hasattr(graphics_view, 'current_view_mode'):
+                        graphics_view.current_view_mode = 'micro'
+                        self.logger.info("✅ 已设置graphics_view为微观视图模式")
+            
+            # 选择sector1 - coordinator.select_sector 会自动触发视图更新
+            self.coordinator.select_sector(SectorQuadrant.SECTOR_1)
+            self.logger.info("✅ 已选择sector1区域")
+            
+            # 标记初始扇形已加载
+            self._initial_sector_loaded = True
+            
+            # 强制触发扇形显示
+            self._show_sector_in_view(SectorQuadrant.SECTOR_1)
+            self.logger.info("✅ 已触发sector1显示")
                     
         except Exception as e:
             self.logger.error(f"❌ 加载默认sector1失败: {e}")
@@ -1701,6 +2040,12 @@ class NativeMainDetectionView(QWidget):
                     
             except Exception as e:
                 self.logger.warning(f"更新左侧面板失败: {e}")
+        
+        # 重新计算并更新状态统计
+        if self.left_panel and self.current_hole_collection:
+            overall_stats = self._calculate_overall_stats()
+            self.left_panel.update_progress_display(overall_stats)
+            self.logger.debug(f"✅ 状态统计已更新")
     
     def _on_sector_stats_updated(self, stats):
         """处理扇形统计更新"""
@@ -1714,6 +2059,8 @@ class NativeMainDetectionView(QWidget):
             
             # 更新扇形统计表格
             if hasattr(self.left_panel, 'update_sector_stats') and stats:
+                self.logger.info(f"📊 准备更新扇形统计表格，数据: total={stats.get('total', 0)}, "
+                               f"pending={stats.get('pending', 0)}, qualified={stats.get('qualified', 0)}")
                 self.left_panel.update_sector_stats(stats)
                 self.logger.info(f"📊 扇形统计表格已更新")
             elif hasattr(self.left_panel, 'update_sector_stats_text'):
@@ -1721,6 +2068,15 @@ class NativeMainDetectionView(QWidget):
                 stats_text = self._format_sector_stats_text(stats)
                 self.left_panel.update_sector_stats_text(stats_text)
                 self.logger.info(f"📊 扇形统计文本已更新")
+    
+    def _on_simulation_sector_focused(self, sector):
+        """处理模拟过程中的扇形聚焦事件"""
+        self.logger.info(f"🎯 模拟扇形聚焦: {sector.value if hasattr(sector, 'value') else str(sector)}")
+        
+        # 更新协调器的当前扇形
+        if self.coordinator:
+            # 使用协调器的set_current_sector方法，这会触发所有相关更新
+            self.coordinator.set_current_sector(sector)
     
     def _format_sector_stats_text(self, stats):
         """格式化扇形统计为文本（向后兼容）"""
@@ -1758,9 +2114,6 @@ class NativeMainDetectionView(QWidget):
                     if product:
                         self.logger.info(f"✅ 选择产品: {product}")
                         
-                        # 更新左侧面板文件信息
-                        if self.left_panel:
-                            self.left_panel.update_file_info(product_name=str(product))
                         
                         # 关键：加载产品数据到控制器和视图
                         if self.controller and hasattr(self.controller, 'load_product'):
@@ -1785,8 +2138,6 @@ class NativeMainDetectionView(QWidget):
         
         if file_path:
             self.logger.info(f"📁 加载DXF文件: {file_path}")
-            if self.left_panel:
-                self.left_panel.update_file_info(dxf_path=file_path)
             
             # 使用DXF加载服务加载文件
             try:

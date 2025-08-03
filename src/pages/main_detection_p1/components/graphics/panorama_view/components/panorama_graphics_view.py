@@ -29,7 +29,8 @@ class PanoramaGraphicsView(OptimizedGraphicsView):
         
         # 保持其他优化设置
         self.setRenderHint(QPainter.Antialiasing, True)
-        self.setViewportUpdateMode(QGraphicsView.MinimalViewportUpdate)
+        # 使用智能更新模式，确保颜色更新正确显示
+        self.setViewportUpdateMode(QGraphicsView.SmartViewportUpdate)
         self.setOptimizationFlag(QGraphicsView.DontSavePainterState, True)
         
         # 启用鼠标跟踪以支持悬停

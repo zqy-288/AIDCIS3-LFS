@@ -107,6 +107,9 @@ class HoleGraphicsItem(QGraphicsEllipseItem):
         self.setFlag(QGraphicsItem.ItemClipsToShape, True)  # 启用形状裁剪
         self.setAcceptHoverEvents(True)  # 启用悬停事件
         
+        # 设置hole_id到item data，用于场景过滤
+        self.setData(0, hole_data.hole_id)  # Qt.UserRole = 0
+        
         # 设置初始样式
         self.update_appearance()
         
@@ -118,8 +121,16 @@ class HoleGraphicsItem(QGraphicsEllipseItem):
         # 获取状态颜色 - 优先使用颜色覆盖
         if self._color_override:
             color = self._color_override
+            # 只在颜色变化时打印调试日志（已禁用）
+            # if not hasattr(self, '_last_color') or self._last_color != color.rgb():
+            #     print(f"[DEBUG] {self.hole_data.hole_id}: 使用覆盖颜色 RGB({color.red()}, {color.green()}, {color.blue()})")
+            self._last_color = color.rgb()
         else:
             color = self.STATUS_COLORS.get(self.hole_data.status, QColor(128, 128, 128))
+            # 只在颜色变化时打印调试日志（已禁用）
+            # if not hasattr(self, '_last_color') or self._last_color != color.rgb():
+            #     print(f"[DEBUG] {self.hole_data.hole_id}: 使用状态颜色 {self.hole_data.status.value} RGB({color.red()}, {color.green()}, {color.blue()})")
+            self._last_color = color.rgb()
         
         # 设置画笔和画刷
         if self._is_search_highlighted:
@@ -139,15 +150,23 @@ class HoleGraphicsItem(QGraphicsEllipseItem):
             pen = QPen(color.darker(120), 1.0)
             brush = QBrush(color)
         
+        # 检查颜色是否真的改变了
+        old_brush_color = self.brush().color() if self.brush() else None
+        
         self.setPen(pen)
         self.setBrush(brush)
-
-        # 强制重绘
-        self.prepareGeometryChange()  # 通知Qt几何可能改变
-        self.update()  # 强制重绘整个项
-        # 确保场景也更新
-        if self.scene():
-            self.scene().update(self.sceneBoundingRect())
+        
+        # 如果颜色改变了，强制更新
+        new_brush_color = brush.color()
+        if old_brush_color != new_brush_color:
+            self.update()
+            # 对于颜色变化，可能需要更强制的更新
+            if self.scene():
+                # 使视图的该区域无效，强制重绘
+                rect = self.sceneBoundingRect()
+                for view in self.scene().views():
+                    view_rect = view.mapFromScene(rect).boundingRect()
+                    view.viewport().update(view_rect)
     
     def set_highlighted(self, highlighted: bool):
         """设置高亮状态"""
@@ -177,29 +196,17 @@ class HoleGraphicsItem(QGraphicsEllipseItem):
     
     def set_color_override(self, color_override):
         """设置颜色覆盖（用于蓝色检测中状态）"""
-        if self._color_override != color_override:
-            self._color_override = color_override
-            self.update_appearance()
-            # 强制图形项重绘
-            self.prepareGeometryChange()  # 通知Qt几何可能改变
-            self.update()  # 强制重绘
-            # 确保场景也更新
-            if self.scene():
-                self.scene().update(self.sceneBoundingRect())
+        self._color_override = color_override
+        self.update_appearance()
+        # 移除所有强制刷新
     
     def clear_color_override(self):
         """清除颜色覆盖"""
         if self._color_override is not None:
             self._color_override = None
             self.update_appearance()
-            # 更新提示框文本以反映实际状态
+            # 更新提示框文本
             self.setToolTip(self._create_tooltip())
-            # 强制图形项重绘
-            self.prepareGeometryChange()  # 通知Qt几何可能改变
-            self.update()  # 强制重绘
-            # 确保场景也更新
-            if self.scene():
-                self.scene().update(self.sceneBoundingRect())
     
     def _create_tooltip(self) -> str:
         """创建工具提示文本"""
@@ -230,6 +237,11 @@ class HoleGraphicsItem(QGraphicsEllipseItem):
     
     def paint(self, painter: QPainter, option, widget=None):
         """自定义绘制（性能优化）"""
+        # 调试日志已禁用 - 减少输出噪音
+        # current_color = self.brush().color()
+        # if current_color.rgb() != QColor(200, 200, 200).rgb():  # 不是默认灰色
+        #     print(f"[DEBUG PAINT] {self.hole_data.hole_id}: 绘制颜色 RGB({current_color.red()}, {current_color.green()}, {current_color.blue()})")
+        
         # 快速视口检查
         exposed = option.exposedRect
         bounds = self.boundingRect()

@@ -24,8 +24,11 @@ class RightOperationsPanel(QScrollArea):
     start_simulation = Signal()  # 模拟检测信号
     pause_simulation = Signal()
     stop_simulation = Signal()
-    file_operation_requested = Signal(str, dict)
     view_control_requested = Signal(str)  # 视图控制信号
+    # 导航信号
+    realtime_detection_requested = Signal()  # 跳转到P2页面
+    history_statistics_requested = Signal()  # 跳转到P3页面
+    report_generation_requested = Signal()   # 跳转到P4页面
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -67,9 +70,9 @@ class RightOperationsPanel(QScrollArea):
         simulation_group = self._create_simulation_group(group_title_font, button_font)
         layout.addWidget(simulation_group)
 
-        # 3. 文件操作组 (old版本第三组)
-        file_group = self._create_file_operations_group(group_title_font, button_font)
-        layout.addWidget(file_group)
+        # 3. 页面导航组 (替换文件操作组)
+        navigation_group = self._create_navigation_group(group_title_font, button_font)
+        layout.addWidget(navigation_group)
 
         # 4. 视图控制组 (old版本第四组)
         view_group = self._create_view_control_group(group_title_font, button_font)
@@ -143,28 +146,43 @@ class RightOperationsPanel(QScrollArea):
 
         return group
 
-    def _create_file_operations_group(self, group_font, button_font):
-        """创建文件操作组"""
-        group = QGroupBox("文件操作")
+    def _create_navigation_group(self, group_font, button_font):
+        """创建页面导航组"""
+        group = QGroupBox("页面导航")
         group.setFont(group_font)
         layout = QVBoxLayout(group)
 
-        # 文件操作按钮
-        self.load_dxf_btn = QPushButton("加载DXF文件")
-        self.load_dxf_btn.setMinimumHeight(40)
-        self.load_dxf_btn.setFont(button_font)
+        # 导航按钮
+        self.realtime_btn = QPushButton("实时检测")
+        self.realtime_btn.setMinimumHeight(40)
+        self.realtime_btn.setFont(button_font)
+        self.realtime_btn.setStyleSheet(
+            "QPushButton { background-color: #2196F3; color: white; border-radius: 5px; }"
+            "QPushButton:hover { background-color: #1976D2; }"
+            "QPushButton:pressed { background-color: #0D47A1; }"
+        )
 
-        self.load_product_btn = QPushButton("选择产品型号")
-        self.load_product_btn.setMinimumHeight(40)
-        self.load_product_btn.setFont(button_font)
+        self.history_btn = QPushButton("历史统计")
+        self.history_btn.setMinimumHeight(40)
+        self.history_btn.setFont(button_font)
+        self.history_btn.setStyleSheet(
+            "QPushButton { background-color: #4CAF50; color: white; border-radius: 5px; }"
+            "QPushButton:hover { background-color: #388E3C; }"
+            "QPushButton:pressed { background-color: #1B5E20; }"
+        )
 
-        self.export_data_btn = QPushButton("导出数据")
-        self.export_data_btn.setMinimumHeight(40)
-        self.export_data_btn.setFont(button_font)
+        self.report_btn = QPushButton("报告生成")
+        self.report_btn.setMinimumHeight(40)
+        self.report_btn.setFont(button_font)
+        self.report_btn.setStyleSheet(
+            "QPushButton { background-color: #FF9800; color: white; border-radius: 5px; }"
+            "QPushButton:hover { background-color: #F57C00; }"
+            "QPushButton:pressed { background-color: #E65100; }"
+        )
 
-        layout.addWidget(self.load_dxf_btn)
-        layout.addWidget(self.load_product_btn)
-        layout.addWidget(self.export_data_btn)
+        layout.addWidget(self.realtime_btn)
+        layout.addWidget(self.history_btn)
+        layout.addWidget(self.report_btn)
 
         return group
 
@@ -220,10 +238,10 @@ class RightOperationsPanel(QScrollArea):
         self.pause_simulation_btn.clicked.connect(self.pause_simulation.emit)
         self.stop_simulation_btn.clicked.connect(self.stop_simulation.emit)
 
-        # 文件操作信号
-        self.load_dxf_btn.clicked.connect(lambda: self.file_operation_requested.emit("load_dxf", {}))
-        self.load_product_btn.clicked.connect(lambda: self.file_operation_requested.emit("load_product", {}))
-        self.export_data_btn.clicked.connect(lambda: self.file_operation_requested.emit("export_data", {}))
+        # 导航信号
+        self.realtime_btn.clicked.connect(self.realtime_detection_requested.emit)
+        self.history_btn.clicked.connect(self.history_statistics_requested.emit)
+        self.report_btn.clicked.connect(self.report_generation_requested.emit)
 
         # 视图控制信号
         self.zoom_in_button.clicked.connect(lambda: self.view_control_requested.emit("zoom_in"))

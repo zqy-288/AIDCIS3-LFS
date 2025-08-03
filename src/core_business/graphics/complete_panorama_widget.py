@@ -766,7 +766,8 @@ class CompletePanoramaWidget(QWidget):
                 return None
                 
             # 计算角度（转换为0-360度）
-            angle_rad = math.atan2(-dy, dx)  # 注意Y轴方向
+            # 使用数学坐标系：Y轴向上，角度从正X轴开始逆时针增加
+            angle_rad = math.atan2(dy, dx)  # 数学坐标系
             angle_deg = math.degrees(angle_rad)
             
             # 归一化到0-360

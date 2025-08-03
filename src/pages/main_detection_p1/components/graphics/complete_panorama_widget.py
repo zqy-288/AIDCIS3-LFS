@@ -817,8 +817,7 @@ class CompletePanoramaWidget(QWidget):
             
     def _should_update_immediately(self) -> bool:
         """判断是否需要立即更新"""
-        # 为了确保检测状态能及时更新（特别是从蓝色变为最终颜色），
-        # 暂时所有更新都立即执行，避免批量更新的延迟问题
+        # 暂时恢复立即更新，以确保颜色覆盖清除能及时生效
         return True
         
     def _update_hole_immediately(self, hole_id: str, status: HoleStatus, color_override=None):
@@ -843,20 +842,7 @@ class CompletePanoramaWidget(QWidget):
                     # 强制更新显示
                     hole_item.update()
                     
-                    # 额外的强制刷新机制
-                    if hasattr(hole_item, 'prepareGeometryChange'):
-                        hole_item.prepareGeometryChange()
-                    
-                    # 强制场景更新
-                    if hasattr(hole_item, 'scene') and hole_item.scene():
-                        scene_rect = hole_item.sceneBoundingRect()
-                        hole_item.scene().update(scene_rect)
-                    
                 self.logger.debug(f"立即更新完成: {hole_id}", "✅")
-                
-                # 强制视图更新
-                if hasattr(self.panorama_view, 'viewport'):
-                    self.panorama_view.viewport().update()
             else:
                 self.logger.warning(f"未找到孔位图形项: {hole_id}", "❌")
                 
@@ -903,10 +889,8 @@ class CompletePanoramaWidget(QWidget):
                                 # 没有颜色覆盖时清除覆盖色（用于从蓝色变为最终状态）
                                 hole_item.clear_color_override()
                             
-                            # 强制更新
+                            # 更新显示
                             hole_item.update()
-                            if hasattr(hole_item, 'prepareGeometryChange'):
-                                hole_item.prepareGeometryChange()
                             
                             updated_count += 1
                             

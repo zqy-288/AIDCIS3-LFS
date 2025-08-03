@@ -145,14 +145,15 @@ class DXFParser:
             # 编号逻辑已移至独立的HoleNumberingService组件
             # DXFParser现在只负责解析几何数据，不处理业务编号
             
-            # 创建孔集合（使用临时索引作为键，并同步更新hole_id）
+            # 创建孔集合（使用临时索引作为键）
             holes_dict = {}
             for i, hole in enumerate(holes):
                 hole_id = str(i)
-                hole.hole_id = hole_id  # 同步更新孔位对象的hole_id
+                hole.hole_id = hole_id  # 临时ID，稍后会被替换
                 holes_dict[hole_id] = hole
             
-            hole_collection = HoleCollection(
+            # 创建临时集合
+            temp_collection = HoleCollection(
                 holes=holes_dict,
                 metadata={
                     'source_file': file_path,
@@ -161,9 +162,19 @@ class DXFParser:
                     'total_arcs': len(arcs),
                     'file_size': file_size,
                     'pre_rotated': False,  # 标记未预旋转，由统一坐标管理器处理
-                    'no_ids': True  # 标记未生成ID
+                    'no_ids': False  # 改为False，表示将生成正式ID
                 }
             )
+            
+            # 立即应用A/B侧网格编号，生成标准格式ID
+            from src.core_business.hole_numbering_service import HoleNumberingService
+            numbering_service = HoleNumberingService()
+            numbering_service.apply_numbering(temp_collection)  # 这个方法直接修改temp_collection
+            
+            # 使用修改后的temp_collection
+            hole_collection = temp_collection
+            
+            self.logger.info(f"✅ DXF解析完成并生成标准ID，共 {len(hole_collection.holes)} 个孔位")
 
             # 缓存结果到新的缓存管理器
             self._cache_result(cache_key, hole_collection)

@@ -41,12 +41,14 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         self.setScene(self.scene)
         
         # 视图模式管理
-        self.current_view_mode = "macro"  # macro(宏观) 或 micro(微观)
+        self.current_view_mode = "micro"  # macro(宏观) 或 micro(微观) - 默认微观视图
         
         # 性能优化设置
         self.setRenderHint(QPainter.Antialiasing, False)  # 禁用抗锯齿提升性能
         self.setRenderHint(QPainter.SmoothPixmapTransform, False)  # 禁用平滑变换
-        self.setViewportUpdateMode(QGraphicsView.MinimalViewportUpdate)  # 最小更新模式
+        # 改用智能更新模式，平衡性能和正确性，确保颜色变化能正确显示
+        self.setViewportUpdateMode(QGraphicsView.SmartViewportUpdate)  # 智能更新模式
+        # 注：MinimalViewportUpdate 可能导致颜色更新被优化掉
         
         # 防抖机制 - 避免重复的自适应调用
         self._fit_timer = QTimer()
@@ -163,8 +165,15 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             
             # 默认适配到窗口宽度（防抖机制会处理延迟）
             # 但如果设置了 disable_auto_fit 标志，则不自动适配（用于扇形显示）
+            # 同时检查当前视图模式，微观视图下不自动适配
             if not getattr(self, 'disable_auto_fit', False):
-                self.fit_to_window_width()
+                # 检查是否在微观视图模式
+                if hasattr(self, 'current_view_mode') and self.current_view_mode == 'micro':
+                    self.logger.info("微观视图模式，跳过load_holes时的自动适配")
+                    # 在微观模式下，确保不会意外触发全视图适配
+                    self.disable_auto_fit = True
+                else:
+                    self.fit_to_window_width()
                 
             # 验证图形项数量
             actual_items = len(self.scene.items())
@@ -207,6 +216,11 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
 
     def fit_to_window_width(self):
         """适配到窗口宽度 - 使用防抖机制避免重复调用"""
+        # 微观视图模式下完全禁止自动适配
+        if hasattr(self, 'current_view_mode') and self.current_view_mode == 'micro':
+            self.logger.info("微观视图模式下禁止 fit_to_window_width")
+            return
+            
         # 如果设置了 disable_auto_fit，则跳过自动适配
         if getattr(self, 'disable_auto_fit', False):
             self.logger.info("跳过自动适配（disable_auto_fit=True）")
@@ -535,7 +549,11 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         
         # 窗口大小变化时，重新适配到窗口宽度
         # 防抖机制会自动处理重复调用
+        # 微观视图模式下不自动适配，避免重复缩放
         if self.hole_collection and not getattr(self, 'disable_auto_fit', False):
+            # 检查是否在微观视图模式
+            if hasattr(self, 'current_view_mode') and self.current_view_mode == 'micro':
+                return  # 微观视图下跳过自动适配
             self.fit_to_window_width()
 
     def _update_status_legend_position(self):
@@ -664,9 +682,19 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             
     def fit_in_view_with_margin(self, margin_ratio=0.15):
         """适应视图并留有边距，确保内容居中显示"""
+        # 微观视图模式下跳过
+        if hasattr(self, 'current_view_mode') and self.current_view_mode == 'micro':
+            self.logger.info("微观视图模式下跳过 fit_in_view_with_margin")
+            return
+            
         # 如果设置了 disable_auto_fit，则跳过
         if getattr(self, 'disable_auto_fit', False):
             self.logger.info("跳过 fit_in_view_with_margin（disable_auto_fit=True）")
+            return
+            
+        # 添加缩放锁，防止短时间内多次缩放
+        if getattr(self, '_is_fitting', False):
+            self.logger.info("正在进行视图适配，跳过重复调用")
             return
             
         if not self.hole_collection:
@@ -680,29 +708,31 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             self.logger.warning("场景尺寸无效，无法适应视图")
             return
         
-        # 减少边距比例，使内容更好地填满视图区域
-        margin_x = scene_rect.width() * margin_ratio
-        margin_y = scene_rect.height() * margin_ratio
-        
-        view_rect = QRectF(
-            scene_rect.x() - margin_x,
-            scene_rect.y() - margin_y,
-            scene_rect.width() + 2 * margin_x,
-            scene_rect.height() + 2 * margin_y
-        )
-        
-        # 使用 KeepAspectRatio 确保比例正确，并强制居中
-        self.fitInView(view_rect, Qt.KeepAspectRatio)
-        
-        # 多次强制居中，确保扇形内容精确对准显示中心
-        # TODO: 强制居中会抵消偏移效果，在扇形偏移模式下禁用
-        if not getattr(self, 'disable_auto_center', False):
-            scene_center = scene_rect.center()
-            QTimer.singleShot(50, lambda: self.centerOn(scene_center))
-            QTimer.singleShot(100, lambda: self.centerOn(scene_center))
-            QTimer.singleShot(200, lambda: self._ensure_perfect_centering(scene_center))
-        else:
-            print("🚫 跳过强制居中（disable_auto_center=True）")
+        try:
+            self._is_fitting = True
+            
+            # 减少边距比例，使内容更好地填满视图区域
+            margin_x = scene_rect.width() * margin_ratio
+            margin_y = scene_rect.height() * margin_ratio
+            
+            view_rect = QRectF(
+                scene_rect.x() - margin_x,
+                scene_rect.y() - margin_y,
+                scene_rect.width() + 2 * margin_x,
+                scene_rect.height() + 2 * margin_y
+            )
+            
+            # 使用 KeepAspectRatio 确保比例正确
+            self.fitInView(view_rect, Qt.KeepAspectRatio)
+            
+            # 只进行一次居中，避免多次调用造成闪烁
+            if not getattr(self, 'disable_auto_center', False):
+                scene_center = scene_rect.center()
+                self.centerOn(scene_center)
+                
+        finally:
+            # 延迟解锁，避免连续调用
+            QTimer.singleShot(300, lambda: setattr(self, '_is_fitting', False))
     
     def _ensure_perfect_centering(self, target_center: QPointF):
         """确保内容精确居中显示"""
@@ -710,7 +740,6 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         if getattr(self, 'disable_auto_fit', False):
             self.logger.info("跳过精确居中（disable_auto_fit=True）")
             return
-        """确保内容精确居中显示"""
         try:
             # 获取当前视图中心
             view_center = self.mapToScene(self.viewport().rect().center())
@@ -749,12 +778,24 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             
     def set_micro_view_scale(self):
         """设置微观视图的适当缩放比例"""
+        # 如果正在进行 fitInView 操作，跳过额外缩放
+        if getattr(self, '_is_fitting', False):
+            self.logger.info("跳过 set_micro_view_scale（正在进行 fitInView）")
+            return
+            
+        # 如果已经通过 fitInView 设置了合适的缩放，跳过
+        if getattr(self, '_fitted_to_sector', False):
+            self.logger.info("跳过 set_micro_view_scale（已适配到扇形）")
+            # 重置标志
+            self._fitted_to_sector = False
+            return
+            
         # 微观视图需要更大的缩放比例以显示细节
         current_scale = self.transform().m11()
         
-        # 微观视图的缩放范围
-        min_micro_scale = 1.2
-        max_micro_scale = 4.0
+        # 微观视图的缩放范围（进一步调整）
+        min_micro_scale = 0.5  # 进一步降低最小值，允许更小的缩放
+        max_micro_scale = 2.0  # 进一步降低最大值，避免过度放大
         
         if current_scale < min_micro_scale:
             scale_factor = min_micro_scale / current_scale
@@ -805,6 +846,25 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
     def get_current_view_mode(self):
         """获取当前视图模式"""
         return self.current_view_mode
+    
+    def show_all_holes(self):
+        """显示所有孔位（用于宏观视图）"""
+        if not self.hole_items:
+            return
+            
+        # 显示所有孔位
+        for hole_id, item in self.hole_items.items():
+            item.setVisible(True)
+            
+        # 适应视图到全部内容
+        self.fit_in_view_with_margin()
+        
+        # 刷新场景
+        if self.scene:
+            self.scene.update()
+        self.viewport().update()
+        
+        self.logger.info("✅ 已显示所有孔位")
     
     # 蛇形路径相关方法
     

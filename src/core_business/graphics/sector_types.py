@@ -57,15 +57,16 @@ class SectorQuadrant(Enum):
     
     @classmethod
     def from_position(cls, x: float, y: float, center_x: float, center_y: float) -> 'SectorQuadrant':
-        """根据位置相对于中心点确定扇形象限"""
+        """根据位置相对于中心点确定扇形象限（Qt坐标系）"""
+        # 使用Qt坐标系：Y轴向下
         if x >= center_x and y < center_y:
-            return cls.SECTOR_1
+            return cls.SECTOR_1  # 右上
         elif x < center_x and y < center_y:
-            return cls.SECTOR_2
+            return cls.SECTOR_2  # 左上
         elif x < center_x and y >= center_y:
-            return cls.SECTOR_3
+            return cls.SECTOR_3  # 左下
         else:  # x >= center_x and y >= center_y
-            return cls.SECTOR_4
+            return cls.SECTOR_4  # 右下
 
 
 @dataclass

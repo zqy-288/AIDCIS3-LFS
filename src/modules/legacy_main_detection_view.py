@@ -15,7 +15,7 @@ from PySide6.QtGui import QFont
 # 导入重构后的MVVM组件
 try:
     from src.ui.components.toolbar_component import ToolbarComponent
-    from src.ui.components.operations_panel_component import OperationsPanelComponent
+    from src.pages.shared.ui.components.operations_panel_component import OperationsPanelComponent
     from src.ui.components.info_panel_component import InfoPanelComponent
     from src.pages.main_detection_p1.ui.components.visualization_panel_component import VisualizationPanelComponent
     from src.ui.view_models.main_view_model import MainViewModel

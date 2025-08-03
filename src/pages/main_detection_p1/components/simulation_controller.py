@@ -40,6 +40,7 @@ class SimulationController(QObject):
         self.snake_sorted_holes = []
         self.detection_units = []  # 检测单元列表（HoleData或HolePair）
         self.current_sector = None  # 当前聚焦的扇形
+        self.total_holes_processed = 0  # 已处理的孔位总数
         
         # 组件引用
         self.hole_collection = None
@@ -48,15 +49,15 @@ class SimulationController(QObject):
         self.sector_assignment_manager = None  # 扇形分配管理器
         
         
-        # 模拟定时器 - 按照用户需求设置为10秒间隔
-        self.simulation_timer = QTimer()
-        self.simulation_timer.timeout.connect(self._process_next_pair)
-        self.simulation_timer.setInterval(10000)  # 10秒/对（用户需求）
+        # 使用单一定时器控制所有时序，避免同步问题
+        self.master_timer = QTimer()
+        self.master_timer.timeout.connect(self._master_tick)
+        self.master_timer.setInterval(100)  # 100ms精度
         
-        # 状态变化定时器 - 9.5秒后变为最终状态（用户需求：蓝色9.5秒）
-        self.status_change_timer = QTimer()
-        self.status_change_timer.timeout.connect(self._finalize_current_pair_status)
-        self.status_change_timer.setSingleShot(True)  # 单次触发
+        # 时序控制变量
+        self.cycle_start_time = None  # 当前周期开始时间（毫秒）
+        self.current_phase = "IDLE"   # IDLE -> DETECTING -> FINALIZING -> IDLE
+        self.elapsed_in_cycle = 0     # 当前周期内的经过时间（毫秒）
         
         # 模拟参数 - 按照用户需求设置
         self.pair_detection_time = 10000  # 10秒/对（用户需求）
@@ -72,6 +73,89 @@ class SimulationController(QObject):
         """初始化控制器"""
         
         self.logger.info("✅ 模拟控制器初始化完成")
+        
+    def _master_tick(self):
+        """主定时器tick - 精确控制整个时序"""
+        if not self.is_running or self.is_paused:
+            return
+            
+        # 更新周期内时间
+        self.elapsed_in_cycle += 100  # 100ms
+        
+        if self.current_phase == "IDLE":
+            # 开始新的检测周期
+            if self.current_index < len(self.detection_units):
+                self.current_phase = "DETECTING"
+                self.elapsed_in_cycle = 0
+                self._start_detection_cycle()
+            else:
+                # 模拟完成
+                self._complete_simulation()
+                
+        elif self.current_phase == "DETECTING":
+            # 等待9.5秒后变色
+            if self.elapsed_in_cycle >= self.status_change_time:
+                self.current_phase = "FINALIZING"
+                self._finalize_detection_cycle()
+                
+        elif self.current_phase == "FINALIZING":
+            # 等待到10秒开始下一个周期
+            if self.elapsed_in_cycle >= self.pair_detection_time:
+                self.current_phase = "IDLE"
+                self.elapsed_in_cycle = 0
+                
+    def _start_detection_cycle(self):
+        """开始新的检测周期（0秒时刻）"""
+        # 记录日志
+        self.logger.info(f"🔍 处理检测单元 {self.current_index + 1}/{len(self.detection_units)}")
+        
+        # 获取当前检测单元
+        current_unit = self.detection_units[self.current_index]
+        
+        # 处理扇形聚焦
+        self._focus_on_sector(current_unit)
+        
+        # 设置当前检测配对
+        self.current_detecting_pair = current_unit
+        
+        # 开始检测（设置蓝色）
+        self._start_pair_detection(current_unit)
+        
+        # 计算已处理的孔位数
+        self.total_holes_processed += len(current_unit.holes)
+        
+        # 发射进度信号（发送孔位数而不是检测单元数）
+        total_holes = len(self.snake_sorted_holes)
+        self.simulation_progress.emit(self.total_holes_processed, total_holes)
+        
+        # 移动到下一个检测单元
+        self.current_index += 1
+        
+    def _finalize_detection_cycle(self):
+        """完成当前检测周期（9.5秒时刻）"""
+        if not self.current_detecting_pair:
+            return
+            
+        self.logger.info(f"🔄 开始更新检测单元的最终状态")
+        current_unit = self.current_detecting_pair
+        
+        # 更新最终状态（支持HolePair）
+        if hasattr(current_unit, 'holes'):
+            # HolePair检测单元
+            self.logger.info(f"🎯 处理配对单元，包含 {len(current_unit.holes)} 个孔位")
+            for hole in current_unit.holes:
+                final_status = self._simulate_detection_result()
+                self._update_hole_status(hole.hole_id, final_status, color_override=None)
+        else:
+            # 单个孔位
+            final_status = self._simulate_detection_result()
+            self._update_hole_status(current_unit.hole_id, final_status, color_override=None)
+            
+        # 清除当前检测配对
+        self.current_detecting_pair = None
+        
+        # 强制刷新视图
+        self._force_immediate_visual_update()
         
     def set_graphics_view(self, graphics_view):
         """设置图形视图（中间放大视图）"""
@@ -101,7 +185,7 @@ class SimulationController(QObject):
             
         self.logger.info("🚀 开始模拟检测")
         
-        # 恢复HolePair配对检测算法
+        # 恢复使用间隔4列的HolePair检测算法
         snake_path_renderer = SnakePathRenderer()
         # 为路径渲染器设置虚拟场景（只用于生成检测单元，不渲染路径）
         from PySide6.QtWidgets import QGraphicsScene
@@ -109,7 +193,7 @@ class SimulationController(QObject):
         snake_path_renderer.set_graphics_scene(scene)
         snake_path_renderer.set_hole_collection(self.hole_collection)
         
-        # 尝试生成HolePair检测单元
+        # 生成间隔4列的HolePair检测单元（按象限顺序）
         self.logger.info(f"🔍 开始生成蛇形路径，数据源: {len(self.hole_collection.holes)} 个孔位")
         try:
             self.detection_units = snake_path_renderer.generate_snake_path(PathStrategy.INTERVAL_FOUR_S_SHAPE)
@@ -122,7 +206,7 @@ class SimulationController(QObject):
             self.logger.error("❌ 无法生成双孔检测单元，模拟无法继续")
             return
             
-        # 提取所有个体孔位（仅HolePair对象）
+        # 提取所有个体孔位
         self.snake_sorted_holes = []
         for unit in self.detection_units:
             self.snake_sorted_holes.extend(unit.holes)
@@ -134,19 +218,24 @@ class SimulationController(QObject):
         self.current_index = 0
         self.is_running = True
         self.is_paused = False
+        self.total_holes_processed = 0  # 重置已处理孔位数
         
-        # 重置所有孔位状态为待检
-        self.logger.info(f"🔄 开始重置 {len(self.snake_sorted_holes)} 个孔位状态为待检")
-        for hole in self.snake_sorted_holes:
-            self._update_hole_status(hole.hole_id, HoleStatus.PENDING)
+        # 重置所有孔位状态为待检 - 重要：重置集合中的所有孔位，而不仅仅是检测路径中的
+        if self.hole_collection:
+            # 静默批量重置所有孔位
+            for hole_id, hole in self.hole_collection.holes.items():
+                hole.status = HoleStatus.PENDING
+        else:
+            self.logger.warning("⚠️ 没有孔位集合可重置")
             
-        # 启动定时器
-        self.simulation_timer.start()
+        # 重置时序控制
+        self.current_phase = "IDLE"
+        self.elapsed_in_cycle = 0
         
-        # 立即处理第一个孔位，提供即时的视觉反馈
+        # 启动主定时器
         if self.detection_units:
-            self.logger.info(f"🚀 立即开始第一个检测单元（总共 {len(self.detection_units)} 个单元）")
-            self._process_next_pair()
+            self.logger.info(f"🚀 准备开始第一个检测单元（总共 {len(self.detection_units)} 个单元，{len(self.snake_sorted_holes)} 个孔位）")
+            self.master_timer.start()
         else:
             self.logger.error("❌ 没有检测单元可处理")
         
@@ -157,8 +246,7 @@ class SimulationController(QObject):
         """暂停模拟"""
         if self.is_running and not self.is_paused:
             self.is_paused = True
-            self.simulation_timer.stop()
-            self.status_change_timer.stop()  # 同时停止状态变化定时器
+            self.master_timer.stop()
             self.simulation_paused.emit()
             self.logger.info("⏸️ 模拟已暂停")
             
@@ -166,24 +254,39 @@ class SimulationController(QObject):
         """恢复模拟"""
         if self.is_running and self.is_paused:
             self.is_paused = False
-            self.simulation_timer.start()
-            # 注意：状态变化定时器需要根据剩余时间重新启动
+            self.master_timer.start()
             self.logger.info("▶️ 模拟已恢复")
             
     def stop_simulation(self):
         """停止模拟"""
         if self.is_running:
+            # 先处理当前检测中的孔位，清除蓝色状态
+            if self.current_detecting_pair:
+                self.logger.info("🔄 清理当前检测中的孔位状态")
+                for hole in self.current_detecting_pair.holes:
+                    # 恢复到原始pending状态，清除蓝色
+                    self._update_hole_status(hole.hole_id, HoleStatus.PENDING, color_override=None)
+                    self.logger.info(f"  ✅ 清除孔位 {hole.hole_id} 的蓝色状态")
+            
             self.is_running = False
             self.is_paused = False
-            self.simulation_timer.stop()
-            self.status_change_timer.stop()  # 停止状态变化定时器
+            self.master_timer.stop()
+            self.current_phase = "IDLE"
+            self.elapsed_in_cycle = 0
             self.current_detecting_pair = None  # 清除当前检测配对
             
+                
+            # 额外的安全检查：清理所有可能的蓝色状态
+            self._cleanup_all_blue_states()
                 
             self.simulation_stopped.emit()
             self.logger.info("⏹️ 模拟已停止")
             
     def _process_next_pair(self):
+        """[已废弃] 由 _master_tick 和 _start_detection_cycle 替代"""
+        pass
+        
+    def _process_next_pair_old(self):
         """处理下一个检测配对 - 新的时序控制"""
         if not self.is_running or self.is_paused:
             self.logger.debug("⏸️ 模拟已停止或暂停")
@@ -233,19 +336,25 @@ class SimulationController(QObject):
         self.current_index += 1
         
     def _start_pair_detection(self, hole_pair: HolePair):
-        """开始HolePair配对检测 - 同时设置两个孔位为蓝色状态"""
+        """开始HolePair配对检测 - 批量设置两个孔位为蓝色状态"""
         self.logger.info(f"🔵 开始配对检测: {[h.hole_id for h in hole_pair.holes]}")
+        
+        # 直接更新，减少中间日志
         for hole in hole_pair.holes:
-            self.logger.info(f"🔵 设置孔位 {hole.hole_id} 为蓝色检测状态")
             self._update_hole_status(hole.hole_id, HoleStatus.PENDING, color_override=QColor(33, 150, 243))  # 蓝色
         
     def _finalize_current_pair_status(self):
+        """[已废弃] 由 _finalize_detection_cycle 替代"""
+        pass
+        
+    def _finalize_current_pair_status_old(self):
         """9.5秒后确定当前孔位的最终状态"""
-        self.logger.info(f"🔄 开始更新检测单元的最终状态")
+        # 如果已经没有当前检测配对，说明可能被停止或其他原因清除了
         if not self.current_detecting_pair:
-            self.logger.warning("⚠️ 没有当前检测配对，跳过状态更新")
+            self.logger.debug("没有当前检测配对，跳过状态更新")
             return
             
+        self.logger.info(f"🔄 开始更新检测单元的最终状态")
         current_unit = self.current_detecting_pair
         
         # 处理HolePair检测的最终状态
@@ -254,21 +363,45 @@ class SimulationController(QObject):
         for hole in current_unit.holes:
             final_status = self._simulate_detection_result()
             # 更新到最终状态，不使用颜色覆盖（清除蓝色）
-            self.logger.info(f"📋 更新孔位 {hole.hole_id}: 清除蓝色，设置最终状态 {final_status.value}")
             self._update_hole_status(hole.hole_id, final_status, color_override=None)
-            status_text = "✅ 合格" if final_status == HoleStatus.QUALIFIED else "❌ 不合格"
-            self.logger.info(f"📋 配对检测 {hole.hole_id}: {status_text}")
             
         # 清除当前检测配对
         self.current_detecting_pair = None
         
-        # 额外的强制刷新，确保蓝色被清除
-        QTimer.singleShot(50, self._force_refresh_all_views)
+        # 强制刷新所有视图，确保颜色立即更新
+        self._force_immediate_visual_update()
+        
+    def _force_immediate_visual_update(self):
+        """强制立即更新所有视图，确保颜色变化可见"""
+        from PySide6.QtCore import QEventLoop
+        from PySide6.QtWidgets import QApplication
+        
+        # 1. 强制刷新中间图形视图
+        if self.graphics_view:
+            # 使用 repaint 而不是 update，强制立即重绘
+            self.graphics_view.viewport().repaint()
+            
+        # 2. 强制刷新全景图
+        if self.panorama_widget:
+            self.panorama_widget.repaint()
+            if hasattr(self.panorama_widget, 'panorama_view') and self.panorama_widget.panorama_view:
+                self.panorama_widget.panorama_view.viewport().repaint()
+        
+        # 3. 处理所有挂起的事件，确保重绘完成
+        QApplication.processEvents(QEventLoop.AllEvents, 50)  # 最多处理50ms
+        
+        self.logger.debug("✅ 强制视图刷新完成")
+    
         
     def _focus_on_sector(self, detection_unit):
         """扇形聚焦机制 - 根据检测单元确定并聚焦到相应扇形"""
-        # HolePair：使用第一个孔位作为主要参考
-        primary_hole = detection_unit.holes[0]
+        # 支持单个孔位或HolePair
+        if hasattr(detection_unit, 'holes'):
+            # HolePair：使用第一个孔位作为主要参考
+            primary_hole = detection_unit.holes[0]
+        else:
+            # 单个孔位
+            primary_hole = detection_unit
             
         # 确定扇形（需要扇形分配管理器）
         sector = self._determine_sector(primary_hole)
@@ -333,11 +466,14 @@ class SimulationController(QObject):
             
     def _update_hole_status(self, hole_id: str, status: HoleStatus, color_override=None):
         """更新孔位状态，支持颜色覆盖（用于蓝色检测中状态）"""
+        # 只在关键状态变化时输出日志
         if color_override is not None:
-            color_info = f"蓝色 (RGB: {color_override.red()}, {color_override.green()}, {color_override.blue()})"
-        else:
-            color_info = "清除颜色覆盖 (color_override=None)"
-        self.logger.info(f"🔄 更新孔位状态: {hole_id} -> {status.value if hasattr(status, 'value') else status} ({color_info})")
+            # 设置蓝色时输出
+            self.logger.info(f"🔵 设置孔位 {hole_id} 为检测中状态（蓝色）")
+        elif status in [HoleStatus.QUALIFIED, HoleStatus.DEFECTIVE]:
+            # 最终状态时输出
+            status_icon = "✅" if status == HoleStatus.QUALIFIED else "❌"
+            self.logger.info(f"{status_icon} 孔位 {hole_id} 检测完成: {status.value}")
         
         # 更新数据模型
         if self.hole_collection and hole_id in self.hole_collection.holes:
@@ -370,6 +506,7 @@ class SimulationController(QObject):
         # 发射信号
         self.hole_status_updated.emit(hole_id, status)
         self.logger.debug(f"   📡 状态更新信号已发射")
+        
         
     def _update_graphics_item_status(self, hole_id: str, status: HoleStatus, color_override=None):
         """更新图形项状态，支持颜色覆盖"""
@@ -431,7 +568,44 @@ class SimulationController(QObject):
         except Exception as e:
             self.logger.warning(f"强制刷新视图失败: {e}")
     
+    def _cleanup_all_blue_states(self):
+        """清理所有可能的蓝色状态"""
+        cleaned_count = 0
+        
+        # 清理中间图形视图的蓝色状态
+        if self.graphics_view and hasattr(self.graphics_view, 'hole_items'):
+            for hole_id, item in self.graphics_view.hole_items.items():
+                if hasattr(item, '_color_override') and item._color_override:
+                    # 检查是否是蓝色 (33, 150, 243)
+                    color = item._color_override
+                    if color and color.red() == 33 and color.green() == 150 and color.blue() == 243:
+                        item.clear_color_override()
+                        cleaned_count += 1
+                        
+        # 清理全景图的蓝色状态  
+        if self.panorama_widget and hasattr(self.panorama_widget, '_get_scene'):
+            scene = self.panorama_widget._get_scene()
+            if scene:
+                for item in scene.items():
+                    if hasattr(item, '_color_override') and item._color_override:
+                        color = item._color_override
+                        if color and color.red() == 33 and color.green() == 150 and color.blue() == 243:
+                            item.clear_color_override()
+                            cleaned_count += 1
+                            
+        if cleaned_count > 0:
+            self.logger.info(f"🧹 清理了 {cleaned_count} 个蓝色状态的孔位")
+            # 确保UI更新
+            from PySide6.QtCore import QEventLoop
+            from PySide6.QtWidgets import QApplication
+            QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)
+    
     def _force_refresh_all_views(self):
+        """[已废弃] 强制刷新所有视图"""
+        # 此方法已被 QApplication.processEvents() 替代
+        pass
+        
+    def _force_refresh_all_views_old(self):
         """强制刷新所有视图，确保蓝色状态被清除"""
         try:
             # 刷新中间的图形视图
@@ -458,13 +632,14 @@ class SimulationController(QObject):
     def _complete_simulation(self):
         """完成模拟"""
         self.is_running = False
-        self.simulation_timer.stop()
+        self.master_timer.stop()
+        self.current_phase = "IDLE"
+        self.elapsed_in_cycle = 0
         
         # 计算统计信息
         stats = self._calculate_simulation_stats()
         
         self.logger.info(f"🏆 模拟完成统计：")
-        self.logger.info(f"   检测单元: {len(self.detection_units)} 个")
         self.logger.info(f"   总孔位数: {stats['total']} 个")
         self.logger.info(f"   合格: {stats['qualified']} 个 ({stats['qualified']/stats['total']*100:.1f}%)")
         self.logger.info(f"   异常: {stats['defective']} 个 ({stats['defective']/stats['total']*100:.1f}%)")
@@ -493,9 +668,10 @@ class SimulationController(QObject):
         
     def set_simulation_speed(self, ms_per_hole: int):
         """设置模拟速度"""
-        self.simulation_speed = ms_per_hole
-        self.simulation_timer.setInterval(ms_per_hole)
-        self.logger.info(f"模拟速度设置为: {ms_per_hole}ms/孔")
+        self.pair_detection_time = ms_per_hole
+        # 状态变化时间保持为检测时间的95%
+        self.status_change_time = int(ms_per_hole * 0.95)
+        self.logger.info(f"模拟速度设置为: {ms_per_hole}ms/孔对")
         
     def set_success_rate(self, rate: float):
         """设置成功率"""

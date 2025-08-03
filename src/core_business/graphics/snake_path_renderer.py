@@ -544,13 +544,14 @@ class SnakePathRenderer(QObject):
         dy = hole.center_y - center_y
         
         # Qt坐标系象限优先级：第一象限(1) -> 第二象限(2) -> 第三象限(3) -> 第四象限(4)
-        if dx >= 0 and dy <= 0:  # 右上象限
+        # 修正：确保从右上(sector_1)开始，而不是右下(sector_4)
+        if dx >= 0 and dy <= 0:  # 右上象限 - sector_1
             return 1
-        elif dx < 0 and dy <= 0:  # 左上象限
+        elif dx < 0 and dy <= 0:  # 左上象限 - sector_2
             return 2
-        elif dx < 0 and dy > 0:   # 左下象限
+        elif dx < 0 and dy > 0:   # 左下象限 - sector_3
             return 3
-        else:  # dx >= 0 and dy > 0, 右下象限
+        else:  # dx >= 0 and dy > 0, 右下象限 - sector_4
             return 4
             
     def _apply_s_shape_sorting(self, pairs_with_keys: List[Tuple[Tuple, HolePair]]) -> List[HolePair]:

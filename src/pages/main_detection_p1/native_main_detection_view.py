@@ -34,7 +34,7 @@ try:
     # UI组件
     from src.ui.components.toolbar_component import ToolbarComponent
     from src.ui.components.info_panel_component import InfoPanelComponent
-    from src.ui.components.operations_panel_component import OperationsPanelComponent
+    from src.pages.shared.ui.components.operations_panel_component import OperationsPanelComponent
     from src.ui.view_models.main_view_model import MainViewModel
     
     # 图形组件
