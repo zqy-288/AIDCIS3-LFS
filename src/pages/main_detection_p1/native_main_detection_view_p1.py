@@ -628,6 +628,26 @@ class NativeCenterVisualizationPanel(QWidget):
         layout.addWidget(self.macro_view_btn)
         layout.addWidget(self.micro_view_btn)
         
+        # 添加分隔空间
+        layout.addSpacing(12)
+        
+        # 添加颜色图例
+        try:
+            from .components.color_legend_widget import CompactColorLegendWidget
+            legend_widget = CompactColorLegendWidget()
+            legend_widget.setStyleSheet("""
+                CompactColorLegendWidget {
+                    background: rgba(0, 0, 0, 0.3);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    border-radius: 6px;
+                    padding: 2px;
+                }
+            """)
+            layout.addWidget(legend_widget)
+            self.logger.info("✅ 添加颜色图例成功")
+        except Exception as e:
+            self.logger.warning(f"⚠️ 添加颜色图例失败: {e}")
+        
         layout.addSpacing(20)
         
         

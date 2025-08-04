@@ -5,7 +5,7 @@
 
 # 导出主要组件
 from .history_viewer import HistoryViewer
-from .main_detection_view import MainDetectionView
+# from .main_detection_view import MainDetectionView  # 已移至trash
 from .endoscope_view import EndoscopeView
 from .annotation_tool import AnnotationTool
 # from .workpiece_diagram import WorkpieceDiagram  # 已移至trash
@@ -16,7 +16,7 @@ from .models import db_manager
 
 __all__ = [
     'HistoryViewer',
-    'MainDetectionView', 
+    # 'MainDetectionView',  # 已移至trash
     'EndoscopeView',
     'AnnotationTool',
     # 'WorkpieceDiagram',  # 已移至trash

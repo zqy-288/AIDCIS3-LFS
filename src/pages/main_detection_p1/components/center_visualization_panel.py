@@ -99,6 +99,14 @@ class CenterVisualizationPanel(QWidget):
         layout.addWidget(self.macro_view_btn)
         layout.addWidget(self.micro_view_btn)
         
+        # 添加颜色图例
+        try:
+            from .color_legend_widget import CompactColorLegendWidget
+            legend_widget = CompactColorLegendWidget()
+            layout.addWidget(legend_widget)
+            print("✅ 中心面板添加颜色图例成功")
+        except Exception as e:
+            print(f"⚠️ 中心面板添加颜色图例失败: {e}")
         
         layout.addStretch()
         return control_frame
