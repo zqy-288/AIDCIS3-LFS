@@ -1881,8 +1881,8 @@ class NativeMainDetectionView(QWidget):
                             self.logger.info("✅ 中间面板graphics_view数据加载完成")
                             
                             # 确保数据加载后正确显示
-                            if hasattr(graphics_view, 'fit_in_view_with_margin'):
-                                graphics_view.fit_in_view_with_margin()
+                            if hasattr(graphics_view, 'fit_to_window_width'):
+                                graphics_view.fit_to_window_width()
                                 self.logger.info("✅ 视图已调整到合适大小")
                 else:
                     self.logger.warning("⚠️ 中间面板没有 graphics_view 属性")

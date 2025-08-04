@@ -155,10 +155,10 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             
             self.logger.info(f"管孔加载完成，场景大小: {scene_rect}")
             
-            # 延迟执行默认适配到窗口宽度
+            # 执行默认适配到窗口宽度
             # 但如果设置了 disable_auto_fit 标志，则不自动适配（用于扇形显示）
             if not getattr(self, 'disable_auto_fit', False):
-                QTimer.singleShot(100, self.fit_to_window_width)
+                self.fit_to_window_width()
                 
             # 验证图形项数量
             actual_items = len(self.scene.items())
@@ -200,7 +200,7 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         self.fit_in_view_all()
 
     def fit_to_window_width(self):
-        """适配到窗口宽度 - 默认显示模式"""
+        """适配到窗口宽度 - 统一的自适应显示模式"""
         # 如果设置了 disable_auto_fit，则跳过自动适配
         if getattr(self, 'disable_auto_fit', False):
             self.logger.info("跳过自动适配（disable_auto_fit=True）")
@@ -237,21 +237,11 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             self.logger.warning("计算的缩放比例无效")
             return
         
-        # 获取旋转配置并构建复合变换 - 避免覆盖旋转
-        # from src.core_business.graphics.rotation_stub import get_rotation_manager  # 旋转功能已禁用
-        # rotation_manager = get_rotation_manager()  # 旋转功能已禁用
-        
-        # 创建新的变换：缩放 + 旋转
+        # 创建新的变换：缩放
         transform = QTransform()
         transform.scale(scale, scale)
         
-        # 应用旋转（如果启用）
-        # if rotation_manager.is_rotation_enabled("scale_manager"):
-        #     rotation_angle = rotation_manager.get_rotation_angle("scale_manager")
-        #     transform.rotate(rotation_angle)
-        #     self.logger.info(f"应用旋转: {rotation_angle}°")
-        
-        # 应用复合变换
+        # 应用变换
         self.setTransform(transform)
         
         # 居中显示（但如果禁用了自动居中，则跳过）
@@ -492,7 +482,7 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         # 窗口大小变化时，重新适配到窗口宽度
         # 但如果设置了 disable_auto_fit 标志，则不自动适配（用于扇形显示）
         if self.hole_collection and not getattr(self, 'disable_auto_fit', False):
-            QTimer.singleShot(50, self.fit_to_window_width)
+            self.fit_to_window_width()
 
     def _update_status_legend_position(self):
         """更新状态图例位置到左上角"""
@@ -608,7 +598,7 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             return
             
         # 适应整个管板显示，保持适当边距
-        self.fit_in_view_with_margin(margin_factor=0.1)
+        self.fit_in_view_with_margin()
         
         # 限制最大缩放比例，避免过度放大
         current_scale = self.transform().m11()
@@ -619,46 +609,9 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         self.logger.info(f"宏观视图缩放设置完成，当前缩放比例: {self.transform().m11():.3f}")
             
     def fit_in_view_with_margin(self, margin_ratio=0.15):
-        """适应视图并留有边距，确保内容居中显示"""
-        # 如果设置了 disable_auto_fit，则跳过
-        if getattr(self, 'disable_auto_fit', False):
-            self.logger.info("跳过 fit_in_view_with_margin（disable_auto_fit=True）")
-            return
-            
-        if not self.hole_collection:
-            return
-            
-        # 获取场景边界
-        scene_rect = self.scene.sceneRect()
-        
-        # 防止无效场景尺寸
-        if scene_rect.isEmpty() or scene_rect.width() <= 0 or scene_rect.height() <= 0:
-            self.logger.warning("场景尺寸无效，无法适应视图")
-            return
-        
-        # 减少边距比例，使内容更好地填满视图区域
-        margin_x = scene_rect.width() * margin_ratio
-        margin_y = scene_rect.height() * margin_ratio
-        
-        view_rect = QRectF(
-            scene_rect.x() - margin_x,
-            scene_rect.y() - margin_y,
-            scene_rect.width() + 2 * margin_x,
-            scene_rect.height() + 2 * margin_y
-        )
-        
-        # 使用 KeepAspectRatio 确保比例正确，并强制居中
-        self.fitInView(view_rect, Qt.KeepAspectRatio)
-        
-        # 多次强制居中，确保扇形内容精确对准显示中心
-        # TODO: 强制居中会抵消偏移效果，在扇形偏移模式下禁用
-        if not getattr(self, 'disable_auto_center', False):
-            scene_center = scene_rect.center()
-            QTimer.singleShot(50, lambda: self.centerOn(scene_center))
-            QTimer.singleShot(100, lambda: self.centerOn(scene_center))
-            QTimer.singleShot(200, lambda: self._ensure_perfect_centering(scene_center))
-        else:
-            print("🚫 跳过强制居中（disable_auto_center=True）")
+        """适应视图并留有边距，统一使用fit_to_window_width"""
+        # 统一使用fit_to_window_width进行自适应
+        self.fit_to_window_width()
     
     def _ensure_perfect_centering(self, target_center: QPointF):
         """确保内容精确居中显示"""
