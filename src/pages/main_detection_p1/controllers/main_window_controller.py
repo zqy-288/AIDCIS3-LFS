@@ -32,6 +32,7 @@ class MainWindowController(QObject):
     detection_started = Signal()
     detection_stopped = Signal()
     detection_progress = Signal(int, int)  # current, total
+    batch_created = Signal(str)  # batch_id
     file_loaded = Signal(str)  # file_path
     error_occurred = Signal(str)  # error_message
     
@@ -46,7 +47,6 @@ class MainWindowController(QObject):
         
         # 批次管理器（延迟加载）
         self._batch_manager = None
-        self._detection_service = None
         
         # 状态管理
         self.current_file_path: Optional[str] = None
@@ -84,14 +84,6 @@ class MainWindowController(QObject):
             self._batch_manager = BatchService(repository)
         return self._batch_manager
     
-    @property
-    def detection_service(self):
-        """延迟加载检测服务"""
-        if self._detection_service is None:
-            from src.services.detection_service import DetectionService
-            self._detection_service = DetectionService()
-            self._detection_service.set_batch_service(self.batch_service)
-        return self._detection_service
         
     def initialize(self):
         """初始化控制器"""
@@ -212,7 +204,7 @@ class MainWindowController(QObject):
         return None
             
     def start_detection(self, is_mock: bool = False):
-        """开始检测"""
+        """开始检测（实际检测功能，非模拟）"""
         if not self.hole_collection:
             self.error_occurred.emit("请先加载DXF文件")
             return
@@ -223,8 +215,18 @@ class MainWindowController(QObject):
             
         # 创建新批次
         try:
-            # 获取产品名称
-            product_name = self.current_product.model_name if self.current_product else "Unknown"
+            # 获取产品名称 - 处理不同的产品信息格式
+            if hasattr(self.current_product, 'model_name'):
+                # ProductModel对象
+                product_name = self.current_product.model_name
+            elif isinstance(self.current_product, dict):
+                # 字典格式
+                product_name = self.current_product.get('model_name', 'Unknown')
+            elif isinstance(self.current_product, str):
+                # 字符串格式
+                product_name = self.current_product
+            else:
+                product_name = "Unknown"
             batch = self.batch_service.create_batch(
                 product_id=self.current_product_id,
                 product_name=product_name,
@@ -232,6 +234,11 @@ class MainWindowController(QObject):
             )
             self.current_batch_id = batch.batch_id
             self.logger.info(f"Created batch: {batch.batch_id}")
+            
+            # 发出批次创建信号
+            print(f"📤 [Controller] 发射批次创建信号: {batch.batch_id}")
+            self.batch_created.emit(batch.batch_id)
+            print(f"✅ [Controller] 批次信号已发射")
         except Exception as e:
             self.error_occurred.emit(f"创建批次失败: {str(e)}")
             return
@@ -243,16 +250,9 @@ class MainWindowController(QObject):
         # 获取所有待检测的孔位
         self.detection_holes = list(self.hole_collection.holes.values())
         
-        # 使用检测服务
-        self.detection_service.start_detection(
-            self.detection_holes,
-            batch_id=self.current_batch_id,
-            is_mock=is_mock
-        )
-        
         # 开始检测
         self.detection_started.emit()
-        self.detection_timer.start(100)  # 每100ms处理一个孔位
+        self.detection_timer.start(100)  # 每100ms处理一个孔位（实际检测）
     
     def continue_detection(self, batch_id: str):
         """继续检测"""
@@ -264,29 +264,21 @@ class MainWindowController(QObject):
             
         self.current_batch_id = batch_id
         
-        # 使用检测服务恢复
-        if self.detection_service.resume_detection(detection_state):
-            self.detection_running = True
-            self.detection_paused = False
-            self.detection_started.emit()
-        else:
-            self.error_occurred.emit("恢复检测失败")
+        # TODO: 实现检测恢复逻辑
+        self.error_occurred.emit("继续检测功能待实现")
         
     def pause_detection(self):
         """暂停检测"""
         self.detection_paused = True
         self.detection_timer.stop()
-        
-        # 使用检测服务暂停
-        if self.detection_service.pause_detection():
-            self.logger.info("Detection paused and state saved")
+        self.logger.info("Detection paused")
         
     def resume_detection(self):
         """恢复检测（已废弃，使用continue_detection）"""
         if self.detection_running and self.detection_paused:
             self.detection_paused = False
             self.detection_timer.start(100)
-            
+    
     def stop_detection(self):
         """停止检测（终止）"""
         self.detection_running = False
@@ -361,15 +353,24 @@ class MainWindowController(QObject):
                 'qualified': 0,
                 'defective': 0,
                 'blind': 0,
-                'pending': 0
+                'pending': 0,
+                'tie_rod': 0,
+                'processing': 0
             }
-            
+        
+        # 使用HoleCollection的get_statistics方法确保一致性
+        if hasattr(self.hole_collection, 'get_statistics'):
+            return self.hole_collection.get_statistics()
+        
+        # 备用实现（与HoleCollection.get_statistics保持一致）
         stats = {
             'total_holes': len(self.hole_collection.holes),
             'qualified': 0,
             'defective': 0,
             'blind': 0,
-            'pending': 0
+            'pending': 0,
+            'tie_rod': 0,
+            'processing': 0
         }
         
         for hole in self.hole_collection.holes.values():

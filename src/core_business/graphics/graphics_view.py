@@ -163,7 +163,7 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             
             self.logger.info(f"管孔加载完成，场景大小: {scene_rect}")
             
-            # 默认适配到窗口宽度（防抖机制会处理延迟）
+            # 立即适配到窗口宽度，避免显示过大的孔位
             # 但如果设置了 disable_auto_fit 标志，则不自动适配（用于扇形显示）
             # 同时检查当前视图模式，微观视图下不自动适配
             if not getattr(self, 'disable_auto_fit', False):
@@ -173,7 +173,9 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
                     # 在微观模式下，确保不会意外触发全视图适配
                     self.disable_auto_fit = True
                 else:
-                    self.fit_to_window_width()
+                    # DXF加载完成后立即缩放，避免显示过大的孔位
+                    self._do_fit_to_window_width()  # 立即执行，不使用定时器
+                    self.logger.info("DXF加载完成，立即执行适配缩放")
                 
             # 验证图形项数量
             actual_items = len(self.scene.items())
@@ -188,8 +190,8 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             self.show()
             self.raise_()
             
-            # 更新叠加层统计
-            QTimer.singleShot(200, self._update_overlay_statistics)
+            # 更新叠加层统计（减少延迟）
+            QTimer.singleShot(100, self._update_overlay_statistics)
             
         except Exception as e:
             self.logger.error(f"加载管孔时出错: {e}")
@@ -231,7 +233,7 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
             if self._fit_pending:
                 self._fit_timer.stop()  # 停止之前的定时器
             self._fit_pending = True
-            self._fit_timer.start(150)  # 150ms后执行，给足够时间合并多次调用
+            self._fit_timer.start(50)  # 50ms后执行，减少延迟提升响应速度
             return
             
         # 如果没有防抖机制，直接执行
@@ -264,7 +266,8 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         base_scale = min(width_scale * 0.95, height_scale * 0.95)  # 留5%边距
         
         # 限制最大缩放比例，防止在窗口最大化时过度放大
-        max_scale = getattr(self, 'max_auto_scale', 2.0)  # 默认最大缩放比例为2.0
+        # 统一主视图和微观视图的最大缩放限制
+        max_scale = getattr(self, 'max_auto_scale', 3.0)  # 提高到3.0，统一缩放限制
         scale = min(base_scale, max_scale)
         
         # 防止无效缩放
@@ -765,9 +768,9 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         # 确保整个管板可见，允许适当放大以填满视图
         current_scale = self.transform().m11()
         
-        # 宏观视图的缩放范围 - 回到合理范围
+        # 宏观视图的缩放范围（与其他视图统一）
         min_macro_scale = 0.5
-        max_macro_scale = 2.0
+        max_macro_scale = 3.0  # 与其他视图统一最大缩放比例
         
         if current_scale < min_macro_scale:
             scale_factor = min_macro_scale / current_scale
@@ -793,9 +796,9 @@ class OptimizedGraphicsView(InteractionMixin, NavigationMixin, QGraphicsView):
         # 微观视图需要更大的缩放比例以显示细节
         current_scale = self.transform().m11()
         
-        # 微观视图的缩放范围（进一步调整）
-        min_micro_scale = 0.5  # 进一步降低最小值，允许更小的缩放
-        max_micro_scale = 2.0  # 进一步降低最大值，避免过度放大
+        # 微观视图的缩放范围（与主视图统一）
+        min_micro_scale = 0.5  # 最小缩放比例
+        max_micro_scale = 3.0  # 与主视图统一最大缩放比例
         
         if current_scale < min_micro_scale:
             scale_factor = min_micro_scale / current_scale

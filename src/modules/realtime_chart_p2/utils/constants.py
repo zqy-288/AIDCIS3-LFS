@@ -37,10 +37,13 @@ STATUS_UPDATE_INTERVAL = 100  # 毫秒
 BUTTON_MIN_WIDTH = 100
 LABEL_MIN_WIDTH = 180
 
-# 文件路径设置
-DATA_FOLDER = "数据"
-IMAGE_FOLDER = "内窥镜图片"
-CSV_FOLDER = "CSV数据"
+# 文件路径设置 - 已移除硬编码，改为基于产品的动态路径
+# DATA_FOLDER, IMAGE_FOLDER, CSV_FOLDER 现在通过 DataPathManager 动态获取
+# 示例用法：
+# from src.models.data_path_manager import DataPathManager
+# path_manager = DataPathManager()
+# product_path = path_manager.get_product_path(product_name)
+# image_folder = product_path / "内窥镜图片"
 
 # 孔位映射设置
 ROWS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']

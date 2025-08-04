@@ -52,21 +52,40 @@ class UnifiedHistoryViewer(QWidget):
     def create_control_panel(self, parent_layout):
         """创建顶部控制面板"""
         # 控制面板组框
-        control_group = QGroupBox("数据类型选择")
+        control_group = QGroupBox("数据查看控制")
         # control_group.setMaximumHeight(80)  # 已删除：移除固定高度限制，让布局自适应
         control_layout = QHBoxLayout(control_group)
         control_layout.setSpacing(15)  # 增加控件间的水平间距
         
+        # 孔位选择标签 - 新增
+        hole_select_label = QLabel("孔位选择：")
+        hole_select_label.setObjectName("HistoryViewerLabel")
+        hole_select_label.setMinimumWidth(80)
+        control_layout.addWidget(hole_select_label)
+        
+        # 孔位选择下拉框 - 新增
+        self.hole_combo = QComboBox()
+        self.hole_combo.setObjectName("HistoryViewerCombo")
+        self.hole_combo.setMinimumWidth(150)
+        self.hole_combo.setPlaceholderText("请选择孔位")
+        # 初始化时添加已有数据的孔位
+        self._init_hole_list()
+        self.hole_combo.currentTextChanged.connect(self.on_hole_changed)
+        control_layout.addWidget(self.hole_combo)
+        
+        # 分隔符 - 使用空间代替竖杠
+        control_layout.addSpacing(20)
+        
         # 选择标签 - 使用CSS样式，移除代码中的字体设置
         select_label = QLabel("查看内容：")
         select_label.setObjectName("HistoryViewerLabel")  # 使用CSS样式
-        select_label.setMinimumWidth(120)  # 增加文本框长度
+        select_label.setMinimumWidth(80)  # 调整宽度
         control_layout.addWidget(select_label)
 
         # 数据类型下拉框 - 使用CSS样式
         self.data_type_combo = QComboBox()
         self.data_type_combo.setObjectName("HistoryViewerCombo")  # 使用CSS样式
-        self.data_type_combo.setMinimumWidth(200)  # 从150增加到200
+        self.data_type_combo.setMinimumWidth(150)  # 调整宽度
         self.data_type_combo.addItems(["管孔直径", "缺陷标注"])
         self.data_type_combo.setCurrentText("管孔直径")
         self.data_type_combo.currentTextChanged.connect(self.on_data_type_changed)
@@ -160,6 +179,17 @@ class UnifiedHistoryViewer(QWidget):
         print(f"📊 为孔位 {hole_id} 加载数据 (当前模式: {self.current_mode})")
         
         try:
+            # 更新孔位下拉框的选中项（避免触发重复加载）
+            self.hole_combo.blockSignals(True)
+            index = self.hole_combo.findText(hole_id)
+            if index >= 0:
+                self.hole_combo.setCurrentIndex(index)
+            else:
+                # 如果孔位不在列表中，添加并选中
+                self.hole_combo.addItem(hole_id)
+                self.hole_combo.setCurrentText(hole_id)
+            self.hole_combo.blockSignals(False)
+            
             if self.current_mode == "管孔直径" and self.history_viewer:
                 if hasattr(self.history_viewer, 'load_data_for_hole'):
                     self.history_viewer.load_data_for_hole(hole_id)
@@ -197,28 +227,122 @@ class UnifiedHistoryViewer(QWidget):
         """获取缺陷标注工具实例"""
         return self.annotation_tool
     
-    def cleanup(self):
-        """清理资源"""
+    def _init_hole_list(self):
+        """初始化孔位列表 - 从数据源获取已检测的孔位"""
         try:
-            # 清理历史数据查看器
-            if self.history_viewer:
-                if hasattr(self.history_viewer, 'cleanup'):
-                    self.history_viewer.cleanup()
-                self.history_viewer.deleteLater()
-                self.history_viewer = None
+            available_holes = self._get_available_holes()
+            
+            # 清空并重新填充下拉框
+            self.hole_combo.clear()
+            if available_holes:
+                self.hole_combo.addItems(available_holes)
+            else:
+                self.hole_combo.addItem("无可用数据")
                 
-            # 清理缺陷标注工具
-            if self.annotation_tool:
-                if hasattr(self.annotation_tool, 'cleanup'):
-                    self.annotation_tool.cleanup()
-                self.annotation_tool.deleteLater()
-                self.annotation_tool = None
-                
-            print("✅ 统一历史数据查看器资源清理完成")
         except Exception as e:
-            print(f"❌ 清理统一历史数据查看器时出错: {e}")
+            print(f"❌ 初始化孔位列表失败: {e}")
+            self.hole_combo.addItem("数据加载失败")
     
-    def closeEvent(self, event):
-        """处理关闭事件"""
-        self.cleanup()
-        super().closeEvent(event)
+    def _get_available_holes(self):
+        """获取有历史数据的孔位列表 - 仅使用真实数据"""
+        try:
+            # 从最新批次获取孔位列表
+            holes_from_batch = self._get_holes_from_latest_batch()
+            if holes_from_batch:
+                print(f"✅ 从最新批次获取到 {len(holes_from_batch)} 个孔位")
+                return holes_from_batch
+            
+            print("❌ 未找到有效的批次数据")
+            return []
+            
+        except Exception as e:
+            print(f"❌ 获取孔位列表时出错: {e}")
+            return []
+    
+    def _get_holes_from_latest_batch(self):
+        """从最新批次获取孔位列表"""
+        try:
+            import json
+            from pathlib import Path
+            from datetime import datetime
+            
+            # 查找批次目录
+            current_dir = Path(__file__).parent
+            batches_dir = None
+            for _ in range(10):
+                potential_dir = current_dir / "Data" / "Products" / "CAP1000" / "InspectionBatches"
+                if potential_dir.exists():
+                    batches_dir = potential_dir
+                    break
+                current_dir = current_dir.parent
+            
+            if not batches_dir or not batches_dir.exists():
+                return []
+            
+            # 获取所有批次目录，按创建时间排序
+            batch_dirs = [d for d in batches_dir.iterdir() if d.is_dir()]
+            if not batch_dirs:
+                return []
+            
+            # 根据批次info中的创建时间排序，获取最新批次
+            latest_batch = None
+            latest_time = None
+            
+            for batch_dir in batch_dirs:
+                batch_info_file = batch_dir / "batch_info.json"
+                if batch_info_file.exists():
+                    try:
+                        with open(batch_info_file, 'r', encoding='utf-8') as f:
+                            batch_info = json.load(f)
+                        
+                        created_at_str = batch_info.get('created_at')
+                        if created_at_str:
+                            created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                            if latest_time is None or created_at > latest_time:
+                                latest_time = created_at
+                                latest_batch = batch_dir
+                    except:
+                        continue
+            
+            if not latest_batch:
+                return []
+            
+            # 从最新批次获取孔位列表
+            hole_results_dir = latest_batch / "HoleResults"
+            hole_ids = []
+            
+            if hole_results_dir.exists():
+                # 从结果文件中提取孔位ID
+                result_files = list(hole_results_dir.glob("*.json"))
+                for result_file in result_files:
+                    try:
+                        with open(result_file, 'r', encoding='utf-8') as f:
+                            result_data = json.load(f)
+                        hole_id = result_data.get('hole_id')
+                        if hole_id:
+                            hole_ids.append(hole_id)
+                    except:
+                        continue
+            
+            # 如果HoleResults为空或没有有效数据，返回空列表
+            if not hole_ids:
+                print(f"⚠️ 最新批次 {latest_batch.name} 的HoleResults为空")
+            
+            return sorted(hole_ids)
+            
+        except Exception as e:
+            print(f"❌ 从最新批次获取孔位失败: {e}")
+            return []
+    
+    
+
+    
+    def on_hole_changed(self, hole_id: str):
+        """孔位选择改变处理"""
+        if hole_id and hole_id not in ["无可用数据", "数据加载失败", "请选择孔位"]:
+            print(f"🔄 切换孔位: {hole_id}")
+            self.load_data_for_hole(hole_id)
+    
+    def refresh_hole_list(self):
+        """刷新孔位列表 - 可供外部调用"""
+        self._init_hole_list()

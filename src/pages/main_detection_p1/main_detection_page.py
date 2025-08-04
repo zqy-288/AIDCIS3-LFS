@@ -19,7 +19,8 @@ sys.path.insert(0, str(project_root))
 
 # 导入原有的控制器和服务
 try:
-    from src.controllers.main_window_controller import MainWindowController
+    # 使用 P1 本地版本的控制器
+    from .controllers.main_window_controller import MainWindowController
     from src.ui.factories import get_ui_factory
     from src.services import get_graphics_service
     from src.pages.main_detection_p1.components.simulation_controller import SimulationController
@@ -76,12 +77,17 @@ class MainDetectionPage(QWidget):
         self.panorama_regions = []  # 全景图区域划分
         
         self.setup_ui()
+        
+        # 先初始化控制器，确保信号存在
+        if self.controller:
+            self.controller.initialize()
+        
+        # 然后设置连接
         self.setup_connections()
         self._setup_simulation_controller()
         
+        # 最后检查已有数据
         if self.controller:
-            self.controller.initialize()
-            
             # 检查是否已有孔位数据 (处理自动加载的CAP1000情况)
             self._check_and_load_existing_data()
         
@@ -129,9 +135,13 @@ class MainDetectionPage(QWidget):
         right_panel.start_detection.connect(self._on_start_detection)
         right_panel.pause_detection.connect(self._on_pause_detection)
         right_panel.stop_detection.connect(self._on_stop_detection)
+        
+        # 不再需要断开信号，因为我们会在 _on_start_simulation 中处理批次创建
+        # native_view 的信号仍然连接，但我们会覆盖处理逻辑
+        
+        # 只连接开始模拟的信号（用于批次创建）
+        # 暂停和停止让 native_view 处理，避免冲突
         right_panel.start_simulation.connect(self._on_start_simulation)
-        right_panel.pause_simulation.connect(self._on_pause_simulation)
-        right_panel.stop_simulation.connect(self._on_stop_simulation)
         
         # 连接中间面板的视图控制信号
         center_panel = self.native_view.center_panel
@@ -146,6 +156,12 @@ class MainDetectionPage(QWidget):
             # 控制器的detection_progress信号有2个参数(current, total)
             self.controller.detection_progress.connect(self._on_detection_progress_from_controller)
             self.controller.error_occurred.connect(self._on_error_from_controller)
+            # 连接批次创建信号
+            if hasattr(self.controller, 'batch_created'):
+                self.controller.batch_created.connect(self._on_batch_created)
+                print("✅ [MainPage] 批次创建信号已连接")
+            else:
+                print("❌ [MainPage] 控制器没有 batch_created 信号")
         
         self.logger.info("✅ 原生视图信号连接成功")
         
@@ -291,9 +307,9 @@ class MainDetectionPage(QWidget):
     def _check_and_load_existing_data(self):
         """检查并加载已存在的孔位数据 (处理自动加载情况)"""
         try:
-            # 添加延迟，等待控制器完全初始化
+            # 添加短暂延迟，等待控制器完全初始化（减少延迟提升响应速度）
             from PySide6.QtCore import QTimer
-            QTimer.singleShot(500, self._load_existing_data_delayed)
+            QTimer.singleShot(100, self._load_existing_data_delayed)
         except Exception as e:
             self.logger.error(f"检查已存在数据失败: {e}")
     
@@ -614,7 +630,7 @@ class MainDetectionPage(QWidget):
             self.logger.error(f"搜索孔位失败: {e}")
             self.error_occurred.emit(f"搜索失败: {e}")
     
-    def _on_file_operation(self, operation, params):
+    def _on_file_operation(self, operation, params=None):
         """处理文件操作"""
         try:
             self.logger.info(f"📁 文件操作: {operation}")
@@ -705,27 +721,93 @@ class MainDetectionPage(QWidget):
             self.error_occurred.emit(f"导出报告失败: {e}")
     
     def _on_start_simulation(self):
-        """开始模拟检测 - 使用SimulationController的10秒定时器"""
+        """开始模拟检测 - 使用 SimulationController"""
         try:
-            self.logger.info("🐍 开始模拟检测 - 使用10秒/对定时器")
+            self.logger.info("🐍 开始模拟检测 - 使用 SimulationController")
             
-            # 使用SimulationController代替MainWindowController的100ms定时器
+            # 确保有孔位数据
+            if self.controller and self.controller.hole_collection:
+                # 检查是否有未完成的批次
+                if hasattr(self.controller, 'current_batch_id') and self.controller.current_batch_id:
+                    # 检查批次状态
+                    batch_info = self.controller.batch_service.get_batch_info(self.controller.current_batch_id)
+                    if batch_info and batch_info.get('status') == 'PAUSED':
+                        # 继续之前的批次
+                        print(f"📥 [MainPage] 继续批次: {self.controller.current_batch_id}")
+                        self.logger.info(f"继续批次: {self.controller.current_batch_id}")
+                    else:
+                        # 创建新批次
+                        self._create_new_batch()
+                else:
+                    # 创建新批次
+                    self._create_new_batch()
+                
+                # 使用 SimulationController
+                self._use_simulation_controller()
+            else:
+                self.error_occurred.emit("请先加载DXF文件或选择产品")
+                    
+        except Exception as e:
+            self.logger.error(f"开始模拟检测失败: {e}")
+            self.error_occurred.emit(f"模拟检测失败: {e}")
+    
+    def _create_new_batch(self):
+        """创建新的检测批次"""
+        if self.controller.current_product_id:
+            try:
+                # 获取产品名称
+                if hasattr(self.controller.current_product, 'model_name'):
+                    product_name = self.controller.current_product.model_name
+                elif isinstance(self.controller.current_product, dict):
+                    product_name = self.controller.current_product.get('model_name', 'Unknown')
+                elif isinstance(self.controller.current_product, str):
+                    product_name = self.controller.current_product
+                else:
+                    product_name = "Unknown"
+                
+                batch = self.controller.batch_service.create_batch(
+                    product_id=self.controller.current_product_id,
+                    product_name=product_name,
+                    is_mock=True
+                )
+                self.controller.current_batch_id = batch.batch_id
+                self.logger.info(f"Created batch: {batch.batch_id}")
+                
+                # 发出批次创建信号
+                print(f"📤 [MainPage] 发射批次创建信号: {batch.batch_id}")
+                self.controller.batch_created.emit(batch.batch_id)
+                print(f"✅ [MainPage] 批次信号已发射")
+                
+                # 直接更新批次标签（作为备份方案）
+                if hasattr(self.native_view, 'left_panel') and hasattr(self.native_view.left_panel, 'current_batch_label'):
+                    self.native_view.left_panel.current_batch_label.setText(f"检测批次: {batch.batch_id}")
+                    print(f"📝 [MainPage] 直接更新批次标签: {batch.batch_id}")
+            except Exception as e:
+                self.logger.warning(f"创建批次失败: {e}")
+    
+    def _use_simulation_controller(self):
+        """使用 SimulationController 进行模拟检测"""
+        try:
             if self.simulation_controller:
-                # 确保有孔位数据
                 if self.controller and self.controller.hole_collection:
+                    # 检查是否已经在运行，避免双重启动
+                    if hasattr(self.simulation_controller, 'is_running') and self.simulation_controller.is_running:
+                        self.logger.warning("SimulationController 已在运行，避免重复启动")
+                        return
+                    
                     # 加载孔位数据到模拟控制器
                     self.simulation_controller.load_hole_collection(self.controller.hole_collection)
                     # 启动模拟（使用10秒定时器）
                     self.simulation_controller.start_simulation()
                     # 更新UI状态
                     self._update_simulation_ui_state(True)
+                    self.logger.info("✅ 成功启动模拟检测（SimulationController）")
                 else:
                     self.error_occurred.emit("请先加载DXF文件或选择产品")
             else:
                 self.status_updated.emit("模拟检测功能正在实现中")
-                    
         except Exception as e:
-            self.logger.error(f"开始模拟检测失败: {e}")
+            self.logger.error(f"SimulationController 启动失败: {e}")
             self.error_occurred.emit(f"模拟检测失败: {e}")
     
     def _on_pause_simulation(self):
@@ -757,9 +839,11 @@ class MainDetectionPage(QWidget):
         try:
             self.logger.info("⏹️ 停止模拟检测")
             
-            if self.simulation_controller:
+            # 停止SimulationController
+            if self.simulation_controller and hasattr(self.simulation_controller, 'is_running') and self.simulation_controller.is_running:
                 self.simulation_controller.stop_simulation()
                 self._update_simulation_ui_state(False)
+                self.logger.info("🛑 SimulationController已停止")
                 
             # 重置按钮文本
             if hasattr(self.native_view.right_panel, 'pause_simulation_btn'):
@@ -831,12 +915,60 @@ class MainDetectionPage(QWidget):
             self._on_detection_progress(progress)
             # 通过原生视图更新进度显示
             if hasattr(self.native_view, 'update_detection_progress'):
-                self.native_view.update_detection_progress(current, total)
+                self.native_view.update_detection_progress((current, total))
     
     def _on_error_from_controller(self, error_msg: str):
         """处理来自控制器的错误信号（适配器）"""
         self.error_occurred.emit(error_msg)
         self.logger.error(f"控制器错误: {error_msg}")
+    
+    def _on_batch_created(self, batch_id: str):
+        """处理批次创建信号"""
+        try:
+            print(f"📥 [MainPage] 接收到批次创建信号: {batch_id}")
+            self.logger.info(f"批次创建信号接收: {batch_id}")
+            
+            # 更新左侧面板的批次信息
+            if hasattr(self.native_view, 'left_panel'):
+                left_panel = self.native_view.left_panel
+                
+                # 尝试多种可能的批次更新方法
+                if hasattr(left_panel, 'update_batch_info'):
+                    left_panel.update_batch_info(batch_id)
+                    self.logger.info(f"✅ 通过update_batch_info更新批次: {batch_id}")
+                
+                # 直接更新批次标签
+                if hasattr(left_panel, 'current_batch_label'):
+                    left_panel.current_batch_label.setText(f"检测批次: {batch_id}")
+                    self.logger.info(f"✅ 直接更新left_panel批次标签: {batch_id}")
+            
+            # 检查native_view级别的批次标签
+            if hasattr(self.native_view, 'current_batch_label'):
+                self.native_view.current_batch_label.setText(f"检测批次: {batch_id}")
+                self.logger.info(f"✅ 更新native_view批次标签: {batch_id}")
+            
+            # 尝试查找所有可能的批次显示组件
+            def update_batch_labels(widget, batch_id):
+                """递归查找并更新所有批次标签"""
+                if hasattr(widget, 'setText') and hasattr(widget, 'text'):
+                    current_text = widget.text()
+                    if "检测批次" in current_text:
+                        widget.setText(f"检测批次: {batch_id}")
+                        self.logger.info(f"✅ 找到并更新批次标签: {batch_id}")
+                
+                # 递归检查子组件
+                if hasattr(widget, 'children'):
+                    for child in widget.children():
+                        if hasattr(child, 'metaObject'):  # 确保是Qt对象
+                            update_batch_labels(child, batch_id)
+            
+            # 递归更新所有可能的批次标签
+            update_batch_labels(self.native_view, batch_id)
+                
+        except Exception as e:
+            self.logger.error(f"更新批次信息失败: {e}")
+            import traceback
+            self.logger.error(f"错误详情: {traceback.format_exc()}")
     
     def _update_statistics(self):
         """更新统计信息"""

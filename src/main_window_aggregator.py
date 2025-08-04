@@ -23,7 +23,7 @@ from PySide6.QtGui import QAction
 # 导入平级P页面组件
 from src.pages.main_detection_p1 import MainDetectionPage
 from src.pages.realtime_monitoring_p2 import RealtimeMonitoringPage
-from src.pages.history_analytics_p3 import HistoryAnalyticsPage
+from src.modules.unified_history_viewer import UnifiedHistoryViewer
 from src.pages.report_generation_p4 import ReportGenerationPage
 
 
@@ -41,11 +41,11 @@ class MainWindowAggregator(QMainWindow):
         super().__init__()
         self.logger = logging.getLogger(__name__)
         
-        # 页面实例
-        self.main_detection_p1 = None
-        self.realtime_monitoring_p2 = None
-        self.history_analytics_p3 = None
-        self.report_generation_p4 = None
+        # 页面实例（恢复原版本的名称）
+        self.main_detection_widget = None
+        self.realtime_tab = None
+        self.history_tab = None
+        self.report_tab = None
         
         # UI组件
         self.central_widget = None
@@ -58,7 +58,7 @@ class MainWindowAggregator(QMainWindow):
         
     def setup_ui(self):
         """设置基础UI结构"""
-        self.setWindowTitle("AIDCIS3-LFS 主窗口 (新P级架构)")
+        self.setWindowTitle("AIDCIS3-LFS 主窗口")
         self.setGeometry(100, 100, 1400, 900)
         self.setMinimumSize(1200, 800)
         
@@ -84,29 +84,29 @@ class MainWindowAggregator(QMainWindow):
         try:
             self.logger.info("🔄 开始创建P级页面...")
             
-            # P1: 主检测视图页面
-            self.logger.info("📋 创建P1主检测视图页面...")
-            self.main_detection_p1 = MainDetectionPage()
-            self.tab_widget.addTab(self.main_detection_p1, "P1-主检测视图")
-            self.logger.info("✅ P1主检测视图页面创建成功")
+            # 主检测视图页面（使用原版本的变量名）
+            self.logger.info("📋 创建主检测视图页面...")
+            self.main_detection_widget = MainDetectionPage()
+            self.tab_widget.addTab(self.main_detection_widget, "主检测视图")
+            self.logger.info("✅ 主检测视图页面创建成功")
             
-            # P2: 实时监控页面
-            self.logger.info("📋 创建P2实时监控页面...")
-            self.realtime_monitoring_p2 = RealtimeMonitoringPage()
-            self.tab_widget.addTab(self.realtime_monitoring_p2, "P2-实时监控")
-            self.logger.info("✅ P2实时监控页面创建成功")
+            # 实时监控页面（恢复使用功能完整的组件）
+            self.logger.info("📋 创建实时监控页面...")
+            self.realtime_tab = RealtimeMonitoringPage()
+            self.tab_widget.addTab(self.realtime_tab, "实时监控")
+            self.logger.info("✅ 实时监控页面创建成功")
             
-            # P3: 历史统计页面
-            self.logger.info("📋 创建P3历史统计页面...")
-            self.history_analytics_p3 = HistoryAnalyticsPage()
-            self.tab_widget.addTab(self.history_analytics_p3, "P3-历史统计")
-            self.logger.info("✅ P3历史统计页面创建成功")
+            # 历史数据页面（保持原版本设计）
+            self.logger.info("📋 创建历史数据页面...")
+            self.history_tab = UnifiedHistoryViewer()
+            self.tab_widget.addTab(self.history_tab, "历史数据")
+            self.logger.info("✅ 历史数据页面创建成功")
             
-            # P4: 报告生成页面
-            self.logger.info("📋 创建P4报告生成页面...")
-            self.report_generation_p4 = ReportGenerationPage()
-            self.tab_widget.addTab(self.report_generation_p4, "P4-报告生成")
-            self.logger.info("✅ P4报告生成页面创建成功")
+            # 报告输出页面（恢复使用功能完整的组件）
+            self.logger.info("📋 创建报告输出页面...")
+            self.report_tab = ReportGenerationPage()
+            self.tab_widget.addTab(self.report_tab, "报告输出")
+            self.logger.info("✅ 报告输出页面创建成功")
             
             # 设置默认选项卡
             self.tab_widget.setCurrentIndex(0)
@@ -135,8 +135,65 @@ class MainWindowAggregator(QMainWindow):
         
     def _setup_page_communication(self):
         """设置P级页面间通信"""
-        # 这里可以设置P级页面间的数据共享和通信
-        pass
+        try:
+            # 连接主检测页面的导航信号到历史数据页面（恢复原版本功能）
+            if self.main_detection_widget and self.history_tab:
+                self.main_detection_widget.navigate_to_history.connect(self.navigate_to_history_from_main_view)
+                self.logger.info("✅ 历史数据导航信号连接成功")
+                
+            # 连接主检测页面到实时监控页面
+            if self.main_detection_widget and self.realtime_tab:
+                self.main_detection_widget.navigate_to_realtime.connect(self.navigate_to_realtime_from_main_view)
+                self.logger.info("✅ 实时监控导航信号连接成功")
+                
+            # 连接主检测页面到报告生成页面
+            if self.main_detection_widget and self.report_tab:
+                if hasattr(self.main_detection_widget, 'native_view'):
+                    self.main_detection_widget.native_view.navigate_to_report.connect(self.navigate_to_report_from_main_view)
+                    self.logger.info("✅ 报告生成导航信号连接成功")
+                
+        except Exception as e:
+            self.logger.error(f"页面通信设置失败: {e}")
+            
+    def navigate_to_history_from_main_view(self, hole_id: str):
+        """从主视图导航到历史数据（恢复原版本功能）"""
+        try:
+            # 切换到历史数据选项卡
+            self.tab_widget.setCurrentIndex(2)
+            
+            # 加载孔位数据到历史查看器
+            if hasattr(self.history_tab, 'load_data_for_hole'):
+                self.history_tab.load_data_for_hole(hole_id)
+                
+            self.logger.info(f"导航到历史数据: {hole_id}")
+            
+        except Exception as e:
+            self.logger.error(f"导航到历史数据失败: {e}")
+            
+    def navigate_to_realtime_from_main_view(self, hole_data: str):
+        """从主视图导航到实时监控"""
+        try:
+            # 切换到实时监控选项卡
+            self.tab_widget.setCurrentIndex(1)
+            
+            # 加载孔位数据到实时监控页面
+            if hasattr(self.realtime_tab, 'load_data_for_hole'):
+                self.realtime_tab.load_data_for_hole(hole_data)
+                
+            self.logger.info(f"导航到实时监控: {hole_data}")
+            
+        except Exception as e:
+            self.logger.error(f"导航到实时监控失败: {e}")
+            
+    def navigate_to_report_from_main_view(self):
+        """从主视图导航到报告生成"""
+        try:
+            # 切换到报告生成选项卡 (P4是第4个标签，索引为3)
+            self.tab_widget.setCurrentIndex(3)
+            self.logger.info("导航到报告生成")
+            
+        except Exception as e:
+            self.logger.error(f"导航到报告生成失败: {e}")
         
     def _setup_menu_bar(self):
         """设置菜单栏"""

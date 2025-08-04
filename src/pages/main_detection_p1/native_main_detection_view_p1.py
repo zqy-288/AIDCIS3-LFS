@@ -133,6 +133,7 @@ class NativeLeftInfoPanel(QWidget):
         self.current_batch_label = QLabel("检测批次: 未开始")
         self.current_batch_label.setFont(QFont("", 9))
         layout.addWidget(self.current_batch_label)
+        print(f"🏷️ [LeftPanel] 创建批次标签，初始文本: {self.current_batch_label.text()}")
 
         # 已完成和待完成数量
         count_layout = QHBoxLayout()
@@ -401,6 +402,7 @@ class NativeLeftInfoPanel(QWidget):
         # 更新进度组
         progress = data.get('progress', 0)
         self.progress_bar.setValue(int(progress))
+        print(f"📊 [LeftPanel] 更新进度条: {progress}% -> setValue({int(progress)})")
         
         # 更新已完成和待完成数量
         completed = data.get('completed', data.get('qualified', 0) + data.get('unqualified', 0))
@@ -437,6 +439,13 @@ class NativeLeftInfoPanel(QWidget):
             self.selected_hole_status_label.setText("--")
             self.selected_hole_desc_label.setText("--")
 
+    
+    def update_batch_info(self, batch_id: str):
+        """更新批次信息"""
+        if hasattr(self, 'current_batch_label'):
+            self.current_batch_label.setText(f"检测批次: {batch_id}")
+            print(f"📝 [LeftPanel] 批次标签已更新: {batch_id}")
+            self.logger.info(f"批次信息已更新: {batch_id}")
     
     def update_selected_sector(self, sector):
         """更新选中的扇形信息"""
@@ -771,6 +780,11 @@ class NativeRightOperationsPanel(QScrollArea):
     history_statistics_requested = Signal()  # 跳转到P3页面
     report_generation_requested = Signal()   # 跳转到P4页面
     
+    # 页面导航信号 - 添加缺失的信号
+    navigate_to_realtime = Signal(str)
+    navigate_to_history = Signal(str)  
+    navigate_to_report = Signal()
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         self.logger = logging.getLogger(__name__)
@@ -983,6 +997,11 @@ class NativeRightOperationsPanel(QScrollArea):
         self.realtime_btn.clicked.connect(self.realtime_detection_requested.emit)
         self.history_btn.clicked.connect(self.history_statistics_requested.emit)
         self.report_btn.clicked.connect(self.report_generation_requested.emit)
+        
+        # 连接导航请求信号到导航信号
+        self.realtime_detection_requested.connect(lambda: self.navigate_to_realtime.emit(""))
+        self.history_statistics_requested.connect(lambda: self.navigate_to_history.emit(""))
+        self.report_generation_requested.connect(self.navigate_to_report.emit)
 
         # 其他操作信号
         self.generate_report_btn.clicked.connect(lambda: self.file_operation_requested.emit("generate_report", {}))
@@ -1199,6 +1218,11 @@ class NativeMainDetectionView(QWidget):
             self.right_panel.pause_simulation.connect(self._on_pause_simulation)
             self.right_panel.stop_simulation.connect(self._on_stop_simulation)
             self.right_panel.file_operation_requested.connect(self._on_file_operation)
+            
+            # 页面导航信号连接 - 重要！连接右侧面板的导航信号到主视图信号
+            self.right_panel.navigate_to_realtime.connect(self.navigate_to_realtime.emit)
+            self.right_panel.navigate_to_history.connect(self.navigate_to_history.emit)  
+            self.right_panel.navigate_to_report.connect(self.navigate_to_report.emit)
         
         # 重构后服务信号连接 (低耦合集成)
         if self.search_service:
@@ -1568,12 +1592,40 @@ class NativeMainDetectionView(QWidget):
         self.logger.info("⏸️ 暂停模拟")
         if self.simulation_controller:
             self.simulation_controller.pause_simulation()
+            
+            # 通知父页面更新批次状态为暂停
+            if hasattr(self.parent(), 'controller') and hasattr(self.parent().controller, 'current_batch_id'):
+                batch_id = self.parent().controller.current_batch_id
+                if batch_id:
+                    try:
+                        # 获取当前检测状态
+                        detection_state = {
+                            'current_index': getattr(self.simulation_controller, 'current_index', 0),
+                            'total_holes': getattr(self.simulation_controller, 'total_holes_processed', 0),
+                            'pause_time': __import__('datetime').datetime.now().isoformat()
+                        }
+                        self.parent().controller.batch_service.pause_batch(batch_id, detection_state)
+                        print(f"⏸️ [NativeView] 批次已暂停: {batch_id}")
+                    except Exception as e:
+                        print(f"❌ [NativeView] 暂停批次失败: {e}")
     
     def _on_stop_simulation(self):
         """处理停止模拟"""
         self.logger.info("⏹️ 停止模拟")
         if self.simulation_controller:
             self.simulation_controller.stop_simulation()
+            
+            # 通知父页面更新批次状态为终止，并清除当前批次ID
+            if hasattr(self.parent(), 'controller') and hasattr(self.parent().controller, 'current_batch_id'):
+                batch_id = self.parent().controller.current_batch_id
+                if batch_id:
+                    try:
+                        self.parent().controller.batch_service.terminate_batch(batch_id)
+                        print(f"🛑 [NativeView] 批次已终止: {batch_id}")
+                        # 清除当前批次ID，下次开始时会创建新批次
+                        self.parent().controller.current_batch_id = None
+                    except Exception as e:
+                        print(f"❌ [NativeView] 终止批次失败: {e}")
     
     def _on_simulation_started(self):
         """处理模拟开始事件"""
@@ -1999,12 +2051,25 @@ class NativeMainDetectionView(QWidget):
         if isinstance(progress, tuple) and len(progress) == 2:
             # 处理 (current, total) 格式
             current, total = progress
-            progress_percent = int(current / total * 100) if total > 0 else 0
-            self.logger.info(f"📊 进度更新: {current}/{total} = {progress_percent}%")
+            if total > 0:
+                # 使用浮点数计算，保留2位小数，最小显示0.01%
+                progress_float = (current / total) * 100
+                progress_percent = max(0.01, round(progress_float, 2)) if current > 0 else 0
+                # 对于显示，如果小于1%但大于0，显示"<1%"
+                if 0 < progress_percent < 1:
+                    progress_display = "<1%"
+                else:
+                    progress_display = f"{progress_percent:.1f}%"
+            else:
+                progress_percent = 0
+                progress_display = "0%"
+            self.logger.info(f"📊 进度更新: {current}/{total} = {progress_display}")
+            print(f"📊 [NativeView] 进度计算: {current}/{total} = {progress_float:.2f}% 显示为: {progress_display}")
         else:
             # 处理百分比格式
-            progress_percent = int(progress)
-            self.logger.info(f"📊 进度更新: {progress_percent}%")
+            progress_percent = float(progress)
+            progress_display = f"{progress_percent:.1f}%"
+            self.logger.info(f"📊 进度更新: {progress_display}")
         
         # 更新左侧面板的进度显示
         if self.left_panel:

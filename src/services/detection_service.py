@@ -42,7 +42,7 @@ class DetectionService(QObject):
         self.simulation_params = {
             'speed': 10,
             'auto_mode': True,
-            'interval': 100,
+            'interval': 10000,  # 10秒间隔，保持与SimulationController一致
             'success_rate': 0.995,
             'defect_rate': 0.004,
             'blind_rate': 0.001
@@ -73,6 +73,12 @@ class DetectionService(QObject):
             # 设置定时器间隔
             interval = self.simulation_params['interval'] if is_mock else 100
             self.detection_timer.setInterval(interval)
+            
+            # 添加调试日志
+            mode_text = "模拟检测" if is_mock else "实际检测"
+            print(f"🚀 [DetectionService] 开始{mode_text}, 间隔: {interval}ms, 总孔位: {len(holes)}")
+            print(f"📍 [DetectionService] 文件位置: src/services/detection_service.py")
+            print(f"⏱️ [DetectionService] 定时器已设置为 {interval}ms 间隔")
             
             self.detection_started.emit()
             self.detection_timer.start()

@@ -52,7 +52,7 @@ class SimulationController(QObject):
         # 使用单一定时器控制所有时序，避免同步问题
         self.master_timer = QTimer()
         self.master_timer.timeout.connect(self._master_tick)
-        self.master_timer.setInterval(100)  # 100ms精度
+        self.master_timer.setInterval(100)  # 100ms精度用于精确控制时序
         
         # 时序控制变量
         self.cycle_start_time = None  # 当前周期开始时间（毫秒）

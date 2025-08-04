@@ -1,0 +1,56 @@
+模拟检测批次集成测试报告
+生成时间: 2025-08-04 20:02:53.162064
+================================================================================
+
+test_product_info_formats: PASS
+  passed: 6
+  total: 6
+  details: [('字符串格式', True), ('字典格式', True), ('字典缺失字段', True), ('None值', True), ('空字符串', True), ('ProductModel', True)]
+
+test_batch_service_creation: PASS
+  real_batch_created: True
+  mock_batch_created: True
+  mock_suffix_correct: True
+  number_incremented: True
+  real_batch_id: TEST_PRODUCT_检测008_20250804_200251
+  mock_batch_id: TEST_PRODUCT_检测009_20250804_200251_MOCK
+
+test_detection_service_mock: PASS
+  service_created: True
+  mock_interval_correct: True
+  start_successful: True
+  mock_flag_set: True
+  timer_interval_correct: True
+
+test_controller_integration: PASS
+  controller_logic_tested: True
+  all_formats_handled: True
+  test_cases_passed: 3
+  total_test_cases: 3
+
+test_ui_state_management: PASS
+  status_update_working: True
+  mock_batch_recognized: True
+  simulation_state_managed: True
+
+test_error_handling: PASS
+  error_handling_tested: True
+  cases_passed: 1
+  total_cases: 2
+  all_handled: False
+
+test_path_management: PASS
+  path_manager_working: True
+  product_path_correct: True
+  mock_batch_path_correct: True
+  product_path: /Users/vsiyo/Desktop/AIDCIS3-LFS/Data/Products/CAP1000
+  batch_path: /Users/vsiyo/Desktop/AIDCIS3-LFS/Data/Products/CAP1000/InspectionBatches/CAP1000_检测001_20250804_120000_MOCK
+
+test_complete_workflow: PASS
+  workflow_completed: True
+  steps_passed: 7
+  total_steps: 7
+  steps: [('service_init', True), ('product_selection', True), ('batch_creation', True), ('data_preparation', True), ('detection_start', True), ('configuration_check', True), ('cleanup', True)]
+  final_batch_id: CAP1000_检测011_20250804_200253_MOCK
+  detection_configured: True
+

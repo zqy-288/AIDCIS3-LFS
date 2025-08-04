@@ -266,6 +266,34 @@ class HoleCollection:
             counts[hole.status] += 1
         return counts
     
+    def get_statistics(self) -> Dict[str, int]:
+        """获取孔位统计信息 - 兼容接口"""
+        status_counts = self.get_status_counts()
+        return {
+            'total_holes': len(self.holes),
+            'qualified': status_counts.get(HoleStatus.QUALIFIED, 0),
+            'defective': status_counts.get(HoleStatus.DEFECTIVE, 0),
+            'blind': status_counts.get(HoleStatus.BLIND, 0),
+            'pending': status_counts.get(HoleStatus.PENDING, 0),
+            'tie_rod': status_counts.get(HoleStatus.TIE_ROD, 0),
+            'processing': status_counts.get(HoleStatus.PROCESSING, 0)
+        }
+    
+    def update_hole_status(self, hole_id: str, new_status: HoleStatus) -> bool:
+        """更新孔位状态"""
+        try:
+            if hole_id in self.holes:
+                self.holes[hole_id].status = new_status
+                return True
+            return False
+        except Exception as e:
+            print(f"更新孔位状态失败: {e}")
+            return False
+    
+    def get_hole_by_id(self, hole_id: str) -> Optional[HoleData]:
+        """根据ID获取孔位 - 兼容接口"""
+        return self.get_hole(hole_id)
+    
     def get_bounds(self) -> tuple[float, float, float, float]:
         """获取边界框 (min_x, min_y, max_x, max_y)"""
         if not self.holes:

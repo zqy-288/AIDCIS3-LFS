@@ -48,6 +48,92 @@ class StatusManager:
             self.logger.error(f"更新孔位状态失败: {e}")
             return False
     
+    def update_status(self, hole_id: str, status, reason: str = "") -> bool:
+        """
+        更新孔位状态 - 兼容接口
+        
+        Args:
+            hole_id: 孔位ID
+            status: 新状态 (字符串或HoleStatus枚举)
+            reason: 状态变更原因
+            
+        Returns:
+            bool: 更新是否成功
+        """
+        try:
+            # 如果status是字符串，尝试转换为HoleStatus枚举
+            if isinstance(status, str):
+                # 尝试从字符串转换
+                status_mapping = {
+                    'qualified': HoleStatus.QUALIFIED,
+                    'defective': HoleStatus.DEFECTIVE,
+                    'blind': HoleStatus.BLIND,
+                    'pending': HoleStatus.PENDING,
+                    'tie_rod': HoleStatus.TIE_ROD,
+                    'processing': HoleStatus.PROCESSING
+                }
+                status = status_mapping.get(status.lower(), HoleStatus.PENDING)
+            
+            # 尝试获取实际的孔位对象并更新状态
+            updated = False
+            if hasattr(self, 'hole_collection') and self.hole_collection:
+                # 如果有关联的孔位集合，直接更新
+                if hole_id in self.hole_collection.holes:
+                    old_status = self.hole_collection.holes[hole_id].status
+                    self.hole_collection.holes[hole_id].status = status
+                    updated = True
+                    self.logger.info(f"孔位 {hole_id} 状态从 {old_status.value} 更新为 {status.value}")
+                else:
+                    self.logger.warning(f"孔位 {hole_id} 不存在于集合中")
+            else:
+                # 尝试通过共享数据管理器获取孔位集合
+                try:
+                    from src.core.shared_data_manager import SharedDataManager
+                    shared_data = SharedDataManager()
+                    hole_collection = shared_data.get_hole_collection()
+                    
+                    if hole_collection:
+                        # 检查是否是HoleCollection对象
+                        if hasattr(hole_collection, 'holes') and hole_id in hole_collection.holes:
+                            old_status = hole_collection.holes[hole_id].status
+                            hole_collection.holes[hole_id].status = status
+                            updated = True
+                            self.logger.info(f"孔位 {hole_id} 状态从 {old_status.value} 更新为 {status.value}")
+                        # 如果是字典形式的孔位集合
+                        elif isinstance(hole_collection, dict) and hole_id in hole_collection:
+                            old_status = hole_collection[hole_id].status
+                            hole_collection[hole_id].status = status
+                            updated = True
+                            self.logger.info(f"孔位 {hole_id} 状态从 {old_status.value} 更新为 {status.value}")
+                        else:
+                            self.logger.warning(f"通过共享数据管理器未找到孔位 {hole_id}")
+                            # 尝试再次设置hole_collection关联
+                            if hasattr(hole_collection, 'holes'):
+                                self.hole_collection = hole_collection
+                                self.logger.info("已关联hole_collection到StatusManager")
+                    else:
+                        self.logger.warning("共享数据管理器中没有孔位集合")
+                except Exception as e:
+                    self.logger.warning(f"无法通过共享数据管理器更新孔位状态: {e}")
+            
+            # 记录状态变更历史
+            old_status_str = 'unknown' if not updated else 'updated'
+            self._status_history[hole_id].append({
+                'old_status': old_status_str,
+                'new_status': status.value if hasattr(status, 'value') else str(status),
+                'reason': reason,
+                'timestamp': self._get_current_timestamp()
+            })
+            
+            if not updated:
+                self.logger.info(f"孔位 {hole_id} 状态更新为 {status.value if hasattr(status, 'value') else str(status)} (仅记录)")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"更新孔位状态失败: {e}")
+            return False
+    
     def batch_update_status(self, holes: List[HoleData], new_status: HoleStatus, reason: str = "") -> int:
         """
         批量更新孔位状态

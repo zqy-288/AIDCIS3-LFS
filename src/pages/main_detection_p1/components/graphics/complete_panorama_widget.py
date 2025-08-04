@@ -79,7 +79,7 @@ class CompletePanoramaWidget(QWidget):
         self.batch_update_timer = QTimer()
         self.batch_update_timer.timeout.connect(self._execute_batch_update)
         self.batch_update_timer.setSingleShot(True)
-        self.batch_update_interval = 200  # 批量更新间隔（毫秒）
+        self.batch_update_interval = 100  # 批量更新间隔（毫秒）- 减少延迟
         self.pending_status_updates: Dict[str, HoleStatus] = {}
         self._update_lock = False
         
@@ -87,7 +87,7 @@ class CompletePanoramaWidget(QWidget):
         self.unified_highlight_timer = QTimer()
         self.unified_highlight_timer.timeout.connect(self._execute_unified_highlight)
         self.unified_highlight_timer.setSingleShot(True)
-        self.highlight_delay = 50  # 统一延迟时间
+        self.highlight_delay = 25  # 统一延迟时间（减少延迟）
         
         # 高亮操作队列
         self.pending_highlight_operations = []  # [(operation_type, sector), ...]

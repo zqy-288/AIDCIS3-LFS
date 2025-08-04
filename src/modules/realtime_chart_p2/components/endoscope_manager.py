@@ -12,7 +12,7 @@ from datetime import datetime
 import shutil
 from ..utils.constants import (
     ENDOSCOPE_SWITCH_INTERVAL, ENDOSCOPE_IMAGE_CACHE_SIZE,
-    IMAGE_FOLDER, ROWS, COLUMNS
+    ROWS, COLUMNS
 )
 
 
@@ -36,14 +36,21 @@ class EndoscopeManager(QObject):
         self._current_position = None  # 当前孔位
         self._position_mapping = {}    # 孔位到文件路径的映射
         
-        # 图像目录
-        self._image_base_dir = Path(IMAGE_FOLDER)
-        self._probe1_dir = self._image_base_dir / "探头1"
-        self._probe2_dir = self._image_base_dir / "探头2"
+        # 获取当前产品相关的图像目录
+        from src.core.shared_data_manager import SharedDataManager
+        from src.models.data_path_manager import DataPathManager
         
-        # 创建目录
-        self._probe1_dir.mkdir(parents=True, exist_ok=True)
-        self._probe2_dir.mkdir(parents=True, exist_ok=True)
+        self._shared_data = SharedDataManager()
+        self._path_manager = DataPathManager()
+        
+        # 延迟初始化图像目录，等待产品选择
+        self._image_base_dir = None
+        self._probe1_dir = None
+        self._probe2_dir = None
+        self._initialized = False
+        
+        # 监听产品变更
+        self._shared_data.data_changed.connect(self._on_product_changed)
         
         # 图像缓存
         self._image_cache = {}  # {孔位ID: {探头1: QPixmap, 探头2: QPixmap}}
@@ -56,6 +63,9 @@ class EndoscopeManager(QObject):
         
         # 初始化孔位映射
         self._init_position_mapping()
+        
+        # 尝试初始化当前产品的目录
+        self._try_initialize_directories()
         
     def _init_position_mapping(self):
         """初始化孔位映射"""
@@ -252,8 +262,45 @@ class EndoscopeManager(QObject):
             if pixmap:
                 self.image_updated.emit(self._current_position, pixmap)
                 
+    def _on_product_changed(self, key: str, value):
+        """产品变更时的处理"""
+        if key == 'current_product':
+            self._try_initialize_directories()
+    
+    def _try_initialize_directories(self):
+        """尝试初始化目录"""
+        try:
+            current_product = self._shared_data.get_data('current_product')
+            if current_product and not self._initialized:
+                product_name = current_product.get('model_name', 'DefaultProduct')
+                
+                # 获取产品特定的内窥镜图像目录
+                product_path = self._path_manager.get_product_path(product_name)
+                self._image_base_dir = Path(product_path) / "内窥镜图片"
+                self._probe1_dir = self._image_base_dir / "探头1"
+                self._probe2_dir = self._image_base_dir / "探头2"
+                
+                self._initialized = True
+                print(f"✅ EndoscopeManager 已初始化产品 {product_name} 的图像目录")
+        except Exception as e:
+            print(f"⚠️ EndoscopeManager 初始化失败: {e}")
+    
+    def _ensure_directories_exist(self):
+        """按需创建目录"""
+        if not self._initialized:
+            self._try_initialize_directories()
+        
+        if self._probe1_dir and self._probe2_dir:
+            self._probe1_dir.mkdir(parents=True, exist_ok=True)
+            self._probe2_dir.mkdir(parents=True, exist_ok=True)
+    
     def _get_image_path(self, position_id: str, probe_number: int) -> Optional[Path]:
         """获取图像文件路径"""
+        self._ensure_directories_exist()
+        
+        if not self._probe1_dir or not self._probe2_dir:
+            return None
+            
         probe_dir = self._probe1_dir if probe_number == 1 else self._probe2_dir
         
         # 查找最新的图像文件
