@@ -6,7 +6,7 @@
 from typing import Optional
 from src.core.data_service_interface import IDataService, get_service
 from src.core.simple_di_container import get_service_container, register_service
-from src.core_business.models.hole_data import HoleCollection
+from src.shared.models.hole_data import HoleCollection
 
 
 class RefactoredComponent:
@@ -75,7 +75,7 @@ def example_refactor_main_window():
             
         def setup_components(self):
             """设置子组件 - 传递服务依赖"""
-            from src.core_business.graphics.dynamic_sector_display_refactored import DynamicSectorDisplayRefactored
+            from src.pages.main_detection_p1.graphics.core.dynamic_sector_display_refactored import DynamicSectorDisplayRefactored
             
             # 传递服务依赖，而不是让组件自己获取
             # self.sector_display = DynamicSectorDisplayRefactored(data_service=self._data_service)

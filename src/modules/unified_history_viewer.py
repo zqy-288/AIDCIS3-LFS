@@ -10,8 +10,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 
-from .history_viewer import HistoryViewer
-from .defect_annotation_tool import DefectAnnotationTool
+from src.pages.history_analytics_p3.components.history.history_viewer import HistoryViewer
+from src.pages.history_analytics_p3.components.annotation.defect_annotation_tool import DefectAnnotationTool
 
 
 class UnifiedHistoryViewer(QWidget):

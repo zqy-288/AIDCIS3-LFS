@@ -11,7 +11,7 @@ from PySide6.QtGui import QPainter, QWheelEvent, QMouseEvent, QTransform, QResiz
 from typing import List, Optional, Dict
 import logging
 
-from src.core_business.models.hole_data import HoleCollection, HoleData, HoleStatus
+from src.shared.models.hole_data import HoleCollection, HoleData, HoleStatus
 from .hole_item import HoleGraphicsItem, HoleItemFactory
 from .navigation import NavigationMixin
 from .interaction import InteractionMixin

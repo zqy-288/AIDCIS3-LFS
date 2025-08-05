@@ -9,7 +9,7 @@ from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QPen, QColor, QPainterPath
 
 from ..core.interfaces import ISnakePathRenderer
-from src.core_business.models.hole_data import HoleData
+from src.shared.models.hole_data import HoleData
 
 
 class SnakePathRenderer(QObject):

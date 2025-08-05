@@ -590,7 +590,7 @@ class ReportGenerationPage(QWidget):
         
         # 导入并初始化模板管理器
         try:
-            from src.modules.report_template_manager import get_template_manager
+            from src.pages.report_generation_p4.generators.report_template_manager import get_template_manager
             self.template_manager = get_template_manager()
             print("✅ 模板管理器初始化成功")
         except Exception as e:
@@ -1003,7 +1003,7 @@ class ReportGenerationPage(QWidget):
             
             # 使用新的预览窗口
             try:
-                from src.modules.report_preview_window import ReportPreviewWindow
+                from src.pages.report_generation_p4.generators.report_preview_window import ReportPreviewWindow
                 
                 # 获取当前选择的输出格式
                 output_format = self.format_combo.currentText()

@@ -12,7 +12,7 @@ from .data_model import PanoramaDataModel
 from .geometry_calculator import PanoramaGeometryCalculator
 from .status_manager import PanoramaStatusManager
 from ..core.event_bus import PanoramaEventBus, PanoramaEvent
-from src.core_business.models.hole_data import HoleData, HoleStatus, HoleCollection
+from src.shared.models.hole_data import HoleData, HoleStatus, HoleCollection
 
 
 class TestPanoramaDataModel(unittest.TestCase):

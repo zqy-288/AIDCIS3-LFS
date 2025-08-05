@@ -7,8 +7,8 @@ from typing import Optional, List, Dict, Any
 from PySide6.QtCore import QObject, Signal
 
 from .snake_path_renderer import PathStrategy, PathRenderStyle
-from src.core_business.graphics.sector_controllers import UnifiedLogger
-from src.core_business.models.hole_data import HoleCollection
+from src.pages.main_detection_p1.graphics.core.sector_controllers import UnifiedLogger
+from src.shared.models.hole_data import HoleCollection
 
 
 class SnakePathCoordinator(QObject):
@@ -226,7 +226,7 @@ class SnakePathCoordinator(QObject):
             renderer = SnakePathRenderer()
             
             # 创建临时的hole_collection
-            from src.core_business.models.hole_data import HoleCollection
+            from src.shared.models.hole_data import HoleCollection
             holes_dict = {hole.hole_id: hole for hole in holes}
             temp_collection = HoleCollection(holes_dict)
             

@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
-from src.models.product_model import get_product_manager
+from src.shared.models.product_model import get_product_manager
 
 class ProductSelectionDialog(QDialog):
     """产品型号选择对话框"""

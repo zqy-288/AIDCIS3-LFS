@@ -12,8 +12,8 @@ from PySide6.QtGui import QFont, QColor, QPainter, QPen, QBrush, QPalette
 
 # 导入孔位状态定义
 try:
-    from src.core_business.models.hole_data import HoleStatus
-    from src.core_business.graphics.hole_item import HoleGraphicsItem
+    from src.shared.models.hole_data import HoleStatus
+    from src.pages.main_detection_p1.graphics.core.hole_item import HoleGraphicsItem
     HAS_HOLE_STATUS = True
 except ImportError:
     HAS_HOLE_STATUS = False

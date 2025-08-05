@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QWidget, QGraphicsView
 from PySide6.QtCore import Qt, QPointF, QRectF, Signal
 from PySide6.QtGui import QPainter, QPen, QBrush, QColor, QPainterPath, QResizeEvent
 
-from src.core_business.graphics.sector_types import SectorQuadrant
+from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
 
 
 class SectorOverlayWidget(QWidget):

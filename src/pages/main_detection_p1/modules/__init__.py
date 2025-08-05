@@ -4,7 +4,7 @@ P1页面模块组件
 """
 
 from .product_selection import ProductSelectionDialog
-from .theme_manager import ModernThemeManager
+from src.shared.components.theme import ModernThemeManager
 
 __all__ = [
     'ProductSelectionDialog',

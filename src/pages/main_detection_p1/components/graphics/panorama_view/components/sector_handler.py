@@ -9,7 +9,7 @@ from PySide6.QtCore import QPointF, QObject, QTimer
 from PySide6.QtWidgets import QGraphicsScene
 
 from ..core.interfaces import ISectorInteractionHandler
-from src.core_business.graphics.sector_types import SectorQuadrant
+from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
 # 延迟导入避免循环依赖
 
 

@@ -14,12 +14,12 @@ def register_core_services():
     
     try:
         # 注册数据访问层
-        from src.data.data_access_layer import DataAccessLayer
+        from src.core.data.data_access_layer import DataAccessLayer
         container.register_singleton(DataAccessLayer)
         logger.info("✅ DataAccessLayer 注册成功")
         
         # 注册数据仓库
-        from src.data.repositories import WorkpieceRepository, HoleRepository, MeasurementRepository
+        from src.core.data.repositories import WorkpieceRepository, HoleRepository, MeasurementRepository
         container.register_singleton(WorkpieceRepository)
         container.register_singleton(HoleRepository)
         container.register_singleton(MeasurementRepository)

@@ -23,7 +23,7 @@ from PySide6.QtGui import QAction
 # 导入平级P页面组件
 from src.pages.main_detection_p1 import MainDetectionPage
 from src.pages.realtime_monitoring_p2 import RealtimeMonitoringPage
-from src.modules.unified_history_viewer import UnifiedHistoryViewer
+from src.pages.history_analytics_p3.components.history.history_viewer import HistoryViewer as UnifiedHistoryViewer
 from src.pages.report_generation_p4 import ReportGenerationPage
 
 

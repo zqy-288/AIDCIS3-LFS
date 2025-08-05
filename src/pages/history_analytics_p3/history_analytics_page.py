@@ -19,11 +19,12 @@ from PySide6.QtGui import QFont
 # 导入组件模块
 from .components import (
     StatisticsEngine,
-    DataFilterManager,
     TrendAnalyzer,
-    QualityMetricsCalculator,
-    ExportManager
+    QualityMetricsCalculator
 )
+
+# 导入共享服务
+from src.shared.services import get_statistics_service, get_csv_processing_service
 
 # 导入UI组件
 from .widgets import (
@@ -69,10 +70,12 @@ class HistoryAnalyticsPage(QWidget):
         
         # 核心组件
         self.statistics_engine = None
-        self.data_filter_manager = None
         self.trend_analyzer = None
         self.quality_calculator = None
-        self.export_manager = None
+        
+        # 共享服务
+        self.shared_statistics_service = None
+        self.shared_csv_service = None
         
         # 数据模型
         self.history_data_model = None
@@ -108,10 +111,12 @@ class HistoryAnalyticsPage(QWidget):
             
             # 核心业务组件
             self.statistics_engine = StatisticsEngine(self.history_data_model)
-            self.data_filter_manager = DataFilterManager()
             self.trend_analyzer = TrendAnalyzer(self.trend_data_model)
             self.quality_calculator = QualityMetricsCalculator()
-            self.export_manager = ExportManager()
+            
+            # 初始化共享服务
+            self.shared_statistics_service = get_statistics_service()
+            self.shared_csv_service = get_csv_processing_service()
             
             self.logger.info("✅ 历史统计页面组件初始化完成")
             

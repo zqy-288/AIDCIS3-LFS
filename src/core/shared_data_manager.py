@@ -6,10 +6,10 @@
 from typing import Dict, Optional, Any, Tuple, List
 from PySide6.QtCore import QObject, Signal
 
-from src.core_business.graphics.unified_sector_adapter import UnifiedSectorAdapter
-from src.core_business.models.hole_data import HoleCollection, HoleStatus
-from src.core_business.graphics.sector_types import SectorQuadrant, SectorProgress
-from src.core_business.hole_numbering_service import HoleNumberingService
+from src.pages.main_detection_p1.graphics.core.unified_sector_adapter import UnifiedSectorAdapter
+from src.shared.models.hole_data import HoleCollection, HoleStatus
+from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant, SectorProgress
+from src.core.services.numbering.hole_numbering_service import HoleNumberingService
 
 
 class SharedDataManager(QObject):

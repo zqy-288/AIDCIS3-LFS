@@ -11,10 +11,10 @@ from PySide6.QtCore import QObject, Signal, QTimer
 from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QColor
 
-from src.core_business.models.hole_data import HoleCollection, HoleData, HoleStatus
+from src.shared.models.hole_data import HoleCollection, HoleData, HoleStatus
 from src.pages.shared.components.snake_path import PathStrategy
 from src.pages.shared.components.snake_path.snake_path_renderer import SnakePathRenderer, HolePair
-from src.core_business.graphics.sector_types import SectorQuadrant
+from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
 
 
 class SimulationController(QObject):

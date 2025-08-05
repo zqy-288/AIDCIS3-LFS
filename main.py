@@ -14,7 +14,7 @@ src_dir = os.path.join(current_dir, 'src')
 sys.path.insert(0, current_dir)  # 项目根目录
 sys.path.insert(0, src_dir)      # src目录
 sys.path.insert(0, os.path.join(src_dir, 'modules'))  # src/modules目录
-sys.path.insert(0, os.path.join(src_dir, 'hardware')) # src/hardware目录
+sys.path.insert(0, os.path.join(src_dir, 'core', 'hardware')) # src/core/hardware目录
 
 # 导入主窗口
 from src.main_window import MainWindow
@@ -68,11 +68,11 @@ def setup_application():
     # 注意：在PySide6中，高DPI缩放默认启用，无需手动设置
     # Qt.AA_EnableHighDpiScaling 和 Qt.AA_UseHighDpiPixmaps 在Qt6中已弃用
 
-    # 应用现代科技蓝主题 - 使用新的主题管理器
+    # 应用现代科技蓝主题 - 使用统一的共享主题管理器
     try:
-        from src.modules.theme_manager import ModernThemeManager
-        app.setStyleSheet(ModernThemeManager.get_main_stylesheet())
-        print("✅ 现代科技蓝主题已应用")
+        from src.shared.components.theme import apply_theme
+        apply_theme(app)
+        print("✅ 统一主题管理器 - 现代科技蓝主题已应用")
     except Exception as e:
         print(f"⚠️ 主题应用失败: {e}")
         # 继续运行，不应该因为主题失败而终止程序

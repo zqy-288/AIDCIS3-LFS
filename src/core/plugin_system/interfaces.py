@@ -106,3 +106,8 @@ class HookablePlugin(Plugin):
     def on_error(self, error: Exception, context: Dict[str, Any]) -> None:
         """错误处理钩子"""
         pass
+
+
+# 别名以保持向后兼容性
+IPlugin = Plugin
+PluginMetadata = PluginInfo

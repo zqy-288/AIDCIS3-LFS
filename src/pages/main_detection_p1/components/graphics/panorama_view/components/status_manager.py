@@ -6,7 +6,7 @@
 from typing import Dict
 from PySide6.QtCore import QObject, QTimer, Signal
 from ..core.interfaces import IPanoramaStatusManager, IPanoramaDataModel
-from src.core_business.models.hole_data import HoleStatus
+from src.shared.models.hole_data import HoleStatus
 
 
 class PanoramaStatusManager(QObject):

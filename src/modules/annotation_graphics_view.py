@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt, Signal, QRectF, QPointF
 from PySide6.QtGui import (QPen, QBrush, QColor, QPixmap, QCursor, QPainter,
                            QMouseEvent, QWheelEvent, QFont, QFontMetrics)
 
-from .defect_annotation_model import DefectAnnotation
+from src.pages.history_analytics_p3.components.annotation.defect_annotation_model import DefectAnnotation
 
 
 class MouseMode(Enum):

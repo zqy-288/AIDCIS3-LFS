@@ -1,24 +1,24 @@
 """
-[DEPRECATED] 主窗口控制器 - 已废弃
-负责协调MainWindow的所有业务逻辑，实现UI与业务的分离
+P1页面主窗口控制器
+负责P1页面特定的UI状态管理和交互逻辑
 
-⚠️ 此文件已被重构后的新架构替代：
-- 重构控制器: /src/controllers/main_window_controller_refactored.py
-- 用例层: /src/application/use_cases/batch_detection_use_case.py
-- 事件总线: /src/infrastructure/event_bus.py
-
-新架构采用DDD设计，具有更好的解耦性和可测试性。
-请使用新的控制器实现，本文件仅保留用于向后兼容。
+职责范围：
+- P1页面的UI状态协调
+- 页面特定的用户交互处理
+- 与系统级控制器和shared服务的集成
+- 页面级的业务流程控制
 """
 
 import logging
+import os
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 from PySide6.QtCore import QObject, Signal, QTimer
 from PySide6.QtWidgets import QMessageBox, QFileDialog
 
-from src.services import get_business_service, get_graphics_service
-from src.ui.factories import get_ui_factory
+from src.shared.services import get_business_service, get_graphics_service
+from src.shared.components.factories import get_ui_factory
+from src.shared.services.business_coordinator import get_business_coordinator
 
 
 class MainWindowController(QObject):
@@ -32,28 +32,36 @@ class MainWindowController(QObject):
     detection_started = Signal()
     detection_stopped = Signal()
     detection_progress = Signal(int, int)  # current, total
-    batch_created = Signal(str)  # batch_id
     file_loaded = Signal(str)  # file_path
     error_occurred = Signal(str)  # error_message
+    batch_created = Signal(str)  # batch_id
     
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger(__name__)
         
-        # 服务层
+        # 系统级业务协调器
+        self.business_coordinator = get_business_coordinator()
+        
+        # P1页面特定服务
         self.business_service = get_business_service()
         self.graphics_service = get_graphics_service()
         self.ui_factory = get_ui_factory()
         
-        # 批次管理器（延迟加载）
+        # P1页面特定状态管理（UI相关）
         self._batch_manager = None
+        self._detection_service = None
         
-        # 状态管理
-        self.current_file_path: Optional[str] = None
-        self.current_product: Optional[str] = None
-        self.current_product_id: Optional[int] = None
-        self.hole_collection = None
+        # P1页面UI状态（不包含业务数据）
         self.current_batch_id: Optional[str] = None
+        self.current_product = None
+        self.current_product_id: Optional[int] = None
+        self.ui_state = {
+            'panorama_view_mode': 'default',
+            'sector_highlighting_enabled': True,
+            'color_legend_visible': True,
+            'simulation_controls_visible': False
+        }
         
         # 检测状态
         self.detection_running = False
@@ -78,12 +86,20 @@ class MainWindowController(QObject):
     def batch_service(self):
         """延迟加载批次服务"""
         if self._batch_manager is None:
-            from src.domain.services.batch_service import BatchService
-            from src.infrastructure.repositories.batch_repository_impl import BatchRepositoryImpl
+            from src.core.domain.services.batch_service import BatchService
+            from src.core.infrastructure.repositories.batch_repository_impl import BatchRepositoryImpl
             repository = BatchRepositoryImpl()
             self._batch_manager = BatchService(repository)
         return self._batch_manager
     
+    @property
+    def detection_service(self):
+        """延迟加载检测服务"""
+        if self._detection_service is None:
+            from src.shared.services.detection_service import DetectionService
+            self._detection_service = DetectionService()
+            self._detection_service.set_batch_service(self.batch_service)
+        return self._detection_service
         
     def initialize(self):
         """初始化控制器"""
@@ -96,6 +112,21 @@ class MainWindowController(QObject):
         # 初始化蛇形路径协调器
         self.snake_path_coordinator = self.graphics_service.create_snake_path_coordinator()
         
+        # 连接系统级协调器信号
+        self._connect_business_coordinator_signals()
+    
+    def _connect_business_coordinator_signals(self):
+        """连接系统级业务协调器信号"""
+        try:
+            # 文件操作信号
+            self.business_coordinator.operation_completed.connect(self._on_business_operation_completed)
+            self.business_coordinator.operation_failed.connect(self._on_business_operation_failed)
+            self.business_coordinator.data_updated.connect(self._on_business_data_updated)
+            
+            self.logger.debug("Connected to BusinessCoordinator signals")
+        except Exception as e:
+            self.logger.error(f"Failed to connect business coordinator signals: {e}")
+        
         # 连接shared_data_manager的信号
         try:
             from src.core.shared_data_manager import SharedDataManager
@@ -107,7 +138,7 @@ class MainWindowController(QObject):
         
     def load_dxf_file(self, file_path: Optional[str] = None) -> bool:
         """
-        加载DXF文件
+        P1页面加载DXF文件（委托给系统级控制器）
         
         Args:
             file_path: 文件路径，如果为None则显示文件选择对话框
@@ -126,133 +157,149 @@ class MainWindowController(QObject):
                 
             if not file_path:
                 return False
-                
-            # 解析DXF文件
-            self.hole_collection = self.business_service.parse_dxf_file(file_path)
             
-            if not self.hole_collection:
-                self.error_occurred.emit("无法解析DXF文件")
-                return False
-                
-            # 应用孔位编号
-            self.hole_collection = self.business_service.apply_hole_numbering(
-                self.hole_collection, 
-                strategy="grid"
-            )
+            # 委托给系统级协调器处理业务逻辑
+            self.business_coordinator.load_dxf_file(file_path)
             
-            # 设置到共享数据管理器
-            self.business_service.set_hole_collection(self.hole_collection)
-            
-            # 调试信息
-            print(f"[DEBUG Controller] hole_collection 包含 {len(self.hole_collection.holes)} 个孔位")
-            test_collection = self.business_service.get_hole_collection()
-            if test_collection:
-                print(f"[DEBUG Controller] business_service 返回 {len(test_collection.holes)} 个孔位")
-            else:
-                print("[DEBUG Controller] business_service.get_hole_collection() 返回 None")
-            
-            # 更新状态
-            self.current_file_path = file_path
-            self.file_loaded.emit(file_path)
-            
-            self.logger.info(f"Successfully loaded DXF file: {file_path}")
+            self.logger.info(f"P1 requested DXF file load: {file_path}")
             return True
             
         except Exception as e:
-            self.logger.error(f"Error loading DXF file: {e}")
+            self.logger.error(f"P1 DXF file load request failed: {e}")
             self.error_occurred.emit(str(e))
             return False
     
     def _on_shared_data_changed(self, data_type: str, data: Any):
-        """处理共享数据变化"""
+        """处理共享数据变化（P1页面UI状态同步）"""
         if data_type == "hole_collection" and data:
-            self.logger.info(f"Received hole_collection from SharedDataManager: {len(data.holes)} holes")
-            self.hole_collection = data
-            # 发射文件加载信号，通知UI更新
+            self.logger.info(f"P1 received hole_collection: {len(data.holes)} holes")
+            # 更新P1页面UI状态
+            self.ui_state['hole_count'] = len(data.holes)
+            # 发射文件加载信号，通知P1页面UI更新
             self.file_loaded.emit("CAP1000.dxf")
+    
+    def _on_business_operation_completed(self, operation_name: str, result: Dict[str, Any]):
+        """处理业务操作完成信号"""
+        if operation_name == "load_file":
+            file_path = result.get('file_path', '')
+            self.file_loaded.emit(file_path)
+            self.logger.info(f"P1 UI updated for file load: {file_path}")
+        elif operation_name == "load_product":
+            product_name = result.get('product_name', '')
+            self.logger.info(f"P1 UI updated for product load: {product_name}")
+    
+    def _on_business_operation_failed(self, operation_name: str, error_message: str):
+        """处理业务操作失败信号"""
+        self.error_occurred.emit(f"{operation_name}: {error_message}")
+        self.logger.error(f"P1 received business operation failure: {operation_name} - {error_message}")
+    
+    def _on_business_data_updated(self, data_type: str, data: Any):
+        """处理业务数据更新信号"""
+        if data_type == "hole_collection":
+            # 通知P1页面更新显示
+            self.logger.debug(f"P1 UI notified of hole collection update")
+        elif data_type == "hole_status":
+            hole_id = data.get('hole_id')
+            status = data.get('status')
+            if hole_id and status:
+                self.status_updated.emit(hole_id, status)
             
     def select_product(self, product_name: str) -> bool:
-        """选择产品"""
+        """P1页面选择产品（委托给系统级控制器）"""
         try:
-            if self.business_service.select_product(product_name):
-                self.current_product = product_name
-                # 获取产品实例以保存ID
-                if hasattr(self.business_service, 'current_product') and self.business_service.current_product:
-                    self.current_product_id = self.business_service.current_product.id
-                self.logger.info(f"Selected product: {product_name}")
-                return True
-            return False
+            # 委托给系统级协调器处理
+            self.business_coordinator.load_product(product_name)
+            
+            self.logger.info(f"P1 requested product load: {product_name}")
+            return True
         except Exception as e:
-            self.logger.error(f"Error selecting product: {e}")
+            self.logger.error(f"P1 product load request failed: {e}")
             self.error_occurred.emit(str(e))
             return False
     
     def check_resumable_batch(self, is_mock: bool = False) -> Optional[Dict]:
-        """检查是否有可恢复的批次"""
-        if not self.current_product_id:
+        """检查是否有可恢复的批次（P1页面特定功能）"""
+        try:
+            # 获取当前产品信息（从系统级控制器）
+            current_state = self.main_business_controller.get_current_state()
+            if not current_state.get('current_product'):
+                return None
+            
+            # 获取产品ID（通过business_service）
+            current_product = self.business_service.current_product
+            if not current_product or not hasattr(current_product, 'id'):
+                return None
+                
+            batch = self.batch_service.get_resumable_batch(current_product.id, is_mock)
+            if batch:
+                return {
+                    'batch_id': batch.batch_id,
+                    'detection_number': batch.detection_number,
+                    'completed_holes': batch.completed_holes,
+                    'total_holes': batch.total_holes,
+                    'pause_time': batch.updated_at
+                }
+            return None
+        except Exception as e:
+            self.logger.error(f"Failed to check resumable batch: {e}")
             return None
             
-        batch = self.batch_service.get_resumable_batch(self.current_product_id, is_mock)
-        if batch:
-            return {
-                'batch_id': batch.batch_id,
-                'detection_number': batch.detection_number,
-                'completed_holes': batch.completed_holes,
-                'total_holes': batch.total_holes,
-                'pause_time': batch.updated_at
-            }
-        return None
-            
     def start_detection(self, is_mock: bool = False):
-        """开始检测（实际检测功能，非模拟）"""
-        if not self.hole_collection:
-            self.error_occurred.emit("请先加载DXF文件")
-            return
-            
-        if not self.current_product_id:
-            self.error_occurred.emit("请先选择产品")
-            return
-            
-        # 创建新批次
+        """开始检测（P1页面特定功能，委托给系统级控制器）"""
         try:
-            # 获取产品名称 - 处理不同的产品信息格式
-            if hasattr(self.current_product, 'model_name'):
-                # ProductModel对象
-                product_name = self.current_product.model_name
-            elif isinstance(self.current_product, dict):
-                # 字典格式
-                product_name = self.current_product.get('model_name', 'Unknown')
-            elif isinstance(self.current_product, str):
-                # 字符串格式
-                product_name = self.current_product
-            else:
-                product_name = "Unknown"
+            # 检查是否有数据
+            current_state = self.business_coordinator.get_current_state()
+            if not current_state.get('has_hole_collection'):
+                self.error_occurred.emit("请先加载DXF文件")
+                return
+                
+            if not current_state.get('current_product'):
+                self.error_occurred.emit("请先选择产品")
+                return
+            
+            # 获取产品ID用于批次创建
+            current_product = self.business_service.current_product
+            if not current_product or not hasattr(current_product, 'id'):
+                self.error_occurred.emit("产品信息不完整")
+                return
+            
+            # 创建批次（P1页面特定功能）
+            product_name = getattr(current_product, 'model_name', str(current_product))
             batch = self.batch_service.create_batch(
-                product_id=self.current_product_id,
+                product_id=current_product.id,
                 product_name=product_name,
                 is_mock=is_mock
             )
             self.current_batch_id = batch.batch_id
-            self.logger.info(f"Created batch: {batch.batch_id}")
             
-            # 发出批次创建信号
-            print(f"📤 [Controller] 发射批次创建信号: {batch.batch_id}")
-            self.batch_created.emit(batch.batch_id)
-            print(f"✅ [Controller] 批次信号已发射")
+            # 更新P1页面UI状态
+            self.detection_running = True
+            self.detection_paused = False
+            self.detection_index = 0
+            
+            # 获取孔位数据用于检测
+            hole_collection = self.business_service.get_hole_collection()
+            if hole_collection:
+                self.detection_holes = list(hole_collection.holes.values())
+                
+                # 使用检测服务（P1页面特定）
+                self.detection_service.start_detection(
+                    self.detection_holes,
+                    batch_id=self.current_batch_id,
+                    is_mock=is_mock
+                )
+                
+                # 启动P1页面检测显示
+                self.detection_started.emit()
+                self.detection_timer.start(100)
+                
+                self.logger.info(f"P1 detection started with batch: {batch.batch_id}")
+            else:
+                self.error_occurred.emit("无法获取孔位数据")
+                
         except Exception as e:
-            self.error_occurred.emit(f"创建批次失败: {str(e)}")
-            return
-            
-        self.detection_running = True
-        self.detection_paused = False
-        self.detection_index = 0
-        
-        # 获取所有待检测的孔位
-        self.detection_holes = list(self.hole_collection.holes.values())
-        
-        # 开始检测
-        self.detection_started.emit()
-        self.detection_timer.start(100)  # 每100ms处理一个孔位（实际检测）
+            self.logger.error(f"P1 detection start failed: {e}")
+            self.error_occurred.emit(f"检测启动失败: {str(e)}")
     
     def continue_detection(self, batch_id: str):
         """继续检测"""
@@ -264,21 +311,29 @@ class MainWindowController(QObject):
             
         self.current_batch_id = batch_id
         
-        # TODO: 实现检测恢复逻辑
-        self.error_occurred.emit("继续检测功能待实现")
+        # 使用检测服务恢复
+        if self.detection_service.resume_detection(detection_state):
+            self.detection_running = True
+            self.detection_paused = False
+            self.detection_started.emit()
+        else:
+            self.error_occurred.emit("恢复检测失败")
         
     def pause_detection(self):
         """暂停检测"""
         self.detection_paused = True
         self.detection_timer.stop()
-        self.logger.info("Detection paused")
+        
+        # 使用检测服务暂停
+        if self.detection_service.pause_detection():
+            self.logger.info("Detection paused and state saved")
         
     def resume_detection(self):
-        """恢复检测（已废弃，使用continue_detection）"""
+        """恢复检测（简单恢复，推荐使用continue_detection进行完整恢复）"""
         if self.detection_running and self.detection_paused:
             self.detection_paused = False
             self.detection_timer.start(100)
-    
+            
     def stop_detection(self):
         """停止检测（终止）"""
         self.detection_running = False
@@ -292,7 +347,7 @@ class MainWindowController(QObject):
         self.detection_stopped.emit()
         
     def _process_detection_step(self):
-        """处理单个检测步骤"""
+        """处理单个检测步骤（P1页面UI显示逻辑）"""
         if not self.detection_running or self.detection_paused:
             return
             
@@ -301,18 +356,18 @@ class MainWindowController(QObject):
             self.stop_detection()
             return
             
-        # 处理当前孔位
+        # 处理当前孔位（P1页面显示逻辑）
         current_hole = self.detection_holes[self.detection_index]
         
-        # 模拟检测结果
+        # 模拟检测结果（P1页面特定功能）
         import random
         status = random.choice(['qualified', 'defective', 'blind'])
         
-        # 更新状态
-        self.business_service.update_hole_status(current_hole.hole_id, status)
-        self.status_updated.emit(current_hole.hole_id, status)
+        # 委托给系统级协调器更新状态
+        self.business_coordinator.update_hole_status(current_hole.hole_id, status)
         
-        # 更新进度
+        # P1页面UI更新
+        self.status_updated.emit(current_hole.hole_id, status)
         self.detection_progress.emit(self.detection_index + 1, len(self.detection_holes))
         
         # 移动到下一个孔位
@@ -346,46 +401,19 @@ class MainWindowController(QObject):
             QTimer.singleShot(50, self._simulate_snake_movement)
             
     def get_statistics(self) -> Dict[str, Any]:
-        """获取统计信息"""
-        if not self.hole_collection:
+        """获取统计信息（委托给系统级控制器）"""
+        try:
+            # 使用系统级协调器获取统计信息
+            return self.business_coordinator.get_completion_statistics()
+        except Exception as e:
+            self.logger.error(f"Failed to get statistics: {e}")
             return {
                 'total_holes': 0,
                 'qualified': 0,
                 'defective': 0,
                 'blind': 0,
-                'pending': 0,
-                'tie_rod': 0,
-                'processing': 0
+                'pending': 0
             }
-        
-        # 使用HoleCollection的get_statistics方法确保一致性
-        if hasattr(self.hole_collection, 'get_statistics'):
-            return self.hole_collection.get_statistics()
-        
-        # 备用实现（与HoleCollection.get_statistics保持一致）
-        stats = {
-            'total_holes': len(self.hole_collection.holes),
-            'qualified': 0,
-            'defective': 0,
-            'blind': 0,
-            'pending': 0,
-            'tie_rod': 0,
-            'processing': 0
-        }
-        
-        for hole in self.hole_collection.holes.values():
-            status = getattr(hole, 'status', 'pending')
-            # 如果status是枚举类型，获取其值
-            if hasattr(status, 'value'):
-                status = status.value
-            # 转换为字符串并小写
-            status = str(status).lower()
-            if status in stats:
-                stats[status] += 1
-            else:
-                stats['pending'] += 1
-                
-        return stats
     
     def start_simulation(self):
         """开始蛇形路径模拟检测"""
@@ -486,10 +514,66 @@ class MainWindowController(QObject):
         except Exception as e:
             self.logger.error(f"模拟步骤处理失败: {e}")
             self.stop_simulation()
+    
+    def load_product(self, product):
+        """加载产品及其关联的DXF文件"""
+        try:
+            self.logger.info(f"开始加载产品: {product}")
+            
+            # 设置当前产品
+            self.current_product = product
+            self.current_product_id = product.id if hasattr(product, 'id') else None
+            
+            # 如果产品有关联的DXF文件，自动加载
+            if hasattr(product, 'dxf_file_path') and product.dxf_file_path:
+                # 解析DXF路径
+                from src.core.data_path_manager import DataPathManager
+                path_manager = DataPathManager()
+                dxf_path = path_manager.resolve_dxf_path(product.dxf_file_path)
+                
+                if os.path.exists(dxf_path):
+                    # 加载DXF文件
+                    self.logger.info(f"加载产品关联的DXF文件: {dxf_path}")
+                    self.load_dxf_file(dxf_path)
+                else:
+                    self.logger.warning(f"产品关联的DXF文件不存在: {dxf_path}")
+                    # 尝试查找相对路径
+                    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+                    alt_path = os.path.join(project_root, product.dxf_file_path)
+                    if os.path.exists(alt_path):
+                        self.logger.info(f"找到DXF文件替代路径: {alt_path}")
+                        self.load_dxf_file(alt_path)
+                    else:
+                        self.error_occurred.emit(f"DXF文件不存在: {dxf_path}")
+            else:
+                self.logger.info("产品未关联DXF文件")
+            
+            # 发射产品加载完成信号
+            product_name = product.model_name if hasattr(product, 'model_name') else str(product)
+            self.file_loaded.emit(f"产品: {product_name}")
+            self.logger.info(f"✅ 产品加载完成: {product_name}")
+            
+        except Exception as e:
+            self.logger.error(f"加载产品失败: {e}")
+            self.error_occurred.emit(f"加载产品失败: {str(e)}")
         
     def cleanup(self):
-        """清理资源"""
-        self.detection_timer.stop()
-        self.business_service.cleanup()
-        self.graphics_service.cleanup()
-        self.logger.info("MainWindow controller cleaned up")
+        """清理P1页面资源"""
+        try:
+            # 停止P1页面特定的定时器
+            self.detection_timer.stop()
+            self.simulation_timer.stop()
+            
+            # 清理P1页面特定服务
+            if hasattr(self, 'business_service'):
+                self.business_service.cleanup()
+            if hasattr(self, 'graphics_service'):
+                self.graphics_service.cleanup()
+            
+            # 清理系统级协调器（在应用关闭时）
+            if hasattr(self, 'business_coordinator'):
+                self.business_coordinator.cleanup()
+            
+            self.logger.info("P1 MainWindow controller cleaned up")
+        except Exception as e:
+            self.logger.error(f"P1 cleanup failed: {e}")

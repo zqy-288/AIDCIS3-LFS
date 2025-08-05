@@ -9,9 +9,9 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List
 from enum import Enum
 
-# from ...interfaces.main_interfaces import IMainViewModel  # Removed due to dataclass compatibility
-from src.exceptions.main_exceptions import DataValidationError
-from src.utils.type_utils import TypeValidator, safe_cast
+# from ...core.interfaces.main_interfaces import IMainViewModel  # Removed due to dataclass compatibility
+from src.core.exceptions.main_exceptions import DataValidationError
+from src.shared.utils.validation import TypeValidator, safe_cast
 
 
 class ViewMode(Enum):

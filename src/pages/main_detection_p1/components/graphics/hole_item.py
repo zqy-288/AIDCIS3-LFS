@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem, QLabel, QWidg
 from PySide6.QtCore import QRectF, Qt, QTimer
 from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QFont
 
-from src.core_business.models.hole_data import HoleData, HoleStatus
+from src.shared.models.hole_data import HoleData, HoleStatus
 
 
 class PersistentTooltip(QLabel):

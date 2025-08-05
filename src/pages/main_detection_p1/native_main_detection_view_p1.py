@@ -28,21 +28,21 @@ sys.path.insert(0, str(project_root))
 try:
     # 控制器和服务 - 使用P1本地版本
     from .controllers.main_window_controller import MainWindowController
-    from .controllers.services.search_service import SearchService
-    from .controllers.services.status_service import StatusService
-    from .controllers.services.file_service import FileService
+    from src.shared.services.search_service import SearchService
+    from src.shared.services.status_service import StatusService
+    from src.shared.services.archive_manager import ArchiveManager as FileService
     
     # UI组件 - 使用P1本地版本
     from .ui.components.toolbar_component import ToolbarComponent
     
     # 图形组件
-    from src.core_business.graphics.graphics_view import OptimizedGraphicsView
+    from src.pages.main_detection_p1.graphics.core.graphics_view import OptimizedGraphicsView
     from src.pages.main_detection_p1.components.graphics.dynamic_sector_view import DynamicSectorDisplayWidget
     # CompletePanoramaWidget已移至中间栏显示
     
     # 数据模型
-    from src.core_business.models.hole_data import HoleCollection
-    from src.models.product_model import get_product_manager
+    from src.shared.models.hole_data import HoleCollection
+    from src.shared.models.product_model import get_product_manager
     from .modules.product_selection import ProductSelectionDialog
     
     # 扇形协调器
@@ -1076,7 +1076,7 @@ class NativeMainDetectionView(QWidget):
                 self.logger.info("✅ 扇形协调器预初始化成功")
                 
                 # 设置默认扇形为sector_1
-                from src.core_business.graphics.sector_types import SectorQuadrant
+                from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
                 self.coordinator.current_sector = SectorQuadrant.SECTOR_1
                 self.logger.info("✅ 设置默认扇形为sector_1")
             except Exception as e:
@@ -1340,14 +1340,14 @@ class NativeMainDetectionView(QWidget):
             else:
                 # 如果没有选中扇形，默认选择sector1
                 self.logger.info("📍 没有选中扇形，默认选择sector1")
-                from src.core_business.graphics.sector_types import SectorQuadrant
+                from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
                 if self.coordinator and hasattr(self.coordinator, 'select_sector'):
                     self.coordinator.select_sector(SectorQuadrant.SECTOR_1)
 
     
     def _on_panorama_sector_clicked(self, sector):
         """处理全景图扇形点击"""
-        from src.core_business.graphics.sector_types import SectorQuadrant
+        from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
         
         # 安全获取扇形值，处理字符串和枚举两种情况
         sector_str = sector.value if hasattr(sector, 'value') else str(sector)
@@ -1494,7 +1494,7 @@ class NativeMainDetectionView(QWidget):
     def _filter_holes_by_sector(self, hole_collection, sector):
         """根据扇形过滤孔位"""
         try:
-            from src.core_business.graphics.sector_types import SectorQuadrant
+            from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
             
             if not hole_collection:
                 return []
@@ -1711,7 +1711,7 @@ class NativeMainDetectionView(QWidget):
         if not self.current_hole_collection:
             return {}
         
-        from src.core_business.models.hole_data import HoleStatus
+        from src.shared.models.hole_data import HoleStatus
         
         total = len(self.current_hole_collection.holes)
         qualified = 0
@@ -1757,6 +1757,7 @@ class NativeMainDetectionView(QWidget):
     
     def load_hole_collection(self, hole_collection):
         """加载孔位数据到视图 - 支持CAP1000和其他DXF"""
+        self.logger.info(f"🚀 [DEBUG] load_hole_collection被调用，孔位数量: {len(hole_collection) if hole_collection else 0}")
         # 更新当前孔位集合
         self.current_hole_collection = hole_collection
         
@@ -1786,6 +1787,21 @@ class NativeMainDetectionView(QWidget):
         if self.coordinator and hole_collection:
             self.coordinator.load_hole_collection(hole_collection)
             self.logger.info("✅ 数据已加载到协调器，扇形分配完成")
+        
+        # 2.1 【重要修复】加载数据到左侧全景图组件
+        if self.left_panel and hasattr(self.left_panel, 'sidebar_panorama') and hole_collection:
+            try:
+                panorama_widget = self.left_panel.sidebar_panorama
+                if hasattr(panorama_widget, 'load_complete_view'):
+                    panorama_widget.load_complete_view(hole_collection)
+                    self.logger.info("✅ 数据已加载到左侧全景图组件")
+                elif hasattr(panorama_widget, 'load_hole_collection'):
+                    panorama_widget.load_hole_collection(hole_collection)
+                    self.logger.info("✅ 数据已加载到左侧全景图组件（兼容方法）")
+                else:
+                    self.logger.warning("⚠️ 全景图组件没有数据加载方法")
+            except Exception as e:
+                self.logger.error(f"❌ 加载数据到全景图组件失败: {e}")
         
         # 更新状态统计显示
         if self.left_panel and hole_collection:
@@ -1908,7 +1924,7 @@ class NativeMainDetectionView(QWidget):
             self.logger.info("🎯 开始加载默认sector1区域")
             
             # 导入所需的枚举
-            from src.core_business.graphics.sector_types import SectorQuadrant
+            from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
             
             # 检查必要组件是否就绪
             if not self.coordinator:

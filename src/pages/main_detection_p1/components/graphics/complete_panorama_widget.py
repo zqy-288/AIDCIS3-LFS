@@ -39,12 +39,12 @@ except ImportError:
                     return True
         sip = FakeSip()
 
-from src.core_business.graphics.graphics_view import OptimizedGraphicsView
-from src.core_business.graphics.sector_types import SectorQuadrant
+from .graphics_view import OptimizedGraphicsView
+from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
 from .sector_highlight_item import SectorHighlightItem
-from src.core_business.graphics.sector_controllers import UnifiedLogger
-from src.core_business.models.hole_data import HoleCollection, HoleStatus
-from ...modules.theme_manager import ModernThemeManager as ThemeManager
+from src.pages.main_detection_p1.graphics.core.sector_controllers import UnifiedLogger
+from src.shared.models.hole_data import HoleCollection, HoleStatus
+from src.shared.components.theme import ModernThemeManager as ThemeManager
 from src.pages.shared.components.snake_path import PathStrategy, PathRenderStyle
 
 
@@ -291,7 +291,7 @@ class CompletePanoramaWidget(QWidget):
             hole_count = len(self.panorama_view.hole_items)
             
             # 获取全局缩放管理器的数据规模分类
-            from src.core_business.graphics.scale_manager import _detect_data_scale
+            from src.pages.main_detection_p1.graphics.core.scale_manager import _detect_data_scale
             data_scale = _detect_data_scale(self.panorama_view, debug=False)
             
             # 计算数据密度（孔位数量 / 显示面积）
@@ -513,7 +513,7 @@ class CompletePanoramaWidget(QWidget):
                 return
             
             # 获取数据规模分类
-            from src.core_business.graphics.scale_manager import _detect_data_scale, calculate_scale_config
+            from src.pages.main_detection_p1.graphics.core.scale_manager import _detect_data_scale, calculate_scale_config
             data_scale = _detect_data_scale(self.panorama_view, debug=False)
             
             # 首先获取scene

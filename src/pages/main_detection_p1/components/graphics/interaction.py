@@ -12,7 +12,7 @@ import time
 from typing import List, Optional, Set
 import logging
 
-from src.core_business.models.hole_data import HoleData, HoleStatus
+from src.shared.models.hole_data import HoleData, HoleStatus
 from .hole_item import HoleGraphicsItem
 
 

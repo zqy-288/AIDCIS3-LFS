@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QGraphicsPathItem
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QPen, QBrush, QColor, QPainterPath
 
-from src.core_business.graphics.sector_types import SectorQuadrant
+from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
 
 
 class SectorHighlightItem(QGraphicsPathItem):

@@ -11,7 +11,7 @@ from typing import Dict, List, Optional
 import logging
 import time
 
-from src.core_business.models.hole_data import HoleCollection, HoleStatus
+from src.shared.models.hole_data import HoleCollection, HoleStatus
 from .hole_item import HoleGraphicsItem
 
 

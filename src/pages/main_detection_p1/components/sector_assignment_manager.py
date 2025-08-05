@@ -10,8 +10,8 @@ from collections import Counter
 from PySide6.QtCore import QObject, Signal, QPointF
 from PySide6.QtGui import QColor
 
-from src.core_business.models.hole_data import HoleData, HoleCollection
-from src.core_business.graphics.sector_types import SectorQuadrant
+from src.shared.models.hole_data import HoleData, HoleCollection
+from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
 
 
 @dataclass

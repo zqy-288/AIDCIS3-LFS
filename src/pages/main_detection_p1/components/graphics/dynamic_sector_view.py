@@ -7,18 +7,18 @@ from typing import Dict, Optional
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy
 from PySide6.QtCore import Qt, Signal, QTimer
 
-from src.core_business.graphics.graphics_view import OptimizedGraphicsView
-from src.core_business.graphics.sector_controllers import (
+from .graphics_view import OptimizedGraphicsView
+from src.pages.main_detection_p1.graphics.core.sector_controllers import (
     SectorViewController, UnifiedPanoramaController, StatusController, 
     ViewTransformController, UnifiedLogger
 )
-from src.core_business.models.hole_data import HoleCollection
-from src.core_business.graphics.sector_types import SectorQuadrant
+from src.shared.models.hole_data import HoleCollection
+from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
 # from src.modules.panorama_view import CompletePanoramaWidget  # 已移动到新位置
-from src.core_business.graphics.sector_view_factory import SectorViewFactory
-from src.core_business.graphics.sector_display_config import SectorDisplayConfig
+from src.pages.main_detection_p1.graphics.core.sector_view_factory import SectorViewFactory
+from src.pages.main_detection_p1.graphics.core.sector_display_config import SectorDisplayConfig
 from src.core.shared_data_manager import SharedDataManager
-from src.core_business.graphics.snake_path_renderer import PathStrategy, PathRenderStyle
+from src.pages.main_detection_p1.graphics.core.snake_path_renderer import PathStrategy, PathRenderStyle
 
 
 class DynamicSectorDisplayWidget(QWidget):
@@ -411,7 +411,7 @@ class DynamicSectorDisplayWidget(QWidget):
             # 创建该扇形的子集合
             sector_holes = [h for h in self.hole_collection.holes if h.hole_id in sector_path]
             if sector_holes:
-                from src.core_business.models.hole_data import HoleCollection
+                from src.shared.models.hole_data import HoleCollection
                 sector_collection = HoleCollection()
                 for hole in sector_holes:
                     sector_collection.add_hole(hole)

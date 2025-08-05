@@ -22,8 +22,8 @@ from PySide6.QtCore import QObject, Signal, QPointF, QRectF, Qt
 from PySide6.QtGui import QPainter, QPen, QColor, QBrush, QPainterPath, QFont
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsPathItem, QGraphicsTextItem
 
-from src.core_business.models.hole_data import HoleData, HoleCollection
-from src.core_business.graphics.sector_controllers import UnifiedLogger
+from src.shared.models.hole_data import HoleData, HoleCollection
+from src.pages.main_detection_p1.graphics.core.sector_controllers import UnifiedLogger
 
 
 class PathStrategy(Enum):

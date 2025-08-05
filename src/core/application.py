@@ -402,17 +402,13 @@ class ApplicationCore(QObject):
         try:
             # 导入统一主题管理器
             sys.path.insert(0, str(Path(__file__).parent.parent))
-            from src.modules.theme_manager_unified import get_unified_theme_manager
-            from src.modules.theme_orchestrator import initialize_theme_system
+            from src.shared.components.theme import get_theme_manager, apply_theme
             
             # 获取主题管理器实例
-            self._theme_manager = get_unified_theme_manager()
+            self._theme_manager = get_theme_manager()
             
-            # 应用深色主题
-            self._theme_manager.apply_theme(self._qt_app, "dark")
-            
-            # 初始化主题协调器
-            self._theme_orchestrator = initialize_theme_system(self._qt_app)
+            # 应用统一主题
+            apply_theme(self._qt_app)
             
             # 验证主题应用
             stylesheet = self._qt_app.styleSheet()
@@ -597,11 +593,8 @@ class ApplicationCore(QObject):
                 self._theme_manager.force_dark_theme(main_window)
                 self._logger.info("主题已强制应用到主窗口")
             
-            # 如果有主题协调器，注册主窗口
-            if hasattr(self, '_theme_orchestrator') and self._theme_orchestrator:
-                self._theme_orchestrator.set_main_window(main_window)
-                self._theme_orchestrator.mark_application_ready()
-                self._logger.info("主窗口已注册到主题协调器")
+            # 主题已通过apply_theme统一应用
+            self._logger.info("统一主题已应用到主窗口")
                 
         except Exception as e:
             self._logger.warning(f"主窗口主题应用失败: {e}")

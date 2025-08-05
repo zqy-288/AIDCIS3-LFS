@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QGraphicsView, QGraphicsScene
 from PySide6.QtCore import Qt, QEvent, Signal
 from PySide6.QtGui import QPainter, QMouseEvent
 
-from src.core_business.graphics.graphics_view import OptimizedGraphicsView
+from src.pages.main_detection_p1.graphics.core.graphics_view import OptimizedGraphicsView
 
 
 class PanoramaGraphicsView(OptimizedGraphicsView):

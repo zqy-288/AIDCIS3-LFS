@@ -7,7 +7,7 @@ import math
 from typing import Dict
 from PySide6.QtCore import QPointF
 from ..core.interfaces import IPanoramaGeometryCalculator
-from src.core_business.models.hole_data import HoleData
+from src.shared.models.hole_data import HoleData
 
 
 class PanoramaGeometryCalculator(IPanoramaGeometryCalculator):

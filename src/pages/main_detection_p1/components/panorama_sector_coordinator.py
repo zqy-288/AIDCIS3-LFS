@@ -9,8 +9,8 @@ from typing import Optional, Dict, List, Any
 from PySide6.QtCore import QObject, Signal, QTimer
 from PySide6.QtWidgets import QWidget
 
-from src.core_business.graphics.sector_types import SectorQuadrant
-from src.core_business.models.hole_data import HoleCollection, HoleData
+from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
+from src.shared.models.hole_data import HoleCollection, HoleData
 from .sector_assignment_manager import SectorAssignmentManager
 
 
@@ -246,7 +246,7 @@ class PanoramaSectorCoordinator(QObject):
         }
         
         # 导入HoleStatus枚举以进行准确比较
-        from src.core_business.models.hole_data import HoleStatus
+        from src.shared.models.hole_data import HoleStatus
         
         for hole in holes:
             # 根据状态统计

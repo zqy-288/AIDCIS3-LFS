@@ -12,8 +12,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'models'))
-from product_model import get_product_manager
+from src.shared.models.product_model import get_product_manager
 
 class ProductSelectionDialog(QDialog):
     """产品型号选择对话框"""
@@ -248,7 +247,7 @@ class ProductSelectionDialog(QDialog):
     
     def open_product_management(self):
         """打开产品信息维护界面"""
-        from modules.product_management import ProductManagementDialog
+        from src.modules.product_management import ProductManagementDialog
         dialog = ProductManagementDialog(self)
         if dialog.exec() == QDialog.Accepted:
             # 刷新产品列表

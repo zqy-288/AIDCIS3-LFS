@@ -13,8 +13,8 @@ from ..core.interfaces import (
     ISectorInteractionHandler, ISnakePathRenderer
 )
 from ..core.event_bus import PanoramaEventBus, PanoramaEvent
-from src.core_business.models.hole_data import HoleCollection, HoleStatus
-from src.core_business.graphics.sector_types import SectorQuadrant
+from src.shared.models.hole_data import HoleCollection, HoleStatus
+from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
 
 
 class PanoramaViewController(QObject):

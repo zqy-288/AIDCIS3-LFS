@@ -21,8 +21,8 @@ sys.path.insert(0, str(project_root))
 try:
     # 使用 P1 本地版本的控制器
     from .controllers.main_window_controller import MainWindowController
-    from src.ui.factories import get_ui_factory
-    from src.services import get_graphics_service
+    from src.shared.components.factories import get_ui_factory
+    from src.shared.services import get_graphics_service
     from src.pages.main_detection_p1.components.simulation_controller import SimulationController
 except ImportError as e:
     logging.warning(f"无法导入控制器/服务: {e}, 使用模拟实现")
@@ -277,11 +277,31 @@ class MainDetectionPage(QWidget):
     def _update_graphics_view(self):
         """更新图形视图显示DXF数据"""
         try:
-            if not self.controller or not hasattr(self.controller, 'hole_collection') or not self.controller.hole_collection:
-                self.logger.warning("⚠️ 无法获取孔位数据")
+            self.logger.info(f"🚀 [DEBUG] _update_graphics_view被调用")
+            self.logger.info(f"🚀 [DEBUG] controller: {self.controller is not None}")
+            if self.controller:
+                self.logger.info(f"🚀 [DEBUG] controller.hole_collection存在: {hasattr(self.controller, 'hole_collection')}")
+                if hasattr(self.controller, 'hole_collection'):
+                    self.logger.info(f"🚀 [DEBUG] hole_collection不为空: {self.controller.hole_collection is not None}")
+            
+            # 尝试从多个源获取孔位数据
+            hole_data = None
+            
+            # 1. 首先尝试从控制器获取
+            if self.controller and hasattr(self.controller, 'hole_collection') and self.controller.hole_collection:
+                hole_data = self.controller.hole_collection
+                self.logger.info("🚀 [DEBUG] 从控制器获取到孔位数据")
+            # 2. 尝试从业务服务获取
+            elif self.controller and hasattr(self.controller, 'business_service'):
+                business_service = self.controller.business_service
+                if business_service and hasattr(business_service, 'get_hole_collection'):
+                    hole_data = business_service.get_hole_collection()
+                    if hole_data:
+                        self.logger.info("🚀 [DEBUG] 从业务服务获取到孔位数据")
+            
+            if not hole_data:
+                self.logger.warning("⚠️ 从所有源都无法获取孔位数据")
                 return
-                
-            hole_data = self.controller.hole_collection
             self.current_hole_data = hole_data
             
             # 获取孔位数量信息
@@ -480,7 +500,7 @@ class MainDetectionPage(QWidget):
     def _filter_holes_by_sector(self, hole_data, sector):
         """根据扇形过滤孔位数据"""
         try:
-            from src.core_business.graphics.sector_types import SectorQuadrant
+            from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
             
             if not hole_data:
                 return []
@@ -532,7 +552,7 @@ class MainDetectionPage(QWidget):
         try:
             if self.graphics_view and hasattr(self.graphics_view, 'load_holes'):
                 # 将列表转换为HoleCollection
-                from src.core_business.models.hole_data import HoleCollection
+                from src.shared.models.hole_data import HoleCollection
                 
                 if isinstance(hole_data, list):
                     # 创建字典，使用hole_id作为键
@@ -561,7 +581,7 @@ class MainDetectionPage(QWidget):
     def _update_all_sector_views(self, hole_data):
         """初始化时更新所有扇形视图"""
         try:
-            from src.core_business.graphics.sector_types import SectorQuadrant
+            from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
             
             self.logger.info("开始更新所有扇形视图...")
             

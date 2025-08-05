@@ -6,7 +6,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Tuple
 from PySide6.QtCore import QPointF
-from src.core_business.models.hole_data import HoleData, HoleStatus
+from src.shared.models.hole_data import HoleData, HoleStatus
 
 
 class IPanoramaDataModel(ABC):

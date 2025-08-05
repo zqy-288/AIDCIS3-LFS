@@ -9,7 +9,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPen, QBrush
 
 from ..core.interfaces import IPanoramaRenderer
-from src.core_business.models.hole_data import HoleData, HoleStatus
+from src.shared.models.hole_data import HoleData, HoleStatus
 
 
 class PanoramaRenderer(IPanoramaRenderer):

@@ -8,8 +8,8 @@ from typing import Optional
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtGui import QColor
 
-from src.core_business.graphics.sector_types import SectorQuadrant
-from src.core_business.models.hole_data import HoleStatus
+from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
+from src.shared.models.hole_data import HoleStatus
 from src.modules.panorama_view.core import PanoramaDIContainer
 from src.modules.panorama_view.adapters import CompletePanoramaWidgetAdapter
 from src.modules.panorama_view.core import PanoramaEventBus

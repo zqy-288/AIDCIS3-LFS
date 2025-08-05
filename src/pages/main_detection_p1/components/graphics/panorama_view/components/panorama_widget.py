@@ -10,7 +10,7 @@ from PySide6.QtGui import QMouseEvent
 
 from .panorama_graphics_view import PanoramaGraphicsView
 from .view_controller import PanoramaViewController
-from src.core_business.graphics.sector_types import SectorQuadrant
+from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
 
 
 class PanoramaWidget(QWidget):

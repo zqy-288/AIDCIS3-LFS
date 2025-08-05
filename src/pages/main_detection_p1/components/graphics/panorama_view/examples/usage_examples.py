@@ -11,8 +11,8 @@ from .core import (
     get_global_container,
     PanoramaEvent
 )
-from src.core_business.models.hole_data import HoleCollection, HoleData, HoleStatus
-from src.core_business.graphics.sector_types import SectorQuadrant
+from src.shared.models.hole_data import HoleCollection, HoleData, HoleStatus
+from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
 
 
 class PanoramaExampleWindow(QMainWindow):
