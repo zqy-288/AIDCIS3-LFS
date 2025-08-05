@@ -19,7 +19,7 @@ class DialogFactory:
     def create_product_selection_dialog(self, parent: Optional[QWidget] = None) -> Any:
         """创建产品选择对话框"""
         try:
-            from src.modules.product_selection import ProductSelectionDialog
+            from src.pages.main_detection_p1.modules.product_selection import ProductSelectionDialog
             return ProductSelectionDialog(parent)
         except ImportError:
             # 创建简单的占位对话框

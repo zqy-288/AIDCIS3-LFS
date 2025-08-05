@@ -475,8 +475,9 @@ class MainWindowController(QObject):
         
         # 重置所有孔位状态
         if self.hole_collection:
+            from src.shared.models.hole_data import HoleStatus
             for hole in self.hole_collection.holes.values():
-                hole.status = "pending"
+                hole.status = HoleStatus.PENDING
     
     def _process_simulation_step(self):
         """处理模拟检测的单个步骤"""
@@ -557,6 +558,34 @@ class MainWindowController(QObject):
             self.logger.error(f"加载产品失败: {e}")
             self.error_occurred.emit(f"加载产品失败: {str(e)}")
         
+    def search_hole(self, query: str) -> List[str]:
+        """
+        搜索孔位
+        
+        Args:
+            query: 搜索查询字符串
+            
+        Returns:
+            匹配的孔位ID列表
+        """
+        try:
+            self.logger.info(f"🔍 控制器接收到搜索请求: '{query}'")
+            print(f"🔍 [DEBUG] 业务协调器存在: {self.business_coordinator is not None}")
+            
+            if self.business_coordinator:
+                results = self.business_coordinator.search_holes(query)
+                self.logger.info(f"✅ 控制器搜索完成: '{query}' -> {len(results)} 个结果")
+                return results
+            else:
+                print(f"🔍 [DEBUG] 业务协调器未初始化")
+                self.logger.warning("⚠️ 业务协调器未初始化，搜索功能不可用")
+                return []
+                
+        except Exception as e:
+            self.logger.error(f"搜索孔位失败: {e}")
+            self.error_occurred.emit(f"搜索失败: {e}")
+            return []
+    
     def cleanup(self):
         """清理P1页面资源"""
         try:

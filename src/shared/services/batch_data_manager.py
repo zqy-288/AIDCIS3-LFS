@@ -202,21 +202,9 @@ class BatchDataManager:
         batch_holes = []
         batch_size_actual = len(holes[:self.batch_size])
         
-        # 计算各状态的准确数量
-        qualified_count = round(batch_size_actual * 0.995)  # 99.5%
-        defective_count = round(batch_size_actual * 0.004)  # 0.4% 
-        pending_count = batch_size_actual - qualified_count - defective_count  # 剩余为待检
-        
-        # 创建状态列表
-        status_list = (
-            [HoleStatus.QUALIFIED] * qualified_count +
-            [HoleStatus.DEFECTIVE] * defective_count +
-            [HoleStatus.PENDING] * pending_count
-        )
-        
-        # 确保列表长度匹配
-        while len(status_list) < batch_size_actual:
-            status_list.append(HoleStatus.QUALIFIED)  # 补齐为合格状态
+        # 批次创建时所有孔位都应为未开始状态
+        # 不应预分配检测结果，实际结果应在检测过程中产生
+        status_list = [HoleStatus.PENDING] * batch_size_actual
         while len(status_list) > batch_size_actual:
             status_list.pop()  # 移除多余状态
         

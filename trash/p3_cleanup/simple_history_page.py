@@ -1,6 +1,6 @@
 """
-简化的历史数据页面 - P3界面
-专注于基本的UI布局和功能，完美还原历史界面
+简化的历史数据页面
+专注于基本的UI布局和功能
 """
 
 from PySide6.QtWidgets import (
@@ -138,12 +138,6 @@ class SimpleHistoryViewer(QWidget):
         self.avg_diameter_label.setText(f"平均直径: {sum(diameters)/len(diameters):.2f} mm")
         self.min_diameter_label.setText(f"最小直径: {min(diameters):.2f} mm")
         self.max_diameter_label.setText(f"最大直径: {max(diameters):.2f} mm")
-        
-    def load_data_for_hole(self, hole_id: str):
-        """为指定孔位加载数据"""
-        self.hole_label.setText(f"当前孔位: {hole_id}")
-        self.status_label.setText("状态: 数据已加载")
-        print(f"📊 历史数据查看器: 加载孔位 {hole_id} 的数据")
 
 
 class SimpleDefectViewer(QWidget):
@@ -274,19 +268,14 @@ class SimpleDefectViewer(QWidget):
             self.defect_list.addItem(item)
             
         self.defect_count_label.setText(f"缺陷数量: {len(sample_defects)}")
-        
-    def load_data_for_hole(self, hole_id: str):
-        """为指定孔位加载数据"""
-        self.hole_label.setText(f"当前孔位: {hole_id}")
-        print(f"📊 缺陷标注工具: 加载孔位 {hole_id} 的数据")
 
 
-class HistoryAnalyticsPage(QWidget):
-    """历史数据分析页面 - 统一历史数据查看器"""
+class SimpleHistoryPage(QWidget):
+    """简化的历史数据页面"""
     
     view_mode_changed = Signal(str)
     
-    def __init__(self, shared_components=None, view_model=None, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
         self.current_mode = "管孔直径"
         self.init_ui()
@@ -347,44 +336,27 @@ class HistoryAnalyticsPage(QWidget):
         
     def on_data_type_changed(self, data_type):
         """数据类型改变处理"""
-        print(f"🔄 切换数据类型: {self.current_mode} → {data_type}")
         self.current_mode = data_type
         
         if data_type == "管孔直径":
             self.stacked_widget.setCurrentWidget(self.history_viewer)
             self.status_label.setText("当前模式：管孔直径历史数据")
             self.status_label.setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 12px;")
-            print("✅ 切换到历史数据查看器")
         elif data_type == "缺陷标注":
             self.stacked_widget.setCurrentWidget(self.defect_viewer)
             self.status_label.setText("当前模式：缺陷标注工具")
             self.status_label.setStyleSheet("color: #2196F3; font-weight: bold; font-size: 12px;")
-            print("✅ 切换到缺陷标注工具")
             
         self.view_mode_changed.emit(data_type)
-        
-    def load_data_for_hole(self, hole_id: str):
-        """为指定孔位加载数据"""
-        print(f"📊 为孔位 {hole_id} 加载数据 (当前模式: {self.current_mode})")
-        
-        if self.current_mode == "管孔直径":
-            self.history_viewer.load_data_for_hole(hole_id)
-        elif self.current_mode == "缺陷标注":
-            self.defect_viewer.load_data_for_hole(hole_id)
         
     def get_current_mode(self):
         """获取当前模式"""
         return self.current_mode
         
-    def set_mode(self, mode: str):
-        """设置模式"""
-        if mode in ["管孔直径", "缺陷标注"]:
-            self.data_type_combo.setCurrentText(mode)
-        
     def get_page_info(self):
         """获取页面信息"""
         return {
-            'name': 'history_analytics',
+            'name': 'simple_history',
             'title': '历史数据',
             'version': '1.0.0',
             'status': 'active',

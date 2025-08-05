@@ -12,7 +12,7 @@ from PySide6.QtCore import QObject, Signal
 from .business_service import get_business_service
 from .detection_service import DetectionService
 from .search_service import SearchService
-from .status_service import StatusService
+from .status_manager import UnifiedStatusManager
 from ...core.exceptions.main_exceptions import BusinessControllerError
 from ..view_models.enums import DetectionState, SimulationState
 
@@ -59,7 +59,7 @@ class BusinessCoordinator(QObject):
         try:
             # Initialize services that require Qt signals
             self._search_service = SearchService()
-            self._status_service = StatusService()
+            self._status_service = UnifiedStatusManager()
             
             # Initialize detection service with dependencies
             try:
@@ -124,6 +124,11 @@ class BusinessCoordinator(QObject):
                 # Set to shared data manager
                 self.business_service.set_hole_collection(hole_collection)
                 
+                # Update search service with hole collection
+                if self._search_service:
+                    self._search_service.set_hole_collection(hole_collection)
+                    self.logger.info("🔍 搜索服务已更新孔位数据")
+                
                 # Emit success signal
                 result = {
                     'file_path': file_path,
@@ -157,6 +162,10 @@ class BusinessCoordinator(QObject):
                     'product_name': product_name,
                     'product_object': self.business_service.current_product
                 }
+                
+                # Update search service with hole collection data after product selection
+                self.update_search_data()
+                
                 self.operation_completed.emit("load_product", result)
                 self.logger.info(f"Successfully coordinated product load: {product_name}")
             else:
@@ -181,6 +190,34 @@ class BusinessCoordinator(QObject):
             self.logger.error(f"Failed to get available products: {e}")
             return []
     
+    def update_search_data(self, hole_collection: Any = None) -> None:
+        """Update search service with current hole collection data."""
+        try:
+            
+            if not hole_collection:
+                # Try to get current hole collection from business service
+                hole_collection = getattr(self.business_service, 'current_hole_collection', None)
+                
+                # Try using the business service method
+                if not hole_collection and hasattr(self.business_service, 'get_hole_collection'):
+                    hole_collection = self.business_service.get_hole_collection()
+                
+                # Also try to get from shared data manager directly
+                if not hole_collection:
+                    try:
+                        from src.core.shared_data_manager import SharedDataManager
+                        shared_data = SharedDataManager()
+                        hole_collection = shared_data.get_hole_collection()
+                    except Exception as e:
+                        self.logger.warning(f"获取共享数据失败: {e}")
+            
+            if hole_collection and self._search_service:
+                self._search_service.set_hole_collection(hole_collection)
+                self.logger.info("搜索服务数据已更新")
+                
+        except Exception as e:
+            self.logger.error(f"更新搜索服务数据失败: {e}")
+    
     # Search operations (coordinate with Qt search service)
     def search_holes(self, query: str) -> List[str]:
         """
@@ -196,7 +233,8 @@ class BusinessCoordinator(QObject):
             if not self._search_service:
                 return []
             
-            return self._search_service.search(query)
+            results = self._search_service.search(query)
+            return results
             
         except Exception as e:
             self.logger.error(f"Search failed: {e}")

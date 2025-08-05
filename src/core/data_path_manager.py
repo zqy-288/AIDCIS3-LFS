@@ -85,13 +85,19 @@ class DataPathManager:
         if os.path.isabs(dxf_path) and os.path.exists(dxf_path):
             return dxf_path
             
-        # 尝试作为相对于data_root的路径
-        abs_path = self.data_root / dxf_path
-        if abs_path.exists():
-            return str(abs_path)
+        # 尝试作为相对于项目根目录的路径
+        project_root = self.data_root.parent  # data_root是项目根目录下的Data，所以parent就是项目根目录
+        abs_path_from_root = project_root / dxf_path
+        if abs_path_from_root.exists():
+            return str(abs_path_from_root)
             
-        # 如果都不存在，返回原路径
-        return dxf_path
+        # 尝试作为相对于data_root的路径
+        abs_path_from_data = self.data_root / dxf_path
+        if abs_path_from_data.exists():
+            return str(abs_path_from_data)
+            
+        # 如果都不存在，返回相对于项目根目录的绝对路径（便于调试）
+        return str(abs_path_from_root)
     
     # ============ 检测批次相关路径 ============
     

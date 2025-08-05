@@ -76,8 +76,8 @@ SCALE_CONFIGS = {
     "main_micro": {
         "description": "主视图微观模式 - 孔位细节",
         "margin_ratio": 0.1,
-        "min_scale": 1.2,
-        "max_scale": 4.0,
+        "min_scale": 0.8,
+        "max_scale": 3.0,
         "priority": "detail_view",
         "center_mode": "selection_center"
     }

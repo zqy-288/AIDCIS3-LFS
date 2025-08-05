@@ -25,6 +25,7 @@ class RightOperationsPanel(QScrollArea):
     pause_simulation = Signal()
     stop_simulation = Signal()
     view_control_requested = Signal(str)  # 视图控制信号
+    file_operation_requested = Signal(str, dict)  # 文件操作信号
     # 导航信号
     realtime_detection_requested = Signal()  # 跳转到P2页面
     history_statistics_requested = Signal()  # 跳转到P3页面
@@ -246,7 +247,7 @@ class RightOperationsPanel(QScrollArea):
         # 视图控制信号
         self.zoom_in_button.clicked.connect(lambda: self.view_control_requested.emit("zoom_in"))
         self.zoom_out_button.clicked.connect(lambda: self.view_control_requested.emit("zoom_out"))
-        self.reset_zoom_button.clicked.connect(lambda: self.view_control_requested.emit("reset_zoom"))
+        self.reset_zoom_button.clicked.connect(self._on_reset_zoom_clicked)
 
         # 其他操作信号
         self.generate_report_btn.clicked.connect(lambda: self.file_operation_requested.emit("generate_report", {}))
@@ -279,3 +280,9 @@ class RightOperationsPanel(QScrollArea):
         """启用/禁用模拟控制按钮"""
         if not self.simulation_running:
             self.start_simulation_btn.setEnabled(enabled)
+    
+    def _on_reset_zoom_clicked(self):
+        """处理重置缩放按钮点击"""
+        print("🔄 重置按钮被点击")  # 调试输出
+        self.view_control_requested.emit("reset_zoom")
+        print("🔄 已发射重置信号")

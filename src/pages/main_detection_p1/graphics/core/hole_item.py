@@ -134,9 +134,9 @@ class HoleGraphicsItem(QGraphicsEllipseItem):
         
         # 设置画笔和画刷
         if self._is_search_highlighted:
-            # 搜索高亮状态：紫色边框（最高优先级）
-            pen = QPen(QColor(255, 0, 255), 3.0)
-            brush = QBrush(QColor(255, 0, 255, 100))
+            # 搜索高亮状态：明亮粉色边框和填充（最高优先级）
+            pen = QPen(QColor(255, 20, 147), 4.0)  # 更明亮的粉色，更粗的边框
+            brush = QBrush(QColor(255, 20, 147, 150))  # 更明亮的粉色填充
         elif self._is_highlighted:
             # 高亮状态：加粗边框，亮色填充
             pen = QPen(color.darker(150), 2.0)

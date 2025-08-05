@@ -76,6 +76,12 @@ class DetectionService(QObject):
             self.is_mock = is_mock
             self.detection_results = {}
             
+            # 初始化所有孔位状态为PENDING
+            from src.shared.models.hole_data import HoleStatus
+            for hole in holes:
+                if hasattr(hole, 'status'):
+                    hole.status = HoleStatus.PENDING
+            
             # 设置定时器间隔
             interval = self.simulation_params['interval'] if is_mock else 100
             self.detection_timer.setInterval(interval)

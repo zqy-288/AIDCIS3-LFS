@@ -1,211 +1,217 @@
 """
 缺陷标注数据模型
-支持YOLO格式的缺陷标注数据处理
+提供缺陷数据的基本结构和管理功能
 """
 
-import os
-from datetime import datetime
-from typing import List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Optional, Dict, Any, List
+from enum import Enum
+from PySide6.QtGui import QColor
 
 
-class DefectAnnotation:
-    """缺陷标注数据类 - 支持YOLO格式"""
+class DefectSeverity(Enum):
+    """缺陷严重程度枚举"""
+    MINOR = "轻微"
+    MODERATE = "中等"
+    SEVERE = "严重"
+
+
+class DefectType(Enum):
+    """缺陷类型枚举"""
+    OVERSIZED = "孔径偏大"
+    UNDERSIZED = "孔径偏小"
+    MISALIGNED = "孔位偏移"
+    ROUGH_SURFACE = "表面粗糙"
+    BURR = "毛刺"
+    OTHER = "其他"
+
+
+@dataclass
+class DefectCategory:
+    """缺陷分类"""
+    id: str
+    name: str
+    description: str = ""
+    color: QColor = QColor(255, 0, 0)
     
-    def __init__(self, defect_class: int, x_center: float, y_center: float, 
-                 width: float, height: float, confidence: float = 1.0):
-        """
-        初始化缺陷标注
-        
-        Args:
-            defect_class: 缺陷类别ID (0, 1, 2, ...)
-            x_center: 中心点x坐标 (归一化 0-1)
-            y_center: 中心点y坐标 (归一化 0-1)
-            width: 宽度 (归一化 0-1)
-            height: 高度 (归一化 0-1)
-            confidence: 置信度 (0-1)
-        """
-        self.id = None
-        self.defect_class = defect_class
-        self.x_center = x_center
-        self.y_center = y_center
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'color': self.color.name()
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'DefectCategory':
+        """从字典创建实例"""
+        return cls(
+            id=data['id'],
+            name=data['name'],
+            description=data.get('description', ''),
+            color=QColor(data.get('color', '#FF0000'))
+        )
+
+
+@dataclass
+class DefectAnnotation:
+    """缺陷标注数据"""
+    id: str
+    hole_id: str
+    defect_type: str
+    severity: str
+    position_x: float = 0.0
+    position_y: float = 0.0
+    width: float = 0.0
+    height: float = 0.0
+    description: str = ""
+    color: QColor = QColor(255, 0, 0)
+    confidence: float = 1.0
+    timestamp: Optional[str] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
+        return {
+            'id': self.id,
+            'hole_id': self.hole_id,
+            'defect_type': self.defect_type,
+            'severity': self.severity,
+            'position_x': self.position_x,
+            'position_y': self.position_y,
+            'width': self.width,
+            'height': self.height,
+            'description': self.description,
+            'color': self.color.name(),
+            'confidence': self.confidence,
+            'timestamp': self.timestamp
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'DefectAnnotation':
+        """从字典创建实例"""
+        return cls(
+            id=data['id'],
+            hole_id=data['hole_id'],
+            defect_type=data['defect_type'],
+            severity=data['severity'],
+            position_x=data.get('position_x', 0.0),
+            position_y=data.get('position_y', 0.0),
+            width=data.get('width', 0.0),
+            height=data.get('height', 0.0),
+            description=data.get('description', ''),
+            color=QColor(data.get('color', '#FF0000')),
+            confidence=data.get('confidence', 1.0),
+            timestamp=data.get('timestamp')
+        )
+    
+    def get_bounding_box(self) -> tuple:
+        """获取边界框坐标"""
+        return (self.position_x, self.position_y, self.width, self.height)
+    
+    def set_bounding_box(self, x: float, y: float, width: float, height: float):
+        """设置边界框坐标"""
+        self.position_x = x
+        self.position_y = y
         self.width = width
         self.height = height
-        self.confidence = confidence
-        self.created_at = datetime.now()
-        
-    def to_yolo_format(self) -> str:
-        """转换为YOLO格式字符串"""
-        return f"{self.defect_class} {self.x_center:.6f} {self.y_center:.6f} {self.width:.6f} {self.height:.6f}"
-        
-    @classmethod
-    def from_yolo_format(cls, yolo_line: str) -> Optional['DefectAnnotation']:
-        """从YOLO格式字符串创建标注"""
-        try:
-            parts = yolo_line.strip().split()
-            if len(parts) >= 5:
-                defect_class = int(parts[0])
-                x_center = float(parts[1])
-                y_center = float(parts[2])
-                width = float(parts[3])
-                height = float(parts[4])
-                return cls(defect_class, x_center, y_center, width, height)
-        except (ValueError, IndexError):
-            pass
-        return None
-        
-    def to_pixel_coords(self, image_width: int, image_height: int) -> Tuple[float, float, float, float]:
-        """
-        转换为像素坐标
-        
-        Returns:
-            (x1, y1, width_pixel, height_pixel): 左上角坐标和像素尺寸
-        """
-        x_pixel = self.x_center * image_width
-        y_pixel = self.y_center * image_height
-        w_pixel = self.width * image_width
-        h_pixel = self.height * image_height
-        
-        # 计算左上角坐标
-        x1 = x_pixel - w_pixel / 2
-        y1 = y_pixel - h_pixel / 2
-        
-        return x1, y1, w_pixel, h_pixel
-        
-    @classmethod
-    def from_pixel_coords(cls, defect_class: int, x1: float, y1: float, 
-                         width: float, height: float, image_width: int, 
-                         image_height: int) -> 'DefectAnnotation':
-        """从像素坐标创建标注"""
-        # 转换为归一化坐标
-        x_center = (x1 + width / 2) / image_width
-        y_center = (y1 + height / 2) / image_height
-        norm_width = width / image_width
-        norm_height = height / image_height
-        
-        return cls(defect_class, x_center, y_center, norm_width, norm_height)
-        
-    def is_valid(self) -> bool:
-        """验证标注数据是否有效"""
-        return (0 <= self.x_center <= 1 and 
-                0 <= self.y_center <= 1 and 
-                0 < self.width <= 1 and 
-                0 < self.height <= 1 and
-                self.defect_class >= 0)
-                
-    def __str__(self) -> str:
-        """字符串表示"""
-        return f"DefectAnnotation(class={self.defect_class}, center=({self.x_center:.3f}, {self.y_center:.3f}), size=({self.width:.3f}, {self.height:.3f}))"
-        
-    def __repr__(self) -> str:
-        return self.__str__()
 
 
-class DefectCategory:
-    """缺陷类别定义"""
+class DefectAnnotationModel:
+    """缺陷标注管理模型"""
     
-    # 预定义的缺陷类别
-    CATEGORIES = {
-        0: {"name": "crack", "display_name": "裂纹", "color": "#FF0000"},
-        1: {"name": "corrosion", "display_name": "腐蚀", "color": "#FF8000"},
-        2: {"name": "pit", "display_name": "点蚀", "color": "#FFFF00"},
-        3: {"name": "scratch", "display_name": "划痕", "color": "#00FF00"},
-        4: {"name": "deposit", "display_name": "沉积物", "color": "#00FFFF"},
-        5: {"name": "other", "display_name": "其他", "color": "#8000FF"}
-    }
+    def __init__(self):
+        self.annotations: Dict[str, DefectAnnotation] = {}
+        self.categories: Dict[str, DefectCategory] = {}
+        self._init_default_categories()
     
-    @classmethod
-    def get_category_name(cls, class_id: int) -> str:
-        """获取类别名称"""
-        return cls.CATEGORIES.get(class_id, {}).get("display_name", f"未知类别{class_id}")
+    def _init_default_categories(self):
+        """初始化默认缺陷分类"""
+        default_categories = [
+            DefectCategory("oversized", "孔径偏大", "孔径超出上限公差", QColor(255, 165, 0)),
+            DefectCategory("undersized", "孔径偏小", "孔径低于下限公差", QColor(255, 0, 0)),
+            DefectCategory("misaligned", "孔位偏移", "孔位置偏离设计位置", QColor(255, 255, 0)),
+            DefectCategory("rough", "表面粗糙", "孔壁表面粗糙度超标", QColor(128, 0, 128)),
+            DefectCategory("burr", "毛刺", "孔边缘存在毛刺", QColor(0, 255, 255)),
+            DefectCategory("other", "其他", "其他类型缺陷", QColor(128, 128, 128))
+        ]
         
-    @classmethod
-    def get_category_color(cls, class_id: int) -> str:
-        """获取类别颜色"""
-        return cls.CATEGORIES.get(class_id, {}).get("color", "#808080")
-        
-    @classmethod
-    def get_all_categories(cls) -> List[dict]:
-        """获取所有类别"""
-        return [{"id": k, **v} for k, v in cls.CATEGORIES.items()]
-
-
-class YOLOFileManager:
-    """YOLO格式文件管理器"""
+        for category in default_categories:
+            self.categories[category.id] = category
     
-    @staticmethod
-    def save_annotations(annotations: List[DefectAnnotation], file_path: str) -> bool:
-        """保存标注到YOLO格式文件"""
-        try:
-            # 确保目录存在
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            
-            with open(file_path, 'w', encoding='utf-8') as f:
-                for annotation in annotations:
-                    if annotation.is_valid():
-                        f.write(annotation.to_yolo_format() + '\n')
-            return True
-        except Exception as e:
-            print(f"保存标注文件失败: {e}")
+    def add_annotation(self, annotation: DefectAnnotation) -> bool:
+        """添加缺陷标注"""
+        if annotation.id in self.annotations:
             return False
-            
-    @staticmethod
-    def load_annotations(file_path: str) -> List[DefectAnnotation]:
-        """从YOLO格式文件加载标注"""
-        annotations = []
         
-        if not os.path.exists(file_path):
-            return annotations
-            
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                for line_num, line in enumerate(f, 1):
-                    line = line.strip()
-                    if line and not line.startswith('#'):  # 跳过空行和注释
-                        annotation = DefectAnnotation.from_yolo_format(line)
-                        if annotation and annotation.is_valid():
-                            annotation.id = len(annotations)
-                            annotations.append(annotation)
-                        else:
-                            print(f"警告: 第{line_num}行格式错误: {line}")
-        except Exception as e:
-            print(f"加载标注文件失败: {e}")
-            
-        return annotations
+        self.annotations[annotation.id] = annotation
+        return True
+    
+    def remove_annotation(self, annotation_id: str) -> bool:
+        """删除缺陷标注"""
+        if annotation_id in self.annotations:
+            del self.annotations[annotation_id]
+            return True
+        return False
+    
+    def get_annotation(self, annotation_id: str) -> Optional[DefectAnnotation]:
+        """获取缺陷标注"""
+        return self.annotations.get(annotation_id)
+    
+    def get_annotations_for_hole(self, hole_id: str) -> List[DefectAnnotation]:
+        """获取指定孔位的所有缺陷标注"""
+        return [annotation for annotation in self.annotations.values() 
+                if annotation.hole_id == hole_id]
+    
+    def get_all_annotations(self) -> List[DefectAnnotation]:
+        """获取所有缺陷标注"""
+        return list(self.annotations.values())
+    
+    def add_category(self, category: DefectCategory) -> bool:
+        """添加缺陷分类"""
+        if category.id in self.categories:
+            return False
         
-    @staticmethod
-    def get_annotation_file_path(image_path: str) -> str:
-        """根据图像路径获取对应的标注文件路径"""
-        # 将图像文件扩展名替换为.txt
-        base_path = os.path.splitext(image_path)[0]
-        return base_path + '.txt'
+        self.categories[category.id] = category
+        return True
+    
+    def get_category(self, category_id: str) -> Optional[DefectCategory]:
+        """获取缺陷分类"""
+        return self.categories.get(category_id)
+    
+    def get_all_categories(self) -> List[DefectCategory]:
+        """获取所有缺陷分类"""
+        return list(self.categories.values())
+    
+    def clear_annotations(self):
+        """清空所有标注"""
+        self.annotations.clear()
+    
+    def clear_hole_annotations(self, hole_id: str):
+        """清空指定孔位的标注"""
+        to_remove = [ann_id for ann_id, annotation in self.annotations.items() 
+                     if annotation.hole_id == hole_id]
         
-    @staticmethod
-    def has_annotations(image_path: str) -> bool:
-        """检查图像是否有对应的标注文件"""
-        annotation_path = YOLOFileManager.get_annotation_file_path(image_path)
-        return os.path.exists(annotation_path)
-
-
-if __name__ == "__main__":
-    # 简单测试
-    print("DefectAnnotation 数据模型测试")
+        for ann_id in to_remove:
+            del self.annotations[ann_id]
     
-    # 创建标注
-    annotation = DefectAnnotation(0, 0.5, 0.5, 0.2, 0.3)
-    print(f"创建标注: {annotation}")
+    def export_annotations(self) -> Dict[str, Any]:
+        """导出所有标注数据"""
+        return {
+            'annotations': [ann.to_dict() for ann in self.annotations.values()],
+            'categories': [cat.to_dict() for cat in self.categories.values()]
+        }
     
-    # YOLO格式转换
-    yolo_str = annotation.to_yolo_format()
-    print(f"YOLO格式: {yolo_str}")
-    
-    # 从YOLO格式恢复
-    restored = DefectAnnotation.from_yolo_format(yolo_str)
-    print(f"恢复标注: {restored}")
-    
-    # 像素坐标转换
-    x1, y1, w, h = annotation.to_pixel_coords(800, 600)
-    print(f"像素坐标: ({x1}, {y1}, {w}, {h})")
-    
-    # 类别信息
-    print(f"类别名称: {DefectCategory.get_category_name(0)}")
-    print(f"类别颜色: {DefectCategory.get_category_color(0)}")
+    def import_annotations(self, data: Dict[str, Any]):
+        """导入标注数据"""
+        # 导入分类
+        if 'categories' in data:
+            for cat_data in data['categories']:
+                category = DefectCategory.from_dict(cat_data)
+                self.categories[category.id] = category
+        
+        # 导入标注
+        if 'annotations' in data:
+            for ann_data in data['annotations']:
+                annotation = DefectAnnotation.from_dict(ann_data)
+                self.annotations[annotation.id] = annotation

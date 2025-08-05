@@ -83,6 +83,8 @@ class SearchService(QObject):
             List of matching hole IDs
         """
         try:
+            self.logger.info(f"🔍 开始搜索: '{query}', 可搜索数据: {len(self._searchable_data)} 个孔位")
+            
             if not query:
                 # Return all holes if no query
                 results = list(self._searchable_data.keys())
@@ -109,7 +111,9 @@ class SearchService(QObject):
             self._update_search_state(query, results)
             self.search_completed.emit(query, results)
             
-            self.logger.debug(f"Search completed: '{query}' -> {len(results)} results")
+            self.logger.info(f"✅ 搜索完成: '{query}' -> {len(results)} 个结果")
+            if len(results) > 0:
+                self.logger.info(f"📋 搜索结果: {results[:10]}")  # 显示前10个结果
             return results
             
         except Exception as e:
@@ -198,7 +202,11 @@ class SearchService(QObject):
                 
                 self._searchable_data[hole_id] = searchable_fields
             
-            self.logger.debug(f"Updated searchable data for {len(self._searchable_data)} holes")
+            self.logger.info(f"✅ 更新搜索数据: {len(self._searchable_data)} 个孔位")
+            if len(self._searchable_data) > 0:
+                # 输出前几个孔位ID作为调试信息
+                sample_ids = list(self._searchable_data.keys())[:5]
+                self.logger.info(f"📋 样本孔位ID: {sample_ids}")
             
         except Exception as e:
             self.logger.error(f"Failed to update searchable data: {e}")
@@ -228,6 +236,10 @@ class SearchService(QObject):
                     # Support patterns like "A1", "B*", etc.
                     if self._matches_id_pattern(field_value_lower, query_lower):
                         return True
+                
+                # Enhanced fuzzy matching
+                if self._fuzzy_match(field_value_lower, query_lower):
+                    return True
             
             return False
             
@@ -248,6 +260,84 @@ class SearchService(QObject):
         except Exception as e:
             self.logger.warning(f"Error in pattern matching: {e}")
             return False
+    
+    def _fuzzy_match(self, text: str, query: str) -> bool:
+        """Enhanced fuzzy matching with multiple strategies."""
+        try:
+            if not text or not query:
+                return False
+            
+            # 1. Character subsequence matching (允许字符间有间隔)
+            if self._subsequence_match(text, query):
+                return True
+            
+            # 2. Levenshtein distance based matching (编辑距离)
+            if len(query) >= 3 and self._levenshtein_match(text, query):
+                return True
+                
+            # 3. Token-based fuzzy matching (分词匹配)
+            if self._token_fuzzy_match(text, query):
+                return True
+                
+            return False
+            
+        except Exception as e:
+            self.logger.warning(f"Error in fuzzy matching: {e}")
+            return False
+    
+    def _subsequence_match(self, text: str, query: str) -> bool:
+        """Check if query characters appear in text in order (with gaps allowed)."""
+        i = j = 0
+        while i < len(text) and j < len(query):
+            if text[i] == query[j]:
+                j += 1
+            i += 1
+        return j == len(query)
+    
+    def _levenshtein_match(self, text: str, query: str) -> bool:
+        """Simple Levenshtein distance matching."""
+        if abs(len(text) - len(query)) > 2:
+            return False
+            
+        # Simple edit distance calculation
+        if len(text) < len(query):
+            text, query = query, text
+            
+        if len(query) == 0:
+            return len(text) <= 2
+            
+        previous_row = list(range(len(query) + 1))
+        for i, c1 in enumerate(text):
+            current_row = [i + 1]
+            for j, c2 in enumerate(query):
+                insertions = previous_row[j + 1] + 1
+                deletions = current_row[j] + 1
+                substitutions = previous_row[j] + (c1 != c2)
+                current_row.append(min(insertions, deletions, substitutions))
+            previous_row = current_row
+            
+        # Allow up to 2 character differences for fuzzy matching
+        return previous_row[-1] <= 2
+    
+    def _token_fuzzy_match(self, text: str, query: str) -> bool:
+        """Token-based fuzzy matching for multi-part identifiers."""
+        # Split on common separators
+        import re
+        text_tokens = re.split(r'[-_\s]+', text.lower())
+        query_tokens = re.split(r'[-_\s]+', query.lower())
+        
+        # Check if any query token matches any text token (with prefix matching)
+        for query_token in query_tokens:
+            if not query_token:
+                continue
+            for text_token in text_tokens:
+                if not text_token:
+                    continue
+                # Prefix matching or contains matching
+                if text_token.startswith(query_token) or query_token in text_token:
+                    return True
+                    
+        return False
     
     def _sort_results_by_relevance(self, results: List[str], query: str) -> List[str]:
         """Sort search results by relevance."""
@@ -317,6 +407,15 @@ class SearchService(QObject):
         except Exception as e:
             self.logger.warning(f"Error getting hole position: {e}")
             return ""
+    
+    def debug_search_data(self) -> Dict[str, Any]:
+        """调试方法：返回搜索数据的统计信息"""
+        return {
+            'total_holes': len(self._searchable_data),
+            'sample_ids': list(self._searchable_data.keys())[:10],
+            'has_hole_collection': self._hole_collection is not None,
+            'hole_collection_type': type(self._hole_collection).__name__ if self._hole_collection else None
+        }
     
     def cleanup(self) -> None:
         """Clean up resources when shutting down."""

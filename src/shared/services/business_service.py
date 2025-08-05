@@ -239,40 +239,64 @@ class BusinessService:
             print(f"Error getting product list: {e}")
             return []
         
-    def select_product(self, product_name: str) -> bool:
+    def select_product(self, product_identifier: str) -> bool:
         """选择产品"""
         try:
-            # ProductModelManager没有select_product方法，使用get_product_by_name代替
-            product = self.product_manager.get_product_by_name(product_name)
-            if product:
-                # 保存当前选择的产品
-                self.current_product = product
-                # 可以在shared_data_manager中保存当前产品信息
-                if hasattr(self.shared_data_manager, 'set_current_product'):
-                    self.shared_data_manager.set_current_product(product)
-                
-                # 如果产品有关联的DXF文件，自动加载
-                if product.dxf_file_path:
-                    # 使用路径管理器解析DXF路径
-                    resolved_path = self.path_manager.resolve_dxf_path(product.dxf_file_path)
-                    if resolved_path and Path(resolved_path).exists():
-                        print(f"自动加载产品关联的DXF文件: {resolved_path}")
-                        hole_collection = self.parse_dxf_file(resolved_path)
-                        if hole_collection:
-                            # 应用孔位编号
-                            hole_collection = self.apply_hole_numbering(hole_collection, strategy="grid")
-                            # 保存到shared_data_manager
-                            self.set_hole_collection(hole_collection)
-                            print(f"✅ 成功加载 {len(hole_collection.holes)} 个孔位")
-                            # 通知数据已加载
-                            self.shared_data_manager.data_changed.emit("hole_collection", hole_collection)
-                    else:
-                        print(f"产品关联的DXF文件不存在: {product.dxf_file_path}")
-                
-                return True
-            else:
-                print(f"Product not found: {product_name}")
+            # 支持通过产品名称或ID选择产品
+            product = None
+            
+            # 首先尝试按名称查找
+            if not product_identifier.isdigit():
+                product = self.product_manager.get_product_by_name(product_identifier)
+                print(f"🔍 [BusinessService] 按名称查找产品: {product_identifier}")
+            
+            # 如果按名称未找到，或者输入是数字，尝试按ID查找
+            if not product and product_identifier.isdigit():
+                product = self.product_manager.get_product_by_id(int(product_identifier))
+                print(f"🔍 [BusinessService] 按ID查找产品: {product_identifier}")
+            
+            if not product:
+                print(f"❌ [BusinessService] 产品未找到: {product_identifier}")
                 return False
+            
+            print(f"✅ [BusinessService] 找到产品: {product.model_name} (ID: {product.id})")
+            
+            # 保存当前选择的产品
+            self.current_product = product
+            
+            # 可以在shared_data_manager中保存当前产品信息
+            if hasattr(self.shared_data_manager, 'set_current_product'):
+                self.shared_data_manager.set_current_product(product)
+                
+            # 如果产品有关联的DXF文件，自动加载
+            if product.dxf_file_path:
+                print(f"🔍 [BusinessService] 产品有关联的DXF文件: {product.dxf_file_path}")
+                # 使用路径管理器解析DXF路径
+                resolved_path = self.path_manager.resolve_dxf_path(product.dxf_file_path)
+                print(f"🔍 [BusinessService] 解析后的DXF路径: {resolved_path}")
+                if resolved_path and Path(resolved_path).exists():
+                    print(f"✅ [BusinessService] 自动加载产品关联的DXF文件: {resolved_path}")
+                    hole_collection = self.parse_dxf_file(resolved_path)
+                    print(f"🔍 [BusinessService] DXF解析结果: {hole_collection}")
+                    if hole_collection:
+                        # 应用孔位编号
+                        hole_collection = self.apply_hole_numbering(hole_collection, strategy="grid")
+                        # 保存到shared_data_manager
+                        self.set_hole_collection(hole_collection)
+                        print(f"✅ [BusinessService] 成功加载 {len(hole_collection.holes)} 个孔位")
+                        # 通知数据已加载
+                        self.shared_data_manager.data_changed.emit("hole_collection", hole_collection)
+                    else:
+                        print(f"❌ [BusinessService] DXF文件解析失败")
+                else:
+                    print(f"❌ [BusinessService] 产品关联的DXF文件不存在或路径解析失败")
+                    print(f"   原始路径: {product.dxf_file_path}")
+                    print(f"   解析路径: {resolved_path}")
+                    print(f"   文件存在: {Path(resolved_path).exists() if resolved_path else False}")
+            else:
+                print(f"🔍 [BusinessService] 产品没有关联的DXF文件")
+                
+            return True
         except Exception as e:
             print(f"Error selecting product: {e}")
             return False

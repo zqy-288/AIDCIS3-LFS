@@ -1,13 +1,11 @@
 """
-历史统计页面核心组件模块
+历史数据页面组件模块
 """
 
-from .statistics_engine import StatisticsEngine
-from .trend_analyzer import TrendAnalyzer
-from .quality_metrics_calculator import QualityMetricsCalculator
+from .history.history_viewer import HistoryViewer
+from .annotation.defect_annotation_tool import DefectAnnotationTool
 
 __all__ = [
-    'StatisticsEngine',
-    'TrendAnalyzer',
-    'QualityMetricsCalculator'
+    'HistoryViewer',
+    'DefectAnnotationTool'
 ]

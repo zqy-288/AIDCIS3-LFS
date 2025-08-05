@@ -29,7 +29,7 @@ try:
     # 控制器和服务 - 使用P1本地版本
     from .controllers.main_window_controller import MainWindowController
     from src.shared.services.search_service import SearchService
-    from src.shared.services.status_service import StatusService
+    from src.shared.services.status_manager import UnifiedStatusManager
     from src.shared.services.archive_manager import ArchiveManager as FileService
     
     # UI组件 - 使用P1本地版本
@@ -133,7 +133,7 @@ class NativeLeftInfoPanel(QWidget):
         self.current_batch_label = QLabel("检测批次: 未开始")
         self.current_batch_label.setFont(QFont("", 9))
         layout.addWidget(self.current_batch_label)
-        print(f"🏷️ [LeftPanel] 创建批次标签，初始文本: {self.current_batch_label.text()}")
+        # self.logger.debug(f"🏷️ [LeftPanel] 创建批次标签，初始文本: {self.current_batch_label.text()}")
 
         # 已完成和待完成数量
         count_layout = QHBoxLayout()
@@ -402,7 +402,7 @@ class NativeLeftInfoPanel(QWidget):
         # 更新进度组
         progress = data.get('progress', 0)
         self.progress_bar.setValue(int(progress))
-        print(f"📊 [LeftPanel] 更新进度条: {progress}% -> setValue({int(progress)})")
+        # self.logger.debug(f"📊 [LeftPanel] 更新进度条: {progress}% -> setValue({int(progress)})")
         
         # 更新已完成和待完成数量
         completed = data.get('completed', data.get('qualified', 0) + data.get('unqualified', 0))
@@ -1050,7 +1050,7 @@ class NativeMainDetectionView(QWidget):
             try:
                 self.controller = MainWindowController()
                 self.search_service = SearchService()
-                self.status_service = StatusService()
+                self.status_service = UnifiedStatusManager()
                 self.file_service = FileService()
                 self.logger.info("✅ 重构后的服务模块集成成功")
             except Exception as e:
@@ -1112,7 +1112,8 @@ class NativeMainDetectionView(QWidget):
         content_splitter.addWidget(self.center_panel)
         
         # 右侧：操作面板 (350px最大宽度)
-        self.right_panel = NativeRightOperationsPanel()
+        from .components.right_operations_panel import RightOperationsPanel
+        self.right_panel = RightOperationsPanel()
         content_splitter.addWidget(self.right_panel)
         
         # 设置分割器比例 (old版本精确比例: 380, 700, 280)
@@ -1136,6 +1137,11 @@ class NativeMainDetectionView(QWidget):
                 # 使用重构后的ToolbarComponent (低耦合集成)
                 toolbar = ToolbarComponent()
                 self.logger.info("✅ 使用重构后的ToolbarComponent")
+                # 检查搜索功能是否可用
+                if hasattr(toolbar, 'search_requested'):
+                    self.logger.info("✅ ToolbarComponent 支持搜索功能")
+                else:
+                    self.logger.warning("⚠️ ToolbarComponent 不支持搜索功能")
                 return toolbar
             except Exception as e:
                 self.logger.warning(f"ToolbarComponent创建失败: {e}")
@@ -1167,6 +1173,7 @@ class NativeMainDetectionView(QWidget):
                 self.search_input = QLineEdit()
                 self.search_input.setPlaceholderText("输入孔位ID...")
                 self.search_input.setMinimumSize(220, 35)
+                self.search_input.returnPressed.connect(self._on_search_clicked)  # 支持回车键
                 layout.addWidget(self.search_input)
                 
                 search_btn = QPushButton("搜索")
@@ -1187,9 +1194,14 @@ class NativeMainDetectionView(QWidget):
             
             def _on_search_clicked(self):
                 query = self.search_input.text().strip()
-                self.search_requested.emit(query)
+                print(f"🔍 备用工具栏搜索触发: '{query}'")  # 调试输出
+                if query:
+                    self.search_requested.emit(query)
+                else:
+                    print("⚠️ 搜索查询为空")
         
         toolbar = BackupToolbar()
+        self.logger.info("✅ 使用备用工具栏（支持搜索功能）")
         return toolbar
 
     def setup_connections(self):
@@ -1220,9 +1232,16 @@ class NativeMainDetectionView(QWidget):
             self.right_panel.file_operation_requested.connect(self._on_file_operation)
             
             # 页面导航信号连接 - 重要！连接右侧面板的导航信号到主视图信号
-            self.right_panel.navigate_to_realtime.connect(self.navigate_to_realtime.emit)
-            self.right_panel.navigate_to_history.connect(self.navigate_to_history.emit)  
-            self.right_panel.navigate_to_report.connect(self.navigate_to_report.emit)
+            self.right_panel.realtime_detection_requested.connect(lambda: self.navigate_to_realtime.emit(""))
+            self.right_panel.history_statistics_requested.connect(lambda: self.navigate_to_history.emit(""))
+            self.right_panel.report_generation_requested.connect(self.navigate_to_report.emit)
+            
+            # 视图控制信号连接
+            if hasattr(self.right_panel, 'view_control_requested'):
+                self.right_panel.view_control_requested.connect(self._on_view_control_requested)
+                self.logger.info("✅ 视图控制信号已连接")
+            else:
+                self.logger.warning("⚠️ 右侧面板不支持视图控制信号")
         
         # 重构后服务信号连接 (低耦合集成)
         if self.search_service:
@@ -1412,18 +1431,22 @@ class NativeMainDetectionView(QWidget):
                 all_items = scene.items()
                 self.logger.info(f"🎯 场景中总项数: {len(all_items)}")
                 
-                # 过滤显示
+                # 过滤显示 - 使用更可靠的方法
                 visible_items = []
                 hidden_count = 0
+                
+                # 首先隐藏所有项目
+                for item in all_items:
+                    item.setVisible(False)
+                
+                # 然后只显示当前扇形的项目
                 for item in all_items:
                     hole_id = item.data(0)  # Qt.UserRole = 0
-                    if hole_id:
-                        is_visible = hole_id in sector_hole_ids
-                        item.setVisible(is_visible)
-                        if is_visible:
-                            visible_items.append(item)
-                        else:
-                            hidden_count += 1
+                    if hole_id and hole_id in sector_hole_ids:
+                        item.setVisible(True)
+                        visible_items.append(item)
+                    elif hole_id:
+                        hidden_count += 1
                 
                 # 适配视图到可见项
                 if visible_items:
@@ -1459,23 +1482,21 @@ class NativeMainDetectionView(QWidget):
                         if hasattr(graphics_view, '_auto_fit_timer'):
                             graphics_view._auto_fit_timer.stop()
                         
-                        # 设置缩放锁
+                        # 先设置所有标志，防止中间状态被看到
                         graphics_view._is_fitting = True
-                        
-                        # 适配视图到扇形区域（只调用一次）
-                        graphics_view.fitInView(bounding_rect, Qt.KeepAspectRatio)
-                        
-                        # 设置标志，告诉 set_micro_view_scale 跳过额外缩放
                         graphics_view._fitted_to_sector = True
+                        
+                        # 适配视图到扇形区域（使用优化的缩放比例）
+                        graphics_view.fitInView(bounding_rect, Qt.KeepAspectRatio)
                         
                         self.logger.info(f"✅ 视图已适配到扇形区域，边界: ({min_x:.1f}, {min_y:.1f}) - ({max_x:.1f}, {max_y:.1f})")
                         
-                        # 延迟更长时间恢复状态，或者在微观模式下保持禁用
-                        # 只有在切换到宏观视图时才恢复
-                        QTimer.singleShot(1000, lambda: setattr(graphics_view, '_is_fitting', False))
-                        # 注意：不恢复 disable_auto_fit，让它在微观模式下保持 True
+                        # 大幅缩短状态恢复时间，避免视觉跳跃
+                        QTimer.singleShot(100, lambda: setattr(graphics_view, '_is_fitting', False))
+                        # 保持 disable_auto_fit = True 在微观模式下
                 
                 self.logger.info(f"✅ 视图已过滤：显示 {len(visible_items)} 个，隐藏 {hidden_count} 个")
+                
                 self.logger.info(f"✅ 扇形 {sector.value if hasattr(sector, 'value') else str(sector)} 视图更新完成")
                 
                 # 调试验证：检查第一个可见项和第一个隐藏项
@@ -1903,12 +1924,11 @@ class NativeMainDetectionView(QWidget):
                 else:
                     self.logger.warning("⚠️ 中间面板没有 graphics_view 属性")
                 
-                # 5. 立即显示默认扇形（不延迟）
+                # 5. 立即显示默认扇形（同步加载，避免延迟造成的先大后小）
                 if is_micro_view:
-                    self.logger.info("🔍 准备加载默认扇形sector1")
-                    # 使用与视图切换相同的逻辑
-                    from PySide6.QtCore import QTimer
-                    QTimer.singleShot(100, lambda: self._on_view_mode_changed("micro"))
+                    self.logger.info("🔍 立即加载默认扇形sector1")
+                    # 直接调用，不使用延迟
+                    self._on_view_mode_changed("micro")
                     
             except Exception as e:
                 self.logger.error(f"加载孔位数据失败: {e}")
@@ -1928,10 +1948,10 @@ class NativeMainDetectionView(QWidget):
             
             # 检查必要组件是否就绪
             if not self.coordinator:
-                self.logger.warning("⚠️ 协调器未初始化，尝试延迟重试")
-                # 延迟1秒重试（减少延迟时间）
+                self.logger.warning("⚠️ 协调器未初始化，尝试立即重试")
+                # 减少延迟时间到50ms，避免明显的视觉跳跃
                 from PySide6.QtCore import QTimer
-                QTimer.singleShot(1000, self._load_default_sector1)
+                QTimer.singleShot(50, self._load_default_sector1)
                 return
             
             if not hasattr(self.coordinator, 'select_sector'):
@@ -1993,6 +2013,39 @@ class NativeMainDetectionView(QWidget):
                 if sector_holes:
                     sector_stats = self.coordinator._calculate_sector_stats(sector_holes)
                     self._on_sector_stats_updated(sector_stats)
+        
+        # 更新工具栏搜索建议数据
+        if self.toolbar and hole_collection:
+            try:
+                print(f"🔍 [DEBUG] 准备更新工具栏搜索数据，hole_collection类型: {type(hole_collection)}")
+                
+                # 提取所有孔位ID
+                hole_ids = []
+                if hasattr(hole_collection, 'holes'):
+                    print(f"🔍 [DEBUG] hole_collection.holes类型: {type(hole_collection.holes)}")
+                    if isinstance(hole_collection.holes, dict):
+                        hole_ids = list(hole_collection.holes.keys())
+                        print(f"🔍 [DEBUG] 从字典中提取到 {len(hole_ids)} 个孔位ID")
+                    else:
+                        hole_ids = [getattr(hole, 'hole_id', str(hole)) for hole in hole_collection.holes]
+                        print(f"🔍 [DEBUG] 从列表中提取到 {len(hole_ids)} 个孔位ID")
+                else:
+                    print(f"🔍 [DEBUG] hole_collection没有holes属性")
+                
+                print(f"🔍 [DEBUG] 最终提取到的hole_ids数量: {len(hole_ids)}")
+                if hole_ids:
+                    print(f"🔍 [DEBUG] 示例hole_ids: {hole_ids[:5]}")
+                
+                # 更新工具栏搜索数据
+                if hasattr(self.toolbar, 'update_search_data'):
+                    self.toolbar.update_search_data(hole_ids)
+                    self.logger.info(f"✅ 工具栏搜索建议数据已更新: {len(hole_ids)} 个孔位")
+                else:
+                    print(f"🔍 [DEBUG] 工具栏没有update_search_data方法")
+                    
+            except Exception as e:
+                print(f"🔍 [DEBUG] 更新工具栏搜索数据异常: {e}")
+                self.logger.error(f"❌ 更新工具栏搜索数据失败: {e}")
     
     def _draw_holes_to_scene(self, scene, hole_collection):
         """手动绘制孔位到场景"""
@@ -2056,11 +2109,160 @@ class NativeMainDetectionView(QWidget):
 
     def _on_search_completed(self, query, results):
         """处理搜索完成"""
-        pass
+        # 如果找到结果，自动切换到第一个匹配孔位所在的扇形
+        if results:
+            first_hole_id = results[0]
+            self.switch_to_hole_sector(first_hole_id)
 
     def _on_status_updated(self, hole_id, status):
         """处理状态更新"""
         pass
+    
+    def switch_to_hole_sector(self, hole_id: str):
+        """根据孔位ID切换到对应的扇形区域"""
+        try:
+            # 获取孔位所属的扇形
+            sector = None
+            
+            # 尝试多种方式获取扇形信息
+            if hasattr(self, 'external_sector_manager') and self.external_sector_manager:
+                sector = self.external_sector_manager.get_hole_sector(hole_id)
+            elif self.coordinator and hasattr(self.coordinator, 'sector_assignment_manager'):
+                sector = self.coordinator.sector_assignment_manager.get_hole_sector(hole_id)
+            elif self.simulation_controller and hasattr(self.simulation_controller, 'sector_assignment_manager'):
+                sector = self.simulation_controller.sector_assignment_manager.get_hole_sector(hole_id)
+            
+            
+            if sector:
+                self.logger.info(f"🎯 搜索结果：切换到扇形 {sector.value}，孔位 {hole_id}")
+                
+                # 先设置协调器的当前扇形
+                if self.coordinator:
+                    self.coordinator.current_sector = sector
+                
+                # 然后切换到微观视图模式，这会自动显示当前扇形
+                self._on_view_mode_changed("micro")
+                    
+                # 延迟一点时间后高亮显示搜索的孔位
+                from PySide6.QtCore import QTimer
+                QTimer.singleShot(500, lambda: self._highlight_search_hole(hole_id))
+                
+            else:
+                self.logger.warning(f"⚠️ 无法确定孔位 {hole_id} 所属的扇形")
+                
+        except Exception as e:
+            self.logger.error(f"❌ 切换到孔位扇形失败: {e}")
+    
+    def _highlight_search_hole(self, hole_id: str):
+        """高亮显示搜索的孔位"""
+        try:
+            # 获取graphics_view
+            graphics_view = None
+            if hasattr(self, 'center_panel'):
+                graphics_view = getattr(self.center_panel, 'graphics_view', None)
+            
+            if graphics_view and hasattr(graphics_view, 'highlight_holes'):
+                graphics_view.highlight_holes([hole_id], search_highlight=True)
+                self.logger.info(f"✨ 已高亮显示搜索孔位: {hole_id}")
+            else:
+                self.logger.warning(f"⚠️ 无法高亮搜索孔位: graphics_view={graphics_view is not None}")
+                
+        except Exception as e:
+            self.logger.error(f"❌ 高亮搜索孔位失败: {e}")
+    
+    def _on_view_control_requested(self, control_type: str):
+        """处理视图控制请求"""
+        try:
+            print(f"🎛️ 视图控制处理方法被调用: {control_type}")  # 立即输出调试信息
+            self.logger.info(f"🎛️ 视图控制请求: {control_type}")
+            
+            # 获取中间栏的图形视图
+            graphics_view = None
+            if self.center_panel and hasattr(self.center_panel, 'graphics_view'):
+                graphics_view = self.center_panel.graphics_view
+            
+            if not graphics_view:
+                self.logger.warning("⚠️ 无法找到图形视图，视图控制无效")
+                return
+            
+            # 根据控制类型执行对应操作
+            if control_type == "reset_zoom":
+                self._reset_view(graphics_view)
+            elif control_type == "zoom_in":
+                self._zoom_in_view(graphics_view)
+            elif control_type == "zoom_out":
+                self._zoom_out_view(graphics_view)
+            else:
+                self.logger.warning(f"⚠️ 未知的视图控制类型: {control_type}")
+                
+        except Exception as e:
+            self.logger.error(f"❌ 处理视图控制失败: {e}")
+    
+    def _reset_view(self, graphics_view):
+        """重置视图"""
+        try:
+            print(f"🔄 开始重置视图，图形视图类型: {type(graphics_view)}")
+            # 检查当前视图模式
+            current_mode = getattr(self.center_panel, 'current_view_mode', 'micro')
+            print(f"🔄 当前视图模式: {current_mode}")
+            
+            if current_mode == 'macro':
+                # 宏观视图：适配到所有内容
+                if hasattr(graphics_view, 'fit_in_view_all'):
+                    graphics_view.fit_in_view_all()
+                elif hasattr(graphics_view, 'reset_view'):
+                    graphics_view.reset_view()
+                else:
+                    # 备选方案：直接使用fitInView
+                    scene = graphics_view.scene() if callable(graphics_view.scene) else graphics_view.scene
+                    if scene and scene.items():
+                        items_rect = scene.itemsBoundingRect()
+                        if not items_rect.isEmpty():
+                            graphics_view.fitInView(items_rect, Qt.KeepAspectRatio)
+                self.logger.info("✅ 宏观视图已重置")
+            else:
+                # 微观视图：重置到当前扇形的合适大小
+                if hasattr(self, 'coordinator') and self.coordinator:
+                    current_sector = getattr(self.coordinator, 'current_sector', None)
+                    if current_sector:
+                        # 重新应用当前扇形显示
+                        self._show_sector_in_view(current_sector)
+                        self.logger.info(f"✅ 微观视图已重置到扇形 {current_sector.value}")
+                    else:
+                        # 如果没有当前扇形，使用通用重置
+                        if hasattr(graphics_view, 'reset_view'):
+                            graphics_view.reset_view()
+                        self.logger.info("✅ 微观视图已通用重置")
+                else:
+                    # 备选重置方案
+                    if hasattr(graphics_view, 'reset_view'):
+                        graphics_view.reset_view()
+                    self.logger.info("✅ 视图已重置（备选方案）")
+                    
+        except Exception as e:
+            self.logger.error(f"❌ 重置视图失败: {e}")
+    
+    def _zoom_in_view(self, graphics_view):
+        """放大视图"""
+        try:
+            if hasattr(graphics_view, 'scale'):
+                graphics_view.scale(1.2, 1.2)
+                self.logger.info("✅ 视图已放大")
+            else:
+                self.logger.warning("⚠️ 图形视图不支持缩放")
+        except Exception as e:
+            self.logger.error(f"❌ 放大视图失败: {e}")
+    
+    def _zoom_out_view(self, graphics_view):
+        """缩小视图"""
+        try:
+            if hasattr(graphics_view, 'scale'):
+                graphics_view.scale(0.8, 0.8)
+                self.logger.info("✅ 视图已缩小")
+            else:
+                self.logger.warning("⚠️ 图形视图不支持缩放")
+        except Exception as e:
+            self.logger.error(f"❌ 缩小视图失败: {e}")
     
     def update_detection_progress(self, progress):
         """更新检测进度 - 接收来自main_detection_page的进度更新"""

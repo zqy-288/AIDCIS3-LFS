@@ -23,7 +23,7 @@ from PySide6.QtGui import QAction
 # 导入平级P页面组件
 from src.pages.main_detection_p1 import MainDetectionPage
 from src.pages.realtime_monitoring_p2 import RealtimeMonitoringPage
-from src.pages.history_analytics_p3.components.history.history_viewer import HistoryViewer as UnifiedHistoryViewer
+from src.pages.history_analytics_p3.history_analytics_page import HistoryAnalyticsPage
 from src.pages.report_generation_p4 import ReportGenerationPage
 
 
@@ -98,7 +98,7 @@ class MainWindowAggregator(QMainWindow):
             
             # 历史数据页面（保持原版本设计）
             self.logger.info("📋 创建历史数据页面...")
-            self.history_tab = UnifiedHistoryViewer()
+            self.history_tab = HistoryAnalyticsPage()
             self.tab_widget.addTab(self.history_tab, "历史数据")
             self.logger.info("✅ 历史数据页面创建成功")
             
@@ -312,6 +312,14 @@ def main():
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
+    
+    # 减少特定组件的日志噪音
+    logging.getLogger('SnakePathRenderer').setLevel(logging.WARNING)
+    logging.getLogger('CompletePanorama').setLevel(logging.WARNING)
+    logging.getLogger('src.pages.main_detection_p1.components.panorama_sector_coordinator').setLevel(logging.WARNING)
+    logging.getLogger('src.pages.main_detection_p1.native_main_detection_view_p1').setLevel(logging.WARNING)
+    logging.getLogger('src.pages.main_detection_p1.components.graphics.graphics_view').setLevel(logging.WARNING)
+    logging.getLogger('src.pages.main_detection_p1.graphics.core.graphics_view').setLevel(logging.WARNING)
     
     # 创建应用程序
     app = QApplication(sys.argv)

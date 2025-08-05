@@ -198,16 +198,26 @@ class PanoramaSectorCoordinator(QObject):
         # 调整视图以适应可见项
         if visible_bounds and hasattr(self.graphics_view, 'fitInView'):
             from PySide6.QtCore import Qt, QRectF
-            # 添加边距
-            margin = 50
+            # 添加边距（与微观视图保持一致）
+            margin = 200
             view_rect = QRectF(
                 visible_bounds.x() - margin,
                 visible_bounds.y() - margin,
                 visible_bounds.width() + 2 * margin,
                 visible_bounds.height() + 2 * margin
             )
+            # 设置缩放标志，与原生视图保持一致
+            if hasattr(self.graphics_view, '_fitted_to_sector'):
+                self.graphics_view._fitted_to_sector = True
+            if hasattr(self.graphics_view, '_is_fitting'):
+                self.graphics_view._is_fitting = True
+                
             self.graphics_view.fitInView(view_rect, Qt.KeepAspectRatio)
             self.logger.info(f"✅ 视图已调整到扇形区域")
+            
+            # 恢复状态标志（与原生视图保持一致的时序）
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(100, lambda: setattr(self.graphics_view, '_is_fitting', False) if hasattr(self.graphics_view, '_is_fitting') else None)
                 
     def _force_refresh_center_view(self, filtered_collection=None):
         """强制刷新中心视图以确保扇形更新可见"""

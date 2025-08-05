@@ -7,8 +7,8 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QComboBox, QPushButton, QTextEdit, QTableWidget,
                              QTableWidgetItem, QHeaderView, QMessageBox,
                              QGroupBox, QGridLayout, QFrame, QSpacerItem,
-                             QSizePolicy)
-from PySide6.QtCore import Qt, Signal
+                             QSizePolicy, QLineEdit, QCompleter)
+from PySide6.QtCore import Qt, Signal, QStringListModel
 from PySide6.QtGui import QFont
 import sys
 from pathlib import Path
@@ -23,8 +23,16 @@ class ProductSelectionDialog(QDialog):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.product_manager = get_product_manager()
+        print("🔧 [ProductSelection] 创建产品选择对话框")
+        try:
+            self.product_manager = get_product_manager()
+            print(f"✅ [ProductSelection] 产品管理器创建成功: {type(self.product_manager)}")
+        except Exception as e:
+            print(f"❌ [ProductSelection] 产品管理器创建失败: {e}")
+            self.product_manager = None
+        
         self.selected_product = None
+        self.all_products = []  # 存储所有产品数据用于过滤
         self.setup_ui()
         self.load_products()
         
@@ -49,6 +57,20 @@ class ProductSelectionDialog(QDialog):
         # 产品选择区域
         selection_group = QGroupBox("产品型号列表")
         selection_layout = QVBoxLayout(selection_group)
+        
+        # 添加搜索输入框
+        search_layout = QHBoxLayout()
+        search_label = QLabel("快速搜索:")
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("输入产品型号名称进行搜索...")
+        self.search_input.textChanged.connect(self.filter_products)
+        
+        # 设置自动补全
+        self.setup_autocomplete()
+        
+        search_layout.addWidget(search_label)
+        search_layout.addWidget(self.search_input)
+        selection_layout.addLayout(search_layout)
         
         # 产品列表表格
         self.product_table = QTableWidget()
@@ -153,10 +175,75 @@ class ProductSelectionDialog(QDialog):
         
         main_layout.addLayout(button_layout)
         
+    def setup_autocomplete(self):
+        """设置自动补全功能"""
+        try:
+            products = self.product_manager.get_all_products(active_only=True)
+            product_names = [product.model_name for product in products]
+            
+            # 创建自动补全器
+            completer = QCompleter(product_names)
+            completer.setCaseSensitivity(Qt.CaseInsensitive)
+            completer.setFilterMode(Qt.MatchContains)
+            self.search_input.setCompleter(completer)
+            
+            # 连接自动补全选择信号
+            completer.activated.connect(self.on_autocomplete_selected)
+            
+        except Exception as e:
+            print(f"设置自动补全失败: {e}")
+    
+    def on_autocomplete_selected(self, text):
+        """处理自动补全选择"""
+        # 在表格中查找并选择对应的产品
+        for row in range(self.product_table.rowCount()):
+            name_item = self.product_table.item(row, 0)
+            if name_item and name_item.text() == text:
+                self.product_table.selectRow(row)
+                self.on_selection_changed()
+                break
+    
+    def filter_products(self, text):
+        """根据搜索文本过滤产品"""
+        if not text.strip():
+            # 如果搜索框为空，显示所有产品
+            self.load_products()
+            return
+        
+        text = text.lower()
+        
+        # 隐藏不匹配的行
+        for row in range(self.product_table.rowCount()):
+            name_item = self.product_table.item(row, 0)
+            code_item = self.product_table.item(row, 1)  # 实际是直径，但我们也可以搜索
+            description_item = self.product_table.item(row, 3)
+            
+            # 检查是否匹配
+            match = False
+            if name_item and text in name_item.text().lower():
+                match = True
+            elif description_item and text in description_item.text().lower():
+                match = True
+            
+            # 显示或隐藏行
+            self.product_table.setRowHidden(row, not match)
+
     def load_products(self):
         """加载产品列表"""
         try:
+            if not self.product_manager:
+                print("❌ [ProductSelection] 产品管理器未初始化")
+                return
+                
             products = self.product_manager.get_all_products(active_only=True)
+            print(f"🔍 [ProductSelection] 加载产品数量: {len(products)}")
+            if products:
+                for i, p in enumerate(products):
+                    print(f"  产品{i+1}: {p.model_name} (ID: {p.id})")
+            else:
+                print("⚠️ [ProductSelection] 未找到任何产品数据")
+            
+            self.all_products = products  # 保存所有产品数据
             self.product_table.setRowCount(len(products))
             
             for row, product in enumerate(products):
@@ -182,7 +269,16 @@ class ProductSelectionDialog(QDialog):
                 status_item.setTextAlignment(Qt.AlignCenter)
                 self.product_table.setItem(row, 4, status_item)
                 
+                # 确保行是可见的
+                self.product_table.setRowHidden(row, False)
+            
+            # 更新自动补全
+            self.setup_autocomplete()
+                
         except Exception as e:
+            print(f"❌ [ProductSelection] 加载产品列表失败: {e}")
+            import traceback
+            traceback.print_exc()
             QMessageBox.critical(self, "错误", f"加载产品列表失败: {str(e)}")
     
     def on_selection_changed(self):
@@ -249,7 +345,7 @@ class ProductSelectionDialog(QDialog):
     
     def open_product_management(self):
         """打开产品信息维护界面"""
-        from modules.product_management import ProductManagementDialog
+        from src.shared.services.product_management_service import ProductManagementDialog
         dialog = ProductManagementDialog(self)
         if dialog.exec() == QDialog.Accepted:
             # 刷新产品列表

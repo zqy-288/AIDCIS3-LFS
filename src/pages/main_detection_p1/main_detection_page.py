@@ -49,23 +49,26 @@ class MainDetectionPage(QWidget):
         # 设置日志级别减少重复信息
         logging.getLogger('SnakePathRenderer').setLevel(logging.WARNING)
         logging.getLogger('ViewTransformController').setLevel(logging.WARNING)
+        logging.getLogger('CompletePanorama').setLevel(logging.WARNING)
+        logging.getLogger('src.pages.main_detection_p1.components.panorama_sector_coordinator').setLevel(logging.WARNING)
+        logging.getLogger('src.pages.main_detection_p1.native_main_detection_view_p1').setLevel(logging.WARNING)
+        logging.getLogger('src.pages.main_detection_p1.components.graphics.graphics_view').setLevel(logging.WARNING)
+        logging.getLogger('src.pages.main_detection_p1.graphics.core.graphics_view').setLevel(logging.WARNING)
         
-        # 控制器和服务（单例模式避免重复创建）
-        if not hasattr(MainDetectionPage, '_shared_controller'):
-            MainDetectionPage._shared_controller = MainWindowController() if MainWindowController else None
-        if not hasattr(MainDetectionPage, '_shared_ui_factory'):
-            MainDetectionPage._shared_ui_factory = get_ui_factory() if get_ui_factory else None
-        if not hasattr(MainDetectionPage, '_shared_graphics_service'):
-            MainDetectionPage._shared_graphics_service = get_graphics_service() if get_graphics_service else None
-            
-        self.controller = MainDetectionPage._shared_controller
-        self.ui_factory = MainDetectionPage._shared_ui_factory  
-        self.graphics_service = MainDetectionPage._shared_graphics_service
+        # 控制器和服务将从native_view获取，避免重复创建
+        self.controller = None  # 将在setup_ui后从native_view获取
+        self.simulation_controller = None  # 将从native_view获取
         
-        # 注释掉，避免重复创建SimulationController
-        # 将使用 native_view 中的 simulation_controller
-        # self.simulation_controller = SimulationController() if SimulationController else None
-        self.simulation_controller = None  # 将在setup_connections中设置为native_view的controller
+        # UI工厂需要初始化以支持对话框创建
+        try:
+            from src.shared.components.factories.ui_component_factory import get_ui_factory
+            self.ui_factory = get_ui_factory()
+            print("✅ [MainPage] UI工厂初始化成功")
+        except Exception as e:
+            print(f"❌ [MainPage] UI工厂初始化失败: {e}")
+            self.ui_factory = None
+        
+        self.graphics_service = None
         
         # UI组件 - 通过原生视图访问
         self.graphics_view = None
@@ -105,6 +108,10 @@ class MainDetectionPage(QWidget):
         self.native_view = NativeMainDetectionView()
         layout.addWidget(self.native_view)
         
+        # 获取native_view的控制器和服务，避免重复创建
+        self.controller = self.native_view.controller
+        self.simulation_controller = getattr(self.native_view, 'simulation_controller', None)
+        
         # 设置引用以便于访问
         self.graphics_view = getattr(self.native_view.center_panel, 'graphics_view', None)
         self.panorama_widget = getattr(self.native_view.left_panel, 'sidebar_panorama', None)
@@ -119,7 +126,8 @@ class MainDetectionPage(QWidget):
         self.native_view.navigate_to_history.connect(self.navigate_to_history)
         self.native_view.file_loaded.connect(self.file_loaded)
         self.native_view.status_updated.connect(self.status_updated)
-        self.native_view.detection_progress.connect(self.detection_progress)
+        # 注释掉，避免重复连接detection_progress信号，使用控制器的信号
+        # self.native_view.detection_progress.connect(self.detection_progress)
         self.native_view.error_occurred.connect(self.error_occurred)
         
         # 连接工具栏信号到具体功能 - 检查toolbar类型
@@ -128,6 +136,9 @@ class MainDetectionPage(QWidget):
             toolbar.product_selection_requested.connect(self._on_select_product)
         if toolbar and hasattr(toolbar, 'search_requested'):
             toolbar.search_requested.connect(self._on_search_hole)
+            self.logger.info("✅ 搜索信号已连接到页面处理方法")
+        else:
+            self.logger.warning("⚠️ 工具栏不支持搜索功能或工具栏未创建")
         
         # 连接右侧面板的文件操作信号
         right_panel = self.native_view.right_panel
@@ -159,9 +170,9 @@ class MainDetectionPage(QWidget):
             # 连接批次创建信号
             if hasattr(self.controller, 'batch_created'):
                 self.controller.batch_created.connect(self._on_batch_created)
-                print("✅ [MainPage] 批次创建信号已连接")
+                self.logger.debug("✅ [MainPage] 批次创建信号已连接")
             else:
-                print("❌ [MainPage] 控制器没有 batch_created 信号")
+                self.logger.debug("❌ [MainPage] 控制器没有 batch_created 信号")
         
         self.logger.info("✅ 原生视图信号连接成功")
         
@@ -172,7 +183,7 @@ class MainDetectionPage(QWidget):
             # 确保数据传递到图形视图
             self._update_graphics_view()
         else:
-            print("加载DXF - 控制器未初始化")
+            self.logger.debug("加载DXF - 控制器未初始化")
             
     def _add_test_graphics(self):
         """添加测试图形确保显示正常"""
@@ -210,55 +221,89 @@ class MainDetectionPage(QWidget):
             
     def _on_select_product(self):
         """选择产品"""
+        print("🔧 [MainPage] _on_select_product 被调用")
+        print(f"🔧 [MainPage] 控制器状态: {self.controller}")
+        print(f"🔧 [MainPage] UI工厂状态: {self.ui_factory}")
+        
         if self.controller:
+            print("🔧 [MainPage] 控制器存在，继续执行...")
             # 显示产品选择对话框
             if self.ui_factory:
+                print("🔧 [MainPage] UI工厂存在，尝试创建对话框...")
                 try:
+                    print("🔧 [MainPage] 正在创建产品选择对话框...")
                     dialog = self.ui_factory.create_product_selection_dialog(self)
-                    if dialog.exec():
+                    print(f"🔧 [MainPage] 对话框创建结果: {dialog}")
+                    if dialog and dialog.exec():
                         selected_product = dialog.selected_product
+                        print(f"🔧 [MainPage] 用户选择的产品: {selected_product}")
                         # 确保传递的是产品名称字符串，而不是ProductModel对象
                         if hasattr(selected_product, 'model_name'):
                             product_name = selected_product.model_name
                         else:
                             product_name = str(selected_product)
+                        print(f"🔧 [MainPage] 将选择产品: {product_name}")
                         self.controller.select_product(product_name)
+                    else:
+                        print("🔧 [MainPage] 用户取消了产品选择或对话框为空")
                 except Exception as e:
+                    print(f"❌ [MainPage] 产品选择失败: {e}")
+                    import traceback
+                    traceback.print_exc()
                     self.logger.error(f"产品选择失败: {e}")
-                    # 备用方案
-                    from PySide6.QtWidgets import QInputDialog
-                    product_name, ok = QInputDialog.getText(self, "选择产品", "请输入产品名称:")
-                    if ok and product_name:
-                        self.controller.select_product(product_name)
+                    # 备用方案：直接创建产品选择对话框
+                    self._show_fallback_product_selection()
             else:
-                # 简单的备用方案
-                from PySide6.QtWidgets import QInputDialog
-                product_name, ok = QInputDialog.getText(self, "选择产品", "请输入产品名称:")
-                if ok and product_name:
-                    self.controller.select_product(product_name)
+                print("🔧 [MainPage] UI工厂不存在，使用备用方案")
+                # 备用方案：直接创建产品选择对话框
+                self._show_fallback_product_selection()
         else:
-            print("选择产品 - 控制器未初始化")
+            print("❌ [MainPage] 控制器不存在")
+            
+    def _show_fallback_product_selection(self):
+        """备用产品选择方案"""
+        try:
+            print("🔧 [MainPage] 使用备用产品选择方案")
+            from src.pages.main_detection_p1.modules.product_selection import ProductSelectionDialog
+            dialog = ProductSelectionDialog(self)
+            if dialog.exec():
+                selected_product = dialog.selected_product
+                if hasattr(selected_product, 'model_name'):
+                    product_name = selected_product.model_name
+                else:
+                    product_name = str(selected_product)
+                print(f"✅ [MainPage] 备用方案选择产品: {product_name}")
+                self.controller.select_product(product_name)
+            else:
+                print("🔧 [MainPage] 备用方案：用户取消了产品选择")
+        except Exception as e:
+            print(f"❌ [MainPage] 备用产品选择也失败: {e}")
+            # 最后的备用方案
+            from PySide6.QtWidgets import QInputDialog
+            product_name, ok = QInputDialog.getText(self, "选择产品", "请输入产品名称:")
+            if ok and product_name:
+                self.controller.select_product(product_name)
             
     def _on_start_detection(self):
         """开始检测"""
         if self.controller:
             self.controller.start_detection()
         else:
-            print("开始检测 - 控制器未初始化")
+            self.logger.debug("开始检测 - 控制器未初始化")
             
     def _on_pause_detection(self):
         """暂停检测"""
         if self.controller:
             self.controller.pause_detection()
         else:
-            print("暂停检测 - 控制器未初始化")
+            self.logger.debug("暂停检测 - 控制器未初始化")
             
     def _on_stop_detection(self):
         """停止检测"""
         if self.controller:
             self.controller.stop_detection()
         else:
-            print("停止检测 - 控制器未初始化")
+            self.logger.debug("停止检测 - 控制器未初始化")
             
     def _on_detection_progress(self, progress):
         """更新检测进度"""
@@ -637,17 +682,32 @@ class MainDetectionPage(QWidget):
     def _on_search_hole(self, query):
         """处理搜索孔位"""
         try:
-            self.logger.info(f"🔍 搜索孔位: {query}")
+            self.logger.info(f"🔍 页面接收到搜索请求: {query}")
+            
+            # 检查是否需要更新搜索数据
+            if self.controller and hasattr(self.controller, 'business_coordinator'):
+                coordinator = self.controller.business_coordinator
+                if coordinator and hasattr(coordinator, 'update_search_data'):
+                    coordinator.update_search_data()
+                    self.logger.info("🔄 已更新搜索数据")
             
             # 使用控制器的搜索功能
             if self.controller and hasattr(self.controller, 'search_hole'):
                 results = self.controller.search_hole(query)
-                self.logger.info(f"搜索到 {len(results)} 个结果")
+                self.logger.info(f"✅ 页面搜索完成: {len(results)} 个结果")
+                
+                # 如果找到结果，自动切换到第一个匹配孔位所在的扇形
+                if results and hasattr(self.native_view, 'switch_to_hole_sector'):
+                    first_hole_id = results[0]
+                    self.native_view.switch_to_hole_sector(first_hole_id)
+                elif len(results) == 0:
+                    self.logger.warning(f"⚠️ 没有找到匹配 '{query}' 的孔位")
+                    
             else:
-                self.logger.warning("控制器搜索功能不可用")
+                self.logger.warning("⚠️ 控制器搜索功能不可用")
                 
         except Exception as e:
-            self.logger.error(f"搜索孔位失败: {e}")
+            self.logger.error(f"❌ 搜索孔位失败: {e}")
             self.error_occurred.emit(f"搜索失败: {e}")
     
     def _on_file_operation(self, operation, params=None):
@@ -753,7 +813,7 @@ class MainDetectionPage(QWidget):
                     batch_info = self.controller.batch_service.get_batch_info(self.controller.current_batch_id)
                     if batch_info and batch_info.get('status') == 'PAUSED':
                         # 继续之前的批次
-                        print(f"📥 [MainPage] 继续批次: {self.controller.current_batch_id}")
+                        self.logger.debug(f"📥 [MainPage] 继续批次: {self.controller.current_batch_id}")
                         self.logger.info(f"继续批次: {self.controller.current_batch_id}")
                     else:
                         # 创建新批次
@@ -794,14 +854,14 @@ class MainDetectionPage(QWidget):
                 self.logger.info(f"Created batch: {batch.batch_id}")
                 
                 # 发出批次创建信号
-                print(f"📤 [MainPage] 发射批次创建信号: {batch.batch_id}")
+                self.logger.debug(f"📤 [MainPage] 发射批次创建信号: {batch.batch_id}")
                 self.controller.batch_created.emit(batch.batch_id)
-                print(f"✅ [MainPage] 批次信号已发射")
+                self.logger.debug(f"✅ [MainPage] 批次信号已发射")
                 
                 # 直接更新批次标签（作为备份方案）
                 if hasattr(self.native_view, 'left_panel') and hasattr(self.native_view.left_panel, 'current_batch_label'):
                     self.native_view.left_panel.current_batch_label.setText(f"检测批次: {batch.batch_id}")
-                    print(f"📝 [MainPage] 直接更新批次标签: {batch.batch_id}")
+                    self.logger.debug(f"📝 [MainPage] 直接更新批次标签: {batch.batch_id}")
             except Exception as e:
                 self.logger.warning(f"创建批次失败: {e}")
     
@@ -945,7 +1005,7 @@ class MainDetectionPage(QWidget):
     def _on_batch_created(self, batch_id: str):
         """处理批次创建信号"""
         try:
-            print(f"📥 [MainPage] 接收到批次创建信号: {batch_id}")
+            self.logger.debug(f"📥 [MainPage] 接收到批次创建信号: {batch_id}")
             self.logger.info(f"批次创建信号接收: {batch_id}")
             
             # 更新左侧面板的批次信息

@@ -162,7 +162,7 @@ class SnakePathRenderer(QObject):
     def set_graphics_scene(self, scene):
         """设置图形场景"""
         self.graphics_scene = scene
-        self.logger.info("设置图形场景", "🎨")
+        self.logger.debug("设置图形场景", "🎨")
     
     def set_hole_collection(self, hole_collection: HoleCollection):
         """设置孔位集合，解析A/B侧编号信息"""

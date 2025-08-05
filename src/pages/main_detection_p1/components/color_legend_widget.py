@@ -132,7 +132,7 @@ class ColorLegendWidget(QWidget):
     def create_legend_items(self):
         """创建图例项"""
         try:
-            # 只显示前4个主要状态，避免图例过长
+            # 显示所有主要状态，包括缺陷状态
             main_statuses = self.hole_statuses[:4]
             
             for status_info in main_statuses:
@@ -210,8 +210,8 @@ class CompactColorLegendWidget(QWidget):
                     HoleStatus.TIE_ROD: "拉杆孔"
                 }
                 
-                # 只取前3个主要状态，保持紧凑
-                main_statuses = list(status_colors.items())[:3]
+                # 取前4个主要状态，包括缺陷状态
+                main_statuses = list(status_colors.items())[:4]
                 
                 for status, color in main_statuses:
                     self.create_compact_item(
@@ -234,7 +234,8 @@ class CompactColorLegendWidget(QWidget):
         default_items = [
             ("#C8C8C8", "待检"),
             ("#6496FF", "检测中"),
-            ("#32C832", "合格")
+            ("#32C832", "合格"),
+            ("#FF3232", "缺陷")
         ]
         
         for color, label in default_items:

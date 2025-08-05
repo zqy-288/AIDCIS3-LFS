@@ -12,7 +12,7 @@ _component_modules = {
     'worker_thread': 'src.shared.services.threading.worker_thread',
     'history_viewer': 'src.pages.history_analytics_p3.components.history.history_viewer',
     'report_interface': 'src.pages.report_generation_p4.generators.report_output_interface',
-    'product_selection': 'src.modules.product_selection',
+    'product_selection': 'src.pages.main_detection_p1.modules.product_selection',
     'panorama_controller': 'src.modules.panorama_controller'
 }
 
