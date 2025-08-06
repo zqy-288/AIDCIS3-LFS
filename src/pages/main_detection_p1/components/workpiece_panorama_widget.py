@@ -54,13 +54,13 @@ class SectorHighlight(QGraphicsPathItem):
         
     def _get_sector_angles(self):
         """根据扇形类型获取角度范围"""
-        # Qt中角度：0度为3点钟方向，逆时针为正
-        # 每个扇形90度
+        # 与 SectorQuadrant.from_angle 保持一致的角度映射
+        # 0度=3点钟方向，角度按逆时针增加，但在Qt坐标系Y轴向下
         angle_map = {
-            SectorQuadrant.FIRST: (0, 90),      # 右下 0-90度
-            SectorQuadrant.SECOND: (90, 90),    # 左下 90-180度  
-            SectorQuadrant.THIRD: (180, 90),    # 左上 180-270度
-            SectorQuadrant.FOURTH: (270, 90),   # 右上 270-360度
+            SectorQuadrant.SECTOR_1: (0, 90),      # 0-90度
+            SectorQuadrant.SECTOR_2: (90, 90),     # 90-180度  
+            SectorQuadrant.SECTOR_3: (180, 90),    # 180-270度
+            SectorQuadrant.SECTOR_4: (270, 90),    # 270-360度
         }
         return angle_map.get(self.sector, (0, 90))
         
@@ -244,6 +244,9 @@ class WorkpiecePanoramaWidget(QWidget):
             if sector:
                 self.sector_clicked.emit(sector)
                 self.logger.info(f"扇形点击: {sector.display_name}")
+                
+                # 直接高亮选中的扇形
+                self.highlight_sector(sector)
         
         # 调用原始的鼠标点击处理（用于拖拽等）
         QGraphicsView.mousePressEvent(self.graphics_view, event)
@@ -341,9 +344,12 @@ class WorkpiecePanoramaWidget(QWidget):
                 pass
         self.sector_highlights.clear()
         
+        # 计算合适的高亮半径 - 基于实际孔位分布范围
+        highlight_radius = self.panorama_radius * 0.95  # 缩小到95%，覆盖大部分孔位区域
+        
         # 为每个扇形创建高亮项
         for sector in SectorQuadrant:
-            highlight = SectorHighlight(self.center_point, self.panorama_radius, sector)
+            highlight = SectorHighlight(self.center_point, highlight_radius, sector)
             self.graphics_scene.addItem(highlight)
             self.sector_highlights[sector] = highlight
             
@@ -352,8 +358,10 @@ class WorkpiecePanoramaWidget(QWidget):
         if not self.center_point or self.panorama_radius == 0:
             return
             
+        # 使用与创建时相同的半径计算
+        highlight_radius = self.panorama_radius * 0.95
         for sector, highlight in self.sector_highlights.items():
-            highlight.update_geometry(self.center_point, self.panorama_radius)
+            highlight.update_geometry(self.center_point, highlight_radius)
         
     def load_hole_collection(self, hole_collection: HoleCollection):
         """
@@ -501,6 +509,10 @@ class WorkpiecePanoramaWidget(QWidget):
         # 创建扇形高亮项
         self._create_sector_highlights()
         
+        # 如果之前有选中的扇形，重新激活高亮
+        if self.current_highlighted_sector:
+            self.highlight_sector(self.current_highlighted_sector)
+        
         self.logger.info(f"成功加载 {len(self.detection_points)} 个检测点到全景预览")
         self.logger.info(f"全景图中心: ({self.center_point.x():.2f}, {self.center_point.y():.2f}), 半径: {self.panorama_radius:.2f}")
         
@@ -594,15 +606,18 @@ class WorkpiecePanoramaWidget(QWidget):
             return
             
         self.logger.info(f"高亮扇形: {sector.display_name}")
+        self.logger.info(f"当前扇形高亮项数量: {len(self.sector_highlights)}")
         
         # 清除当前高亮
         if self.current_highlighted_sector and self.current_highlighted_sector in self.sector_highlights:
             self.sector_highlights[self.current_highlighted_sector].set_highlighted(False)
+            self.logger.info(f"已清除之前的高亮: {self.current_highlighted_sector.display_name}")
         
         # 设置新的高亮
         if sector in self.sector_highlights:
             self.sector_highlights[sector].set_highlighted(True)
             self.current_highlighted_sector = sector
+            self.logger.info(f"已设置新高亮: {sector.display_name}")
         else:
             # 如果高亮项不存在，尝试重新创建
             self.logger.warning(f"扇形高亮项不存在，尝试重新创建")
@@ -610,6 +625,9 @@ class WorkpiecePanoramaWidget(QWidget):
             if sector in self.sector_highlights:
                 self.sector_highlights[sector].set_highlighted(True)
                 self.current_highlighted_sector = sector
+                self.logger.info(f"重新创建后设置高亮: {sector.display_name}")
+            else:
+                self.logger.error(f"无法创建扇形高亮项: {sector.display_name}")
         
     def clear_sector_highlight(self):
         """清除扇形高亮（兼容原CompletePanoramaWidget接口）"""
@@ -634,3 +652,12 @@ class WorkpiecePanoramaWidget(QWidget):
             self.highlight_sector(sector)
             
         self.logger.info("扇形高亮测试完成")
+        
+    def force_highlight_first_sector(self):
+        """强制高亮第一个扇形，用于测试"""
+        if not self.sector_highlights:
+            self._create_sector_highlights()
+            
+        first_sector = SectorQuadrant.SECTOR_1
+        self.logger.info(f"强制高亮第一个扇形: {first_sector.display_name}")
+        self.highlight_sector(first_sector)
