@@ -61,6 +61,10 @@ class BusinessCoordinator(QObject):
             self._search_service = SearchService()
             self._status_service = UnifiedStatusManager()
             
+            # Initialize statistics service for statistics_updated signal
+            from src.shared.services.statistics_service import UnifiedStatisticsService
+            self._statistics_service = UnifiedStatisticsService()
+            
             # Initialize detection service with dependencies
             try:
                 from src.shared.services.status_manager import StatusManager
@@ -90,7 +94,10 @@ class BusinessCoordinator(QObject):
             # Status service signals
             if self._status_service:
                 self._status_service.status_updated.connect(self._on_status_updated)
-                self._status_service.statistics_updated.connect(self._on_statistics_updated)
+            
+            # Statistics service signals
+            if hasattr(self, '_statistics_service') and self._statistics_service:
+                self._statistics_service.statistics_updated.connect(self._on_statistics_updated)
             
             # Detection service signals
             if self._detection_service:

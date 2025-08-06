@@ -292,8 +292,10 @@ class MainWindowAggregator(QMainWindow):
         self.window_closed.emit()
         
         # 清理P级页面资源
-        for page in [self.main_detection_p1, self.realtime_monitoring_p2, 
-                     self.history_analytics_p3, self.report_generation_p4]:
+        for page in [getattr(self, 'main_detection_widget', None), 
+                     getattr(self, 'realtime_tab', None),
+                     getattr(self, 'history_tab', None), 
+                     getattr(self, 'report_tab', None)]:
             if page and hasattr(page, 'cleanup'):
                 page.cleanup()
                 

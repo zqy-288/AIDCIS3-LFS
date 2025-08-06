@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QWidget
 
 # 延迟导入，只在需要时加载
 _component_modules = {
-    'realtime_chart': 'src.pages.realtime_monitoring_p2.components.chart.chart_widget',
+    # 'realtime_chart': 'src.pages.realtime_monitoring_p2.components.chart.chart_widget',  # 已集成到主页面
     'worker_thread': 'src.shared.services.threading.worker_thread',
     'history_viewer': 'src.pages.history_analytics_p3.components.history.history_viewer',
     'report_interface': 'src.pages.report_generation_p4.generators.report_output_interface',
@@ -17,7 +17,7 @@ _component_modules = {
 }
 
 _component_classes = {
-    'realtime_chart': 'EnhancedChartWidget',
+    # 'realtime_chart': 'EnhancedChartWidget',  # 已集成到主页面
     'worker_thread': 'WorkerThread',
     'history_viewer': 'HistoryViewer',
     'report_interface': 'ReportOutputInterface',

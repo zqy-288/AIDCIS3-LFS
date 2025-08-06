@@ -42,8 +42,8 @@ class GraphicsService:
         
     def create_panorama_widget(self, parent: Optional[QWidget] = None) -> Any:
         """创建全景图组件"""
-        from src.modules.panorama_view import CompletePanoramaWidget
-        return CompletePanoramaWidget(parent)
+        from src.pages.main_detection_p1.components.workpiece_panorama_widget import WorkpiecePanoramaWidget
+        return WorkpiecePanoramaWidget(parent)
         
     def create_sector_view(self, parent: Optional[QWidget] = None, quadrant: Any = None) -> Any:
         """创建扇形区域视图（使用缓存避免重复创建）"""

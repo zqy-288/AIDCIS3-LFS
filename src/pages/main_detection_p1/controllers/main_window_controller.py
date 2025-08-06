@@ -107,7 +107,8 @@ class MainWindowController(QObject):
         
         # 预加载关键组件
         # 注意：history_viewer 已在主窗口中直接创建，不需要预加载
-        self.ui_factory.preload_components(['realtime_chart'])
+        # realtime_chart 已集成到P2页面主实现中，不需要预加载
+        # self.ui_factory.preload_components(['realtime_chart'])
         
         # 初始化蛇形路径协调器
         self.snake_path_coordinator = self.graphics_service.create_snake_path_coordinator()

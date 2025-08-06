@@ -231,9 +231,9 @@ class CenterVisualizationPanel(QWidget):
     def _create_panorama_widget(self):
         """创建全景组件"""
         try:
-            from src.pages.main_detection_p1.components.graphics.complete_panorama_widget import CompletePanoramaWidget
+            from .workpiece_panorama_widget import WorkpiecePanoramaWidget
             
-            self.panorama_widget = CompletePanoramaWidget()
+            self.panorama_widget = WorkpiecePanoramaWidget()
             # 设置适合中间栏的尺寸
             self.panorama_widget.setMinimumSize(600, 600)
             
@@ -245,7 +245,7 @@ class CenterVisualizationPanel(QWidget):
             # 初始时隐藏
             self.panorama_widget.hide()
             
-            self.logger.info("✅ 全景组件创建成功")
+            self.logger.info("✅ 工件图全景组件创建成功")
             
         except Exception as e:
             self.logger.warning(f"全景组件创建失败: {e}")

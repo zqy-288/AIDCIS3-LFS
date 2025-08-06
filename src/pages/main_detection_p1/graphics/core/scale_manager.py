@@ -696,7 +696,7 @@ def _detect_container_context_for_scale_manager(view: QGraphicsView, debug: bool
         while parent:
             parent_class = parent.__class__.__name__
             
-            if parent_class == "CompletePanoramaWidget":
+            if parent_class == "WorkpiecePanoramaWidget":
                 # 获取容器实际尺寸
                 container_width = parent.width() if parent.width() > 0 else 350
                 container_height = parent.height() if parent.height() > 0 else 350

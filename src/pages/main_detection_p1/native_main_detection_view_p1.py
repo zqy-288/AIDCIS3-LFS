@@ -37,8 +37,7 @@ try:
     
     # 图形组件
     from src.pages.main_detection_p1.graphics.core.graphics_view import OptimizedGraphicsView
-    from src.pages.main_detection_p1.components.graphics.dynamic_sector_view import DynamicSectorDisplayWidget
-    # CompletePanoramaWidget已移至中间栏显示
+    # 注意：CompleteP anomamaWidget已被工件图全景预览组件替代
     
     # 数据模型
     from src.shared.models.hole_data import HoleCollection
@@ -238,30 +237,33 @@ class NativeLeftInfoPanel(QWidget):
         layout = QVBoxLayout(group)
         layout.setContentsMargins(5, 5, 5, 5)
         
-        # 使用具有用户缩放功能的完整全景图组件
-        from src.pages.main_detection_p1.components.graphics.complete_panorama_widget import CompletePanoramaWidget
-        self.sidebar_panorama = CompletePanoramaWidget()
-        # 设置默认缩放比例为10%，解决圆形缩放不够的问题
-        if hasattr(self.sidebar_panorama, 'set_user_hole_scale_factor'):
-            self.sidebar_panorama.set_user_hole_scale_factor(0.1)
-        # 设置固定大小，使全景预览更大更清晰
-        self.sidebar_panorama.setFixedSize(380, 380)  # 增大到380x380的正方形，留出边距
-        # 或者设置最小尺寸
-        # self.sidebar_panorama.setMinimumSize(350, 350)
-        # self.sidebar_panorama.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        # 使用基于工件图的全景预览组件
+        from .components.workpiece_panorama_widget import WorkpiecePanoramaWidget
+        self.sidebar_panorama = WorkpiecePanoramaWidget()
+        self.sidebar_panorama.setFixedSize(380, 380)  # 设置固定大小
+        self.logger.info("✅ 使用工件图全景预览组件")
         
-        # 设置样式
-        self.sidebar_panorama.setStyleSheet("""
-            CompletePanoramaWidget {
-                background-color: #2a2a2a;
-                border: 1px solid #555;
-                border-radius: 5px;
-            }
-        """)
+        # 连接信号
+        self.sidebar_panorama.hole_clicked.connect(self._on_panorama_hole_clicked)
         
         layout.addWidget(self.sidebar_panorama)
         
         return group
+
+    def _on_panorama_hole_clicked(self, hole_id: str, status):
+        """处理全景预览中孔位点击事件"""
+        self.logger.info(f"全景预览孔位点击: {hole_id}, 状态: {status}")
+        
+        # 更新选中孔位信息显示
+        if self.left_panel and hasattr(self.left_panel, 'update_hole_info'):
+            # 查找孔位数据
+            if self.current_hole_collection and hole_id in self.current_hole_collection:
+                hole_data = self.current_hole_collection.holes[hole_id]
+                self.left_panel.update_hole_info(hole_data)
+                
+        # 如果有中央面板，也可以在其中显示选中的孔位
+        if self.center_panel and hasattr(self.center_panel, 'highlight_hole'):
+            self.center_panel.highlight_hole(hole_id)
 
 
     def _create_sector_stats_group(self, group_font):
@@ -1810,17 +1812,17 @@ class NativeMainDetectionView(QWidget):
             self.logger.info("✅ 数据已加载到协调器，扇形分配完成")
         
         # 2.1 【重要修复】加载数据到左侧全景图组件
-        if self.left_panel and hasattr(self.left_panel, 'sidebar_panorama') and hole_collection:
+        if self.left_panel and hasattr(self.left_panel, 'sidebar_panorama'):
             try:
                 panorama_widget = self.left_panel.sidebar_panorama
-                if hasattr(panorama_widget, 'load_complete_view'):
-                    panorama_widget.load_complete_view(hole_collection)
-                    self.logger.info("✅ 数据已加载到左侧全景图组件")
-                elif hasattr(panorama_widget, 'load_hole_collection'):
+                if hole_collection and len(hole_collection) > 0:
+                    # 加载孔位数据到工件图全景预览
                     panorama_widget.load_hole_collection(hole_collection)
-                    self.logger.info("✅ 数据已加载到左侧全景图组件（兼容方法）")
+                    self.logger.info("✅ 数据已加载到工件图全景预览组件")
                 else:
-                    self.logger.warning("⚠️ 全景图组件没有数据加载方法")
+                    # 显示空状态
+                    panorama_widget.show_empty_state()
+                    self.logger.info("ℹ️ 显示全景预览空状态")
             except Exception as e:
                 self.logger.error(f"❌ 加载数据到全景图组件失败: {e}")
         

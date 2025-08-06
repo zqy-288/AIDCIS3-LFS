@@ -312,12 +312,16 @@ class UnifiedPanoramaController(QObject):
         layout.addWidget(title_label)
         
         # 创建迷你全景图组件
-        from src.pages.main_detection_p1.components.graphics.complete_panorama_widget import CompletePanoramaWidget
-        mini_panorama = CompletePanoramaWidget()
+        from src.pages.main_detection_p1.components.workpiece_panorama_widget import WorkpiecePanoramaWidget
+        mini_panorama = WorkpiecePanoramaWidget()
         mini_panorama.setFixedSize(200, 150)
         
-        # 连接信号
-        mini_panorama.sector_clicked.connect(self.sector_clicked.emit)
+        # 连接信号 - WorkpiecePanoramaWidget现在支持sector_clicked信号
+        if hasattr(mini_panorama, 'sector_clicked'):
+            mini_panorama.sector_clicked.connect(self.sector_clicked.emit)
+        elif hasattr(mini_panorama, 'hole_clicked'):
+            # 备用连接，如果没有sector_clicked信号
+            mini_panorama.hole_clicked.connect(lambda hole_id, status: self.sector_clicked.emit(None))
         
         layout.addWidget(mini_panorama)
         self.floating_panorama_widget = mini_panorama
@@ -335,7 +339,7 @@ class UnifiedPanoramaController(QObject):
             self.logger.warning("浮动全景图组件不存在")
             return
             
-        # 通过CompletePanoramaWidget更新状态
+        # 通过工件图全景预览更新状态
         if hasattr(self.floating_panorama_widget, 'update_hole_status'):
             self.floating_panorama_widget.update_hole_status(hole_id, status)
             self.logger.info(f"更新浮动全景图孔位状态: {hole_id} -> {status}")
@@ -346,7 +350,7 @@ class UnifiedPanoramaController(QObject):
             self.logger.warning("浮动全景图组件不存在")
             return
             
-        # 通过CompletePanoramaWidget加载数据
+        # 通过工件图全景预览加载数据
         if hasattr(self.floating_panorama_widget, 'load_complete_view'):
             self.floating_panorama_widget.load_complete_view(hole_collection)
             self.logger.info(f"浮动全景图数据加载完成: {len(hole_collection)} 个孔位")

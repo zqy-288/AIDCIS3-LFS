@@ -62,7 +62,7 @@ class SnakePathCoordinator(QObject):
         self.logger.info("注册扇形视图", "📝")
         
     def register_panorama_widget(self, widget):
-        """注册全景组件（CompletePanoramaWidget）"""
+        """注册全景组件（工件图全景预览）"""
         self.panorama_widget = widget
         self.registered_views.append(widget)
         self.logger.info("注册全景组件", "📝")
