@@ -1,0 +1,117 @@
+{
+  "batch_id": "20250720_091056_batch_0009",
+  "timestamp": "2025-07-20T09:11:06.838401",
+  "total_holes": 10,
+  "holes": [
+    {
+      "hole_id": "C006R278",
+      "center_x": 1488.266007123071,
+      "center_y": -1292.766007123071,
+      "radius": 8.87,
+      "row": 278,
+      "column": 6,
+      "status": "qualified",
+      "sector": "sector_4",
+      "timestamp": 1752973866.8381648
+    },
+    {
+      "hole_id": "C006R276",
+      "center_x": 1463.4660071230708,
+      "center_y": -1292.766007123071,
+      "radius": 8.87,
+      "row": 276,
+      "column": 6,
+      "status": "qualified",
+      "sector": "sector_4",
+      "timestamp": 1752973866.8381703
+    },
+    {
+      "hole_id": "C007R274",
+      "center_x": 1438.566007123071,
+      "center_y": -1292.766007123071,
+      "radius": 8.87,
+      "row": 274,
+      "column": 7,
+      "status": "qualified",
+      "sector": "sector_4",
+      "timestamp": 1752973866.838172
+    },
+    {
+      "hole_id": "C007R272",
+      "center_x": 1413.6660071230708,
+      "center_y": -1292.766007123071,
+      "radius": 8.87,
+      "row": 272,
+      "column": 7,
+      "status": "qualified",
+      "sector": "sector_4",
+      "timestamp": 1752973866.8381734
+    },
+    {
+      "hole_id": "C008R270",
+      "center_x": 1388.766007123071,
+      "center_y": -1292.766007123071,
+      "radius": 8.87,
+      "row": 270,
+      "column": 8,
+      "status": "qualified",
+      "sector": "sector_4",
+      "timestamp": 1752973866.8381748
+    },
+    {
+      "hole_id": "C008R268",
+      "center_x": 1363.8660071230709,
+      "center_y": -1292.766007123071,
+      "radius": 8.87,
+      "row": 268,
+      "column": 8,
+      "status": "qualified",
+      "sector": "sector_4",
+      "timestamp": 1752973866.838176
+    },
+    {
+      "hole_id": "C009R266",
+      "center_x": 1338.9660071230708,
+      "center_y": -1292.766007123071,
+      "radius": 8.87,
+      "row": 266,
+      "column": 9,
+      "status": "qualified",
+      "sector": "sector_4",
+      "timestamp": 1752973866.838177
+    },
+    {
+      "hole_id": "C009R264",
+      "center_x": 1314.066007123071,
+      "center_y": -1292.766007123071,
+      "radius": 8.87,
+      "row": 264,
+      "column": 9,
+      "status": "qualified",
+      "sector": "sector_4",
+      "timestamp": 1752973866.8381782
+    },
+    {
+      "hole_id": "C011R261",
+      "center_x": 1276.766007123071,
+      "center_y": -1271.4660071230708,
+      "radius": 8.87,
+      "row": 261,
+      "column": 11,
+      "status": "qualified",
+      "sector": "sector_4",
+      "timestamp": 1752973866.8381789
+    },
+    {
+      "hole_id": "C010R263",
+      "center_x": 1301.6660071230708,
+      "center_y": -1271.4660071230708,
+      "radius": 8.87,
+      "row": 263,
+      "column": 10,
+      "status": "qualified",
+      "sector": "sector_4",
+      "timestamp": 1752973866.83818
+    }
+  ]
+}

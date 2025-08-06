@@ -23,7 +23,7 @@ class BusinessService:
         
         # 延迟初始化各个服务组件
         self._dxf_parser = None
-        self._data_adapter = None
+        # self._data_adapter = None  # 已移除
         self._status_manager = None
         self._hole_numbering_service = None
         self._product_manager = None
@@ -51,13 +51,7 @@ class BusinessService:
             self._dxf_parser = DXFParser()
         return self._dxf_parser
         
-    @property
-    def data_adapter(self):
-        """获取数据适配器（延迟加载）"""
-        if self._data_adapter is None:
-            from src.shared.services.adapters.data_model_adapter import DataAdapter
-            self._data_adapter = DataAdapter()
-        return self._data_adapter
+    # data_adapter 已移除，不再需要数据模型适配
         
     @property
     def status_manager(self):
@@ -326,6 +320,17 @@ class BusinessService:
             编号后的孔位集合
         """
         try:
+            # 检查是否已经编号（避免重复编号）
+            if hasattr(collection, 'holes') and collection.holes:
+                # 检查第一个孔位是否已有标准ID格式（如: AC097R001）
+                first_hole = next(iter(collection.holes.values()), None)
+                if first_hole and hasattr(first_hole, 'hole_id') and first_hole.hole_id:
+                    # 检查ID格式是否为标准格式（A/B+Cxxx+Rxxx）
+                    import re
+                    if re.match(r'^[AB]C\d+R\d+$', first_hole.hole_id):
+                        print(f"🔍 [BusinessService] 孔位已编号，跳过重复编号：{first_hole.hole_id}")
+                        return collection
+            
             # apply_numbering 只接受一个参数
             self.hole_numbering_service.apply_numbering(collection)
             return collection

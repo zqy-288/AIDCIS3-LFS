@@ -11,12 +11,93 @@ from typing import Optional, Dict, List
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                                QPushButton, QGraphicsView, QGraphicsScene, 
                                QGraphicsEllipseItem, QGraphicsTextItem,
-                               QGraphicsRectItem, QFrame, QGraphicsLineItem)
+                               QGraphicsRectItem, QFrame, QGraphicsLineItem,
+                               QGraphicsPathItem)
 from PySide6.QtCore import Qt, Signal, QRectF, QPointF
-from PySide6.QtGui import QPen, QBrush, QColor, QFont, QPainter
+from PySide6.QtGui import QPen, QBrush, QColor, QFont, QPainter, QPainterPath
 
 from src.shared.models.hole_data import HoleCollection, HoleStatus
 from src.pages.main_detection_p1.graphics.core.sector_types import SectorQuadrant
+
+
+class SectorHighlight(QGraphicsPathItem):
+    """扇形高亮图形项 - 负责绘制扇形高亮区域"""
+    
+    def __init__(self, center: QPointF, radius: float, sector: SectorQuadrant):
+        super().__init__()
+        self.center = center
+        self.radius = radius
+        self.sector = sector
+        self.is_highlighted = False
+        self._create_sector_path()
+        self._setup_appearance()
+        
+    def _create_sector_path(self):
+        """创建扇形路径"""
+        path = QPainterPath()
+        
+        # 根据扇形类型计算起始和结束角度
+        start_angle, span_angle = self._get_sector_angles()
+        
+        # 移动到中心点
+        path.moveTo(self.center)
+        
+        # 创建扇形弧线
+        rect = QRectF(self.center.x() - self.radius, self.center.y() - self.radius,
+                     self.radius * 2, self.radius * 2)
+        path.arcTo(rect, start_angle, span_angle)
+        
+        # 闭合路径回到中心
+        path.lineTo(self.center)
+        
+        self.setPath(path)
+        
+    def _get_sector_angles(self):
+        """根据扇形类型获取角度范围"""
+        # Qt中角度：0度为3点钟方向，逆时针为正
+        # 每个扇形90度
+        angle_map = {
+            SectorQuadrant.FIRST: (0, 90),      # 右下 0-90度
+            SectorQuadrant.SECOND: (90, 90),    # 左下 90-180度  
+            SectorQuadrant.THIRD: (180, 90),    # 左上 180-270度
+            SectorQuadrant.FOURTH: (270, 90),   # 右上 270-360度
+        }
+        return angle_map.get(self.sector, (0, 90))
+        
+    def _setup_appearance(self):
+        """设置外观"""
+        # 初始状态：半透明淡黄色
+        normal_color = QColor(255, 255, 150, 30)  # 很淡的黄色
+        highlight_color = QColor(255, 255, 150, 100)  # 更明显的黄色
+        
+        self.normal_brush = QBrush(normal_color)
+        self.highlight_brush = QBrush(highlight_color)
+        self.highlight_pen = QPen(QColor(255, 255, 150), 2)
+        self.normal_pen = QPen(QColor(255, 255, 150, 50), 1)
+        
+        # 设置初始外观
+        self.setBrush(self.normal_brush)
+        self.setPen(self.normal_pen)
+        self.setVisible(False)  # 默认隐藏
+        
+    def set_highlighted(self, highlighted: bool):
+        """设置高亮状态"""
+        self.is_highlighted = highlighted
+        if highlighted:
+            self.setBrush(self.highlight_brush)
+            self.setPen(self.highlight_pen)
+            self.setVisible(True)
+        else:
+            self.setBrush(self.normal_brush)
+            self.setPen(self.normal_pen)
+            self.setVisible(False)
+            
+    def update_geometry(self, center: QPointF, radius: float):
+        """更新几何信息"""
+        if self.center != center or self.radius != radius:
+            self.center = center
+            self.radius = radius
+            self._create_sector_path()
 
 
 class DetectionPoint(QGraphicsEllipseItem):
@@ -30,7 +111,7 @@ class DetectionPoint(QGraphicsEllipseItem):
         self.setFlag(QGraphicsEllipseItem.ItemIsSelectable, True)
         self.setCursor(Qt.PointingHandCursor)
         self.original_pen = QPen(QColor(50, 50, 50), 0.5)  # 深灰色边框
-        self.highlight_pen = QPen(QColor(0, 120, 215), 2) # 蓝色高亮
+        self.highlight_pen = QPen(QColor(255, 255, 150), 3) # 淡黄色高亮
         self.update_appearance()
         
     def update_appearance(self):
@@ -50,7 +131,15 @@ class DetectionPoint(QGraphicsEllipseItem):
         
     def set_highlight(self, highlighted):
         """设置或取消高亮"""
-        self.setPen(self.highlight_pen if highlighted else self.original_pen)
+        if highlighted:
+            # 淡黄色高亮，增加发光效果
+            self.setPen(self.highlight_pen)
+            # 添加半透明发光效果
+            glow_brush = QBrush(QColor(255, 255, 150, 80))  # 半透明黄色
+            self.setBrush(glow_brush)
+        else:
+            self.setPen(self.original_pen)
+            self.update_appearance()  # 恢复原始颜色
         
     def set_status(self, status):
         """设置检测状态"""
@@ -104,6 +193,8 @@ class WorkpiecePanoramaWidget(QWidget):
         self.center_point = None  # 全景图中心点
         self.panorama_radius = 0.0  # 全景图半径
         self.sector_lines = []  # 扇形分割线
+        self.sector_highlights = {}  # 存储扇形高亮项 {SectorQuadrant: SectorHighlight}
+        self.current_highlighted_sector = None  # 当前高亮的扇形
         
         self.setup_ui()
         
@@ -127,6 +218,9 @@ class WorkpiecePanoramaWidget(QWidget):
         
         # 连接鼠标点击事件
         self.graphics_view.mousePressEvent = self._on_graphics_view_clicked
+        
+        # 添加鼠标滚轮事件处理
+        self.graphics_view.wheelEvent = self._on_wheel_event
         
         # 设置背景色
         self.graphics_view.setStyleSheet("""
@@ -176,6 +270,30 @@ class WorkpiecePanoramaWidget(QWidget):
         # 根据角度确定扇形
         return SectorQuadrant.from_angle(angle)
     
+    def _on_wheel_event(self, event):
+        """处理鼠标滚轮事件进行缩放"""
+        # 获取滚轮角度
+        angle = event.angleDelta().y()
+        
+        # 计算缩放因子
+        scale_factor = 1.15 if angle > 0 else 0.85
+        
+        # 获取当前的缩放级别
+        current_transform = self.graphics_view.transform()
+        current_scale = current_transform.m11()
+        
+        # 限制缩放范围
+        new_scale = current_scale * scale_factor
+        if new_scale < 0.1 or new_scale > 10:
+            return
+        
+        # 以鼠标位置为中心进行缩放
+        self.graphics_view.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+        self.graphics_view.scale(scale_factor, scale_factor)
+        
+        # 接受事件，防止传递
+        event.accept()
+    
     def _draw_sector_lines(self):
         """绘制扇形分割线"""
         if not self.center_point or self.panorama_radius == 0:
@@ -208,6 +326,35 @@ class WorkpiecePanoramaWidget(QWidget):
             self.graphics_scene.addItem(line)
             self.sector_lines.append(line)
         
+    def _create_sector_highlights(self):
+        """创建扇形高亮项"""
+        if not self.center_point or self.panorama_radius == 0:
+            return
+            
+        # 清除旧的高亮项
+        for sector, highlight in self.sector_highlights.items():
+            try:
+                if highlight.scene():
+                    self.graphics_scene.removeItem(highlight)
+            except RuntimeError:
+                # Qt对象已被删除，忽略此错误
+                pass
+        self.sector_highlights.clear()
+        
+        # 为每个扇形创建高亮项
+        for sector in SectorQuadrant:
+            highlight = SectorHighlight(self.center_point, self.panorama_radius, sector)
+            self.graphics_scene.addItem(highlight)
+            self.sector_highlights[sector] = highlight
+            
+    def _update_sector_highlights(self):
+        """更新扇形高亮几何信息"""
+        if not self.center_point or self.panorama_radius == 0:
+            return
+            
+        for sector, highlight in self.sector_highlights.items():
+            highlight.update_geometry(self.center_point, self.panorama_radius)
+        
     def load_hole_collection(self, hole_collection: HoleCollection):
         """
         从HoleCollection加载孔位数据
@@ -219,6 +366,17 @@ class WorkpiecePanoramaWidget(QWidget):
             self.logger.warning("收到空的hole_collection")
             self.show_empty_state()
             return
+        
+        # 检查是否与当前数据相同，避免重复加载
+        hole_count = len(hole_collection) if hole_collection else 0
+        if (hasattr(self, 'hole_collection') and self.hole_collection and 
+            len(self.hole_collection) == hole_count and hole_count > 0):
+            # 进一步检查数据指纹是否相同
+            current_holes = list(self.hole_collection.holes.keys())[:5]  # 检查前5个ID
+            new_holes = list(hole_collection.holes.keys())[:5]
+            if current_holes == new_holes:
+                self.logger.info(f"🔍 [全景预览] 数据未变化，跳过重复加载：{hole_count} 个孔位")
+                return
             
         # 清除现有内容
         self.graphics_scene.clear()
@@ -227,7 +385,6 @@ class WorkpiecePanoramaWidget(QWidget):
         self.hole_collection = hole_collection
         
         # 记录日志
-        hole_count = len(hole_collection) if hole_collection else 0
         self.logger.info(f"开始加载 {hole_count} 个孔位到全景预览")
         
         if hole_count == 0:
@@ -269,7 +426,7 @@ class WorkpiecePanoramaWidget(QWidget):
         # 调试信息
         self.logger.info(f"孔位分布范围: X=[{min_x:.2f}, {max_x:.2f}], Y=[{min_y:.2f}, {max_y:.2f}]")
         self.logger.info(f"场景大小: {scene_rect.width():.2f} x {scene_rect.height():.2f}")
-        self.logger.info(f"孔位显示半径: {max(1, min(width, height) / 500):.2f}")
+        self.logger.info(f"孔位总数: {hole_count}, 密度: {hole_count/(width*height) if width*height > 0 else 0:.6f} 个/单位面积")
         
         # 创建检测点
         created_count = 0
@@ -279,8 +436,13 @@ class WorkpiecePanoramaWidget(QWidget):
                 y = hole.center_y
                 
                 # 创建检测点（调整大小以适应全景预览）
-                # 对于25270个孔位，需要更大的点才能看见
-                point_radius = max(1, min(width, height) / 500)  # 增大点的大小
+                # 动态计算点的大小，根据孔位密度自动调整
+                total_area = width * height
+                hole_density = hole_count / total_area if total_area > 0 else 0
+                # 基础半径 + 根据密度调整（密度越大，点越小）
+                base_radius = min(width, height) / 200  # 基础大小
+                density_factor = max(0.3, 1 - hole_density * 1000)  # 密度调整因子
+                point_radius = max(2, base_radius * density_factor)  # 最小半径为2
                 point = DetectionPoint(hole_id, x, y, point_radius)
                 created_count += 1
                 
@@ -320,15 +482,24 @@ class WorkpiecePanoramaWidget(QWidget):
         # 适应视图 - 确保孔位可见
         self.graphics_view.fitInView(scene_rect, Qt.KeepAspectRatio)
         
-        # 设置合适的缩放级别
-        current_transform = self.graphics_view.transform()
-        scale_factor = min(current_transform.m11(), current_transform.m22())
-        if scale_factor < 0.1:  # 如果缩放太小，设置最小缩放
+        # 根据孔位数量设置合适的初始缩放级别
+        if hole_count > 10000:  # 大量孔位，需要看全局
+            # 保持fitInView的缩放，稍微放大一点以便查看
+            current_transform = self.graphics_view.transform()
+            scale_factor = min(current_transform.m11(), current_transform.m22())
+            self.graphics_view.scale(1.2, 1.2)  # 稍微放大20%
+        elif hole_count > 1000:  # 中等数量
             self.graphics_view.resetTransform()
-            self.graphics_view.scale(0.5, 0.5)  # 设置一个合理的缩放级别
+            self.graphics_view.scale(0.8, 0.8)
+        else:  # 少量孔位，可以放大查看
+            self.graphics_view.resetTransform()
+            self.graphics_view.scale(1.5, 1.5)
         
         # 绘制扇形分割线
         self._draw_sector_lines()
+        
+        # 创建扇形高亮项
+        self._create_sector_highlights()
         
         self.logger.info(f"成功加载 {len(self.detection_points)} 个检测点到全景预览")
         self.logger.info(f"全景图中心: ({self.center_point.x():.2f}, {self.center_point.y():.2f}), 半径: {self.panorama_radius:.2f}")
@@ -377,10 +548,15 @@ class WorkpiecePanoramaWidget(QWidget):
         """兼容方法，直接调用load_hole_collection"""
         self.load_hole_collection(hole_collection)
         
-    def update_hole_status(self, hole_id: str, status: HoleStatus):
+    def update_hole_status(self, hole_id: str, status: HoleStatus, color_override=None):
         """更新孔位状态"""
         if hole_id in self.detection_points:
-            self.detection_points[hole_id].set_status(status)
+            if color_override is not None:
+                # 支持颜色覆盖（用于检测中的蓝色状态）
+                self.detection_points[hole_id].setBrush(QBrush(color_override))
+            else:
+                # 正常状态更新
+                self.detection_points[hole_id].set_status(status)
             
     def get_hole_status(self, hole_id):
         """获取指定孔的状态"""
@@ -414,11 +590,47 @@ class WorkpiecePanoramaWidget(QWidget):
             
     def highlight_sector(self, sector: SectorQuadrant):
         """高亮指定扇形（兼容原CompletePanoramaWidget接口）"""
+        if sector is None:
+            return
+            
         self.logger.info(f"高亮扇形: {sector.display_name}")
-        # 这里可以添加视觉高亮效果，比如改变扇形区域的背景色
-        # 暂时只记录日志，保持接口兼容性
+        
+        # 清除当前高亮
+        if self.current_highlighted_sector and self.current_highlighted_sector in self.sector_highlights:
+            self.sector_highlights[self.current_highlighted_sector].set_highlighted(False)
+        
+        # 设置新的高亮
+        if sector in self.sector_highlights:
+            self.sector_highlights[sector].set_highlighted(True)
+            self.current_highlighted_sector = sector
+        else:
+            # 如果高亮项不存在，尝试重新创建
+            self.logger.warning(f"扇形高亮项不存在，尝试重新创建")
+            self._create_sector_highlights()
+            if sector in self.sector_highlights:
+                self.sector_highlights[sector].set_highlighted(True)
+                self.current_highlighted_sector = sector
         
     def clear_sector_highlight(self):
         """清除扇形高亮（兼容原CompletePanoramaWidget接口）"""
         self.logger.info("清除扇形高亮")
-        # 暂时只记录日志，保持接口兼容性
+        
+        # 清除当前高亮
+        if self.current_highlighted_sector and self.current_highlighted_sector in self.sector_highlights:
+            self.sector_highlights[self.current_highlighted_sector].set_highlighted(False)
+            self.current_highlighted_sector = None
+            
+    def test_sector_highlights(self):
+        """测试扇形高亮功能"""
+        if not self.sector_highlights:
+            self.logger.warning("扇形高亮项未创建，测试终止")
+            return
+            
+        self.logger.info("开始测试扇形高亮功能...")
+        
+        # 测试每个扇形高亮
+        for sector in SectorQuadrant:
+            self.logger.info(f"测试高亮扇形: {sector.display_name}")
+            self.highlight_sector(sector)
+            
+        self.logger.info("扇形高亮测试完成")

@@ -13,27 +13,9 @@ def register_core_services():
     container = get_container()
     
     try:
-        # 注册数据访问层
-        from src.core.data.data_access_layer import DataAccessLayer
-        container.register_singleton(DataAccessLayer)
-        logger.info("✅ DataAccessLayer 注册成功")
+        # 数据访问层和仓库已移除，使用新的数据管理方式
         
-        # 注册数据仓库
-        from src.core.data.repositories import WorkpieceRepository, HoleRepository, MeasurementRepository
-        container.register_singleton(WorkpieceRepository)
-        container.register_singleton(HoleRepository)
-        container.register_singleton(MeasurementRepository)
-        logger.info("✅ Repository 服务注册成功")
-        
-        # 注册业务缓存管理器
-        from src.core_business.business_cache import BusinessCacheManager
-        container.register_singleton(BusinessCacheManager)
-        logger.info("✅ BusinessCacheManager 注册成功")
-        
-        # 注册业务规则引擎
-        from src.core_business.business_rules import BusinessRuleEngine
-        container.register_singleton(BusinessRuleEngine)
-        logger.info("✅ BusinessRuleEngine 注册成功")
+        # 业务缓存和规则引擎已整合到其他服务中
         
         logger.info("🎯 所有核心服务注册完成")
         
@@ -52,7 +34,7 @@ def register_application_services():
         # 比如：主题管理器、数据监控器等
         
         # 注册数据监控器
-        from src.modules.data_monitor import DataFolderMonitor
+        from src.shared.utils.monitoring.data_monitor import DataFolderMonitor
         container.register_singleton(DataFolderMonitor)
         logger.info("✅ DataFolderMonitor 注册成功")
         

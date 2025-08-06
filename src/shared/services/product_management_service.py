@@ -18,7 +18,7 @@ import shutil
 from pathlib import Path
 import os
 from src.shared.models.product_model import get_product_manager
-from src.shared.services.product_import_service import ProductImportService
+from src.shared.utilities.product_import_service import ProductImportService
 from src.core.data_path_manager import DataPathManager
 
 class ProductManagementDialog(QDialog):

@@ -7,7 +7,7 @@ from .csv_processing_service import CSVProcessingService, get_csv_processing_ser
 from .statistics_service import UnifiedStatisticsService, get_statistics_service
 from .chart_generation_service import ChartGenerationService, get_chart_generation_service
 from .archive_manager import ArchiveManager
-from .product_import_service import ProductImportService
+from ..utilities.product_import_service import ProductImportService
 from .business_service import BusinessService, get_business_service
 from .detection_service import DetectionService, get_detection_service
 from .graphics_service import GraphicsService, get_graphics_service

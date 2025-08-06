@@ -26,7 +26,7 @@ try:
         IUIPlugin, UIPluginMetadata, UIPluginType, UIPluginCapability,
         UIPluginRegistry, get_ui_plugin_registry
     )
-    from ..modules.ui_component_base import UIComponentBase, ComponentState, ui_component_manager
+    from ..core.components.ui_component_base import UIComponentBase, ComponentState, ui_component_manager
 except ImportError:
     # 从项目根目录运行时的导入路径
     from core.plugin_system.manager import PluginManager, IPlugin, PluginMetadata, PluginState, PluginLoadResult
@@ -36,7 +36,7 @@ except ImportError:
         IUIPlugin, UIPluginMetadata, UIPluginType, UIPluginCapability,
         UIPluginRegistry, get_ui_plugin_registry
     )
-    from src.modules.ui_component_base import UIComponentBase, ComponentState, ui_component_manager
+    from src.core.components.ui_component_base import UIComponentBase, ComponentState, ui_component_manager
 
 
 class UIPluginLoadError(Exception):

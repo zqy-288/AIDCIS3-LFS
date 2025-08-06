@@ -588,6 +588,9 @@ class ReportGenerationPage(QWidget):
         self.history_manager = ReportHistoryManager()
         self.generation_worker = None
         
+        # 添加初始化状态标志，避免重复数据收集
+        self._is_initializing = True
+        
         # 导入并初始化模板管理器
         try:
             from src.pages.report_generation_p4.generators.report_template_manager import get_template_manager
@@ -601,6 +604,9 @@ class ReportGenerationPage(QWidget):
         self._init_ui()
         self._init_connections()
         self._load_initial_data()
+        
+        # 初始化完成，允许正常数据收集
+        self._is_initializing = False
     
     def _init_ui(self):
         """初始化用户界面"""
@@ -869,6 +875,10 @@ class ReportGenerationPage(QWidget):
         if not self.template_manager or not template_name:
             return
         
+        # 初始化期间跳过数据收集，避免重复处理
+        if getattr(self, '_is_initializing', False):
+            return
+        
         try:
             # 获取选中的模板ID
             template_id = self.template_combo.currentData()
@@ -897,7 +907,9 @@ class ReportGenerationPage(QWidget):
         """工件选择改变"""
         if workpiece_id:
             self.current_workpiece_id = workpiece_id
-            self._load_workpiece_data(workpiece_id)
+            # 初始化期间跳过数据收集，避免重复处理
+            if not getattr(self, '_is_initializing', False):
+                self._load_workpiece_data(workpiece_id)
     
     def _load_workpiece_data(self, workpiece_id: str):
         """加载工件数据预览"""

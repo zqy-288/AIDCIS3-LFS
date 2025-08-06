@@ -244,7 +244,7 @@ class UnifiedSectorAdapter(QObject):
     # 兼容性接口方法（与原SectorManager接口兼容）
     # =================================
     
-    def update_hole_status(self, hole_id: str, new_status: HoleStatus):
+    def update_hole_status(self, hole_id: str, new_status: HoleStatus, color_override=None):
         """更新孔位状态并重新计算区域进度"""
         if hole_id not in self.sector_assignments:
             return

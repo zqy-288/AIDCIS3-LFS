@@ -173,10 +173,30 @@ class MainWindowController(QObject):
     def _on_shared_data_changed(self, data_type: str, data: Any):
         """处理共享数据变化（P1页面UI状态同步）"""
         if data_type == "hole_collection" and data:
-            self.logger.info(f"P1 received hole_collection: {len(data.holes)} holes")
+            # 避免重复处理相同数据
+            current_count = len(data.holes) if data.holes else 0
+            last_count = self.ui_state.get('hole_count', -1)
+            
+            # 数据未变化时跳过处理
+            if last_count == current_count:
+                return
+                
+            # 检查数据指纹，进一步避免重复处理
+            if current_count > 0 and hasattr(data, 'holes') and data.holes:
+                # 使用前几个孔位ID作为指纹
+                hole_ids = list(data.holes.keys())[:3]
+                current_fingerprint = str(sorted(hole_ids))
+                last_fingerprint = self.ui_state.get('hole_fingerprint', '')
+                
+                if last_fingerprint == current_fingerprint:
+                    return  # 数据指纹相同，跳过处理
+                
+                self.ui_state['hole_fingerprint'] = current_fingerprint
+            
+            self.logger.info(f"P1 received hole_collection: {current_count} holes")
             # 更新P1页面UI状态
-            self.ui_state['hole_count'] = len(data.holes)
-            # 发射文件加载信号，通知P1页面UI更新
+            self.ui_state['hole_count'] = current_count
+            # 只在数据确实变化时发射信号
             self.file_loaded.emit("CAP1000.dxf")
     
     def _on_business_operation_completed(self, operation_name: str, result: Dict[str, Any]):

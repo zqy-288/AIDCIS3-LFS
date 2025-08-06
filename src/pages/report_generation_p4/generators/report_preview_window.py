@@ -263,7 +263,7 @@ class ReportPreviewWindow(QDialog):
         """加载预览内容"""
         try:
             # 使用独立的预览生成器
-            from src.modules.report_preview_generator import ReportPreviewGenerator
+            from src.pages.report_generation_p4.generators.report_preview_generator import ReportPreviewGenerator
             
             generator = ReportPreviewGenerator()
             self.preview_file_path = generator.generate_preview_file(

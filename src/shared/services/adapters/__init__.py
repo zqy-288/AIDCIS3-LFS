@@ -1,8 +1,7 @@
 """
 数据适配器服务模块
-在AIDCIS2的HoleData模型与现有数据库模型之间进行转换
 """
 
-from .data_model_adapter import DataAdapter
+# 此模块暂时为空，相关适配器已移除
 
-__all__ = ['DataAdapter']
+__all__ = []

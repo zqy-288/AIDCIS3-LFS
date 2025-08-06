@@ -60,12 +60,6 @@ cover/
 *.mo
 *.pot
 
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
 # Flask stuff:
 instance/
 .webassets-cache
@@ -187,14 +181,6 @@ tmp/
 temp_removed_files/
 Archive/
 
-# BatchDataManager generated files (too many, temporary simulation data)
-data_batches/
-**/data_batches/
-*/data_batches/
-Data/**/data_batches/
-# Note: Keep src/data/ tracked for important data files, only ignore temporary batches
-src/data/data_batches/
-
 # Test files
 test_*.py
 verify_*.py
@@ -239,12 +225,6 @@ reports/*/*.xlsx
 .directory
 .fuse_hidden*
 .nfs*
-
-# Application specific
-副本/
-新功能实现总结.md
-检测功能逻辑说明.md
-模拟进度功能测试指南.md
 
 # Virtual environments (重要!)
 .venv/
@@ -339,21 +319,6 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Documentation organization - prevent scattered docs
-# All documentation should be in docs/ directory
-/*界面美化*.md
-/*完成报告*.md
-/*分析报告*.md
-/第*级*.md
-/异常*.md
-/按钮*.md
-src/*.md
-src/*界面*.md
-
 # Note: Database files are now tracked via Git LFS - removed from ignore list
 # /detection_system.db - REMOVED to allow tracking
 # src/detection_system.db - REMOVED to allow tracking
-
-# Prevent duplicate directories
-src/Archive/
-src/reports/

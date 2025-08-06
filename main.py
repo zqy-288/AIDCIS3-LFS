@@ -13,7 +13,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))  # 项目根目录
 src_dir = os.path.join(current_dir, 'src')
 sys.path.insert(0, current_dir)  # 项目根目录
 sys.path.insert(0, src_dir)      # src目录
-sys.path.insert(0, os.path.join(src_dir, 'modules'))  # src/modules目录
+# sys.path.insert(0, os.path.join(src_dir, 'modules'))  # src/modules目录已删除
 sys.path.insert(0, os.path.join(src_dir, 'core', 'hardware')) # src/core/hardware目录
 
 # 导入主窗口

@@ -62,7 +62,7 @@ class ReportPreviewGenerator:
         """生成PDF预览"""
         try:
             # 尝试使用现有的PDF生成器
-            from src.modules.pdf_report_generator import PDFReportGenerator
+            from src.pages.report_generation_p4.generators.pdf_report_generator import PDFReportGenerator
             from datetime import datetime
             
             # 创建临时文件

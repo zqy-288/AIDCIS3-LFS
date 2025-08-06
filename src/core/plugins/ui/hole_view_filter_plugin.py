@@ -14,7 +14,7 @@ import time
 # 基础架构导入
 from src.core.plugin_system.interfaces import IUIPlugin, PluginMetadata, PluginVersion
 from src.core.dependency_injection import injectable, ServiceLifetime, get_container
-from src.modules.ui_component_base import UIComponentBase, ui_component
+from src.core.components.ui_component_base import UIComponentBase, ui_component
 
 # 业务逻辑导入
 from src.shared.models.hole_data import HoleData, HoleCollection, HoleStatus

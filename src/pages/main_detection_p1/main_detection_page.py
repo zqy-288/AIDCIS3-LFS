@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
     QProgressBar, QGroupBox, QGraphicsView, QFrame, QLabel
 )
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, QTimer
 
 # 添加模块路径
 project_root = Path(__file__).parent.parent.parent.parent
@@ -78,6 +78,12 @@ class MainDetectionPage(QWidget):
         self.current_hole_data = []
         self.current_selected_region = None
         self.panorama_regions = []  # 全景图区域划分
+        
+        # 添加防抖动机制，避免重复更新
+        self._update_timer = QTimer()
+        self._update_timer.setSingleShot(True)
+        self._update_timer.timeout.connect(self._do_update_graphics_view)
+        self._pending_file_path = None
         
         self.setup_ui()
         
@@ -316,11 +322,17 @@ class MainDetectionPage(QWidget):
         self.logger.info(f"DXF文件加载完成: {file_path}")
         # 转发信号
         self.file_loaded.emit(file_path)
-        # 更新图形视图
-        self._update_graphics_view()
+        # 使用防抖动更新图形视图
+        self._pending_file_path = file_path
+        self._update_timer.start(100)  # 100ms防抖动延迟
             
     def _update_graphics_view(self):
-        """更新图形视图显示DXF数据"""
+        """更新图形视图显示DXF数据（防抖动入口）"""
+        # 使用防抖动机制
+        self._update_timer.start(100)  # 100ms防抖动延迟
+    
+    def _do_update_graphics_view(self):
+        """实际执行图形视图更新"""
         try:
             self.logger.info(f"🚀 [DEBUG] _update_graphics_view被调用")
             self.logger.info(f"🚀 [DEBUG] controller: {self.controller is not None}")
@@ -869,14 +881,19 @@ class MainDetectionPage(QWidget):
         """使用 SimulationController 进行模拟检测"""
         try:
             if self.simulation_controller:
-                if self.controller and self.controller.hole_collection:
+                # 从业务服务获取孔位数据
+                from src.shared.services import get_business_service
+                business_service = get_business_service()
+                hole_collection = business_service.get_hole_collection()
+                
+                if hole_collection and len(hole_collection) > 0:
                     # 检查是否已经在运行，避免双重启动
                     if hasattr(self.simulation_controller, 'is_running') and self.simulation_controller.is_running:
                         self.logger.warning("SimulationController 已在运行，避免重复启动")
                         return
                     
                     # 加载孔位数据到模拟控制器
-                    self.simulation_controller.load_hole_collection(self.controller.hole_collection)
+                    self.simulation_controller.load_hole_collection(hole_collection)
                     # 启动模拟（使用10秒定时器）
                     self.simulation_controller.start_simulation()
                     # 更新UI状态
