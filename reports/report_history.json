@@ -1,0 +1,16 @@
+[
+  {
+    "instance_id": "38ab2588-0fdd-44ad-bb4f-11508e3be779",
+    "workpiece_id": "CAP1000",
+    "template_id": "default",
+    "output_path": "reports\\CAP1000\\report_CAP1000_20250807_164231.pdf",
+    "status": "completed",
+    "created_at": "2025-08-07T16:42:22.810841",
+    "completed_at": "2025-08-07T16:42:34.270015",
+    "error_message": null,
+    "file_size": 4576986,
+    "file_exists": true,
+    "file_extension": ".pdf",
+    "relative_path": "CAP1000\\report_CAP1000_20250807_164231.pdf"
+  }
+]

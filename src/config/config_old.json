@@ -1,0 +1,40 @@
+{
+  "application": {
+    "name": "AIDCIS3-LFS",
+    "version": "3.0.0",
+    "debug": false,
+    "log_level": "INFO"
+  },
+  "database": {
+    "path": "Data/Databases/product_models.db",
+    "backup_enabled": true,
+    "backup_frequency": "daily"
+  },
+  "ui": {
+    "theme": "modern_tech_blue",
+    "font_size": 12,
+    "window_geometry": {
+      "width": 1400,
+      "height": 900
+    }
+  },
+  "plugins": {
+    "enabled": true,
+    "auto_load": false,
+    "plugin_directories": [
+      "src/plugins",
+      "src/core/plugins"
+    ]
+  },
+  "paths": {
+    "data_directory": "Data",
+    "temp_directory": "temp",
+    "reports_directory": "reports",
+    "logs_directory": "logs"
+  },
+  "performance": {
+    "enable_caching": true,
+    "max_cache_size": 100,
+    "lazy_loading": true
+  }
+}

@@ -1,0 +1,9 @@
+# P4 PDF报告支持依赖
+reportlab>=3.6.0
+pillow>=8.0.0
+matplotlib>=3.5.0
+numpy>=1.21.0
+
+# 可选：增强PDF功能
+pypdf2>=2.0.0
+weasyprint>=56.0

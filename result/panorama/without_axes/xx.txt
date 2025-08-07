@@ -1,0 +1,6 @@
+# YOLO format annotations
+# Generated on: 2025-08-03 19:13:07
+# Total annotations: 1
+# Format: class_id x_center y_center width height
+#
+0 0.259546 0.187500 0.073500 0.169271

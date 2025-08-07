@@ -1,0 +1,148 @@
+{
+  "migration_settings": {
+    "default_backup": true,
+    "validate_after_migration": true,
+    "rollback_on_failure": true,
+    "parallel_processing": false,
+    "timeout_seconds": 300,
+    "retry_count": 3
+  },
+  "version_mappings": {
+    "1.0.0": {
+      "description": "Initial release with basic functionality",
+      "database_version": "1.0.0",
+      "config_version": "1.0.0",
+      "required_dependencies": [
+        "PySide6>=6.9.1",
+        "numpy>=1.24.0"
+      ]
+    },
+    "1.1.0": {
+      "description": "Basic MVVM refactoring",
+      "database_version": "1.1.0",
+      "config_version": "1.1.0",
+      "required_dependencies": [
+        "PySide6>=6.9.1",
+        "numpy>=1.24.0",
+        "matplotlib>=3.7.0"
+      ],
+      "migration_tasks": [
+        "create_ui_configurations_table",
+        "create_view_states_table",
+        "add_mvvm_columns_to_workpieces"
+      ]
+    },
+    "1.2.0": {
+      "description": "Enhanced graphics components",
+      "database_version": "1.2.0",
+      "config_version": "1.2.0",
+      "required_dependencies": [
+        "PySide6>=6.9.1",
+        "numpy>=1.24.0",
+        "matplotlib>=3.7.0",
+        "pyqtgraph>=0.13.0",
+        "scipy>=1.10.0"
+      ],
+      "migration_tasks": [
+        "create_graphics_configurations_table",
+        "create_sector_management_table",
+        "add_graphics_columns_to_holes",
+        "migrate_sector_data"
+      ]
+    },
+    "2.0.0": {
+      "description": "Complete MVVM architecture with 96.6% code reduction",
+      "database_version": "2.0.0",
+      "config_version": "2.0.0",
+      "required_dependencies": [
+        "PySide6>=6.9.1",
+        "numpy>=1.24.0,<2.0.0",
+        "matplotlib>=3.7.0",
+        "pyqtgraph>=0.13.0",
+        "scipy>=1.10.0",
+        "SQLAlchemy>=2.0.0",
+        "pydantic>=2.0.0",
+        "structlog>=23.0.0"
+      ],
+      "migration_tasks": [
+        "create_service_registry_table",
+        "create_data_processing_chains_table",
+        "create_unified_id_mappings_table",
+        "add_mvvm_2_0_columns_to_workpieces",
+        "generate_unified_ids",
+        "setup_default_services",
+        "create_mvvm_config_files",
+        "migrate_file_structure"
+      ]
+    }
+  },
+  "backup_settings": {
+    "backup_directory": "backups",
+    "max_backups": 10,
+    "compression": true,
+    "include_patterns": [
+      "src/**",
+      "config/**",
+      "data/**",
+      "tests/**",
+      "pyproject.toml",
+      "pytest.ini",
+      "README.md"
+    ],
+    "exclude_patterns": [
+      "__pycache__/**",
+      "*.pyc",
+      "*.pyo",
+      ".git/**",
+      "logs/**",
+      "tmp/**"
+    ]
+  },
+  "validation_rules": {
+    "database": {
+      "check_schema": true,
+      "check_data_integrity": true,
+      "check_foreign_keys": true,
+      "performance_threshold": {
+        "query_time_ms": 1000,
+        "connection_time_ms": 100
+      }
+    },
+    "configuration": {
+      "validate_json": true,
+      "check_required_fields": true,
+      "validate_dependencies": true
+    },
+    "file_structure": {
+      "check_required_directories": true,
+      "check_permissions": true,
+      "validate_imports": true
+    }
+  },
+  "rollback_settings": {
+    "automatic_rollback": true,
+    "rollback_timeout": 60,
+    "preserve_user_data": true,
+    "notification_on_rollback": true
+  },
+  "notification_settings": {
+    "enable_notifications": true,
+    "notification_levels": ["error", "warning", "success"],
+    "log_file": "logs/migration.log",
+    "email_notifications": false,
+    "slack_webhook": null
+  },
+  "performance_settings": {
+    "enable_benchmarking": true,
+    "benchmark_before_migration": true,
+    "benchmark_after_migration": true,
+    "performance_comparison": true,
+    "generate_performance_report": true
+  },
+  "security_settings": {
+    "verify_checksums": true,
+    "backup_encryption": false,
+    "secure_temp_directory": true,
+    "audit_logging": true
+  }
+}

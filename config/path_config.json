@@ -1,0 +1,18 @@
+{
+  "hardware": {
+    "release_dir": "src/hardware/Release",
+    "acquisition_program": "LEConfocalDemo.exe",
+    "config_files": [
+      "ConfocalDLLCfg.ini",
+      "KSJApi.ini"
+    ]
+  },
+  "data": {
+    "archive_base": "Data/CAP1000",
+    "csv_output": "output",
+    "logs": "logs"
+  },
+  "scripts": {
+    "remote_launcher": "remote_launcher.py"
+  }
+}
